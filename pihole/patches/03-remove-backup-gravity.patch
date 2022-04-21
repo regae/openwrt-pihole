@@ -1,0 +1,54 @@
+--- a/gravity.sh
++++ b/gravity.sh
+@@ -40,8 +40,6 @@ domainsExtension="domains"
+ # have changed
+ gravityDBfile="${GRAVITYDB}"
+ gravityTEMPfile="${GRAVITYDB}_temp"
+-gravityDIR="$(dirname -- "${gravityDBfile}")"
+-gravityOLDfile="${gravityDIR}/gravity_old.db"
+ 
+ BLOCKINGMODE="$(uci -q get pihole.@pihole[0].blockingmode)"
+ if [[ -z "${BLOCKINGMODE}" ]] ; then
+@@ -79,29 +77,8 @@ gravity_swap_databases() {
+   fi
+   echo -e "${OVER}  ${TICK} ${str}"
+ 
+-  str="Swapping databases"
+-  echo -ne "  ${INFO} ${str}..."
+-
+-  # Swap databases and remove or conditionally rename old database
+-  # Number of available blocks on disk
+-  availableBlocks=$(stat -f --format "%a" "${gravityDIR}")
+-  # Number of blocks, used by gravity.db
+-  gravityBlocks=$(stat --format "%b" ${gravityDBfile})
+-  # Only keep the old database if available disk space is at least twice the size of the existing gravity.db.
+-  # Better be safe than sorry...
+-  oldAvail=false
+-  if [ "${availableBlocks}" -gt "$((gravityBlocks * 2))" ] && [ -f "${gravityDBfile}" ]; then
+-    oldAvail=true
+-    mv "${gravityDBfile}" "${gravityOLDfile}"
+-  else
+-    rm "${gravityDBfile}"
+-  fi
++  rm "${gravityDBfile}"
+   mv "${gravityTEMPfile}" "${gravityDBfile}"
+-  echo -e "${OVER}  ${TICK} ${str}"
+-
+-  if $oldAvail; then
+-    echo -e "  ${TICK} The old database remains available."
+-  fi
+ }
+ 
+ # Update timestamp when the gravity table was last updated successfully
+@@ -936,11 +913,6 @@ for var in "$@"; do
+   esac
+ done
+ 
+-# Remove OLD (backup) gravity file, if it exists
+-if [[ -f "${gravityOLDfile}" ]]; then
+-  rm "${gravityOLDfile}"
+-fi
+-
+ # Trap Ctrl-C
+ gravity_Trap
+ 

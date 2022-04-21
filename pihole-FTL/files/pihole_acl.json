@@ -1,0 +1,12 @@
+{
+	"user": "pihole",
+	"publish": [ "dnsmasq" ],
+	"access": {
+		"hotplug.dhcp": {
+			"methods": [ "call" ]
+		},
+		"hotplug.neigh": {
+			"methods": [ "call" ]
+		}
+	}
+}

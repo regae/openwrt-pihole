@@ -1,0 +1,361 @@
+--- a/src/api/api.c
++++ b/src/api/api.c
+@@ -1184,51 +1184,13 @@ void getClientID(const int *sock)
+ 
+ void getVersion(const int *sock)
+ {
+-	const char *commit = GIT_HASH;
+-	const char *tag = GIT_TAG;
+-	const char *version = get_FTL_version();
+-
+-	// Extract first 7 characters of the hash
+-	char hash[8] = { 0 };
+-	memcpy(hash, commit, min((size_t)7, strlen(commit)));
+-
+-	if(strlen(tag) > 1) {
+-		if(istelnet[*sock])
+-			ssend(
+-					*sock,
+-					"version %s\ntag %s\nbranch %s\nhash %s\ndate %s\n",
+-					version, tag, GIT_BRANCH, hash, GIT_DATE
+-			);
+-		else {
+-			if(!pack_str32(*sock, version) ||
+-					!pack_str32(*sock, (char *) tag) ||
+-					!pack_str32(*sock, GIT_BRANCH) ||
+-					!pack_str32(*sock, hash) ||
+-					!pack_str32(*sock, GIT_DATE))
+-				return;
+-		}
+-	}
+-	else {
+-		if(istelnet[*sock])
+-			ssend(
+-					*sock,
+-					"version vDev-%s\ntag %s\nbranch %s\nhash %s\ndate %s\n",
+-					hash, tag, GIT_BRANCH, hash, GIT_DATE
+-			);
+-		else {
+-			char *hashVersion = calloc(6 + strlen(hash), sizeof(char));
+-			if(hashVersion == NULL) return;
+-			sprintf(hashVersion, "vDev-%s", hash);
+-
+-			if(!pack_str32(*sock, hashVersion) ||
+-					!pack_str32(*sock, (char *) tag) ||
+-					!pack_str32(*sock, GIT_BRANCH) ||
+-					!pack_str32(*sock, hash) ||
+-					!pack_str32(*sock, GIT_DATE))
+-				return;
+-
+-			free(hashVersion);
+-		}
++	if(istelnet[*sock]) {
++		ssend(*sock,
++				"version %s\nbranch %s\nbuild date %s\n",
++				FTL_VERSION, FTL_BRANCH, FTL_DATE);
++	} else {
++		if(!pack_str32(*sock, FTL_VERSION))
++			return;
+ 	}
+ }
+ 
+--- a/src/args.c
++++ b/src/args.c
+@@ -233,7 +233,7 @@ void parse_args(int argc, char* argv[])
+ 		   strcmp(argv[i], "version") == 0 ||
+ 		   strcmp(argv[i], "--version") == 0)
+ 		{
+-			printf("%s\n", get_FTL_version());
++			printf("%s\n", FTL_VERSION);
+ 			exit(EXIT_SUCCESS);
+ 		}
+ 
+@@ -242,9 +242,9 @@ void parse_args(int argc, char* argv[])
+ 		{
+ 			// Print FTL version
+ 			printf("****************************** FTL **********************************\n");
+-			printf("Version:         %s\n", get_FTL_version());
+-			printf("Branch:          %s\n", GIT_BRANCH);
+-			printf("Commit:          %s (%s)\n", GIT_HASH, GIT_DATE);
++			printf("Version:         %s\n", FTL_VERSION);
++			printf("Branch:          %s\n", FTL_BRANCH);
++			printf("Build Date:      %s\n", FTL_DATE);
+ 			printf("Architecture:    %s\n", FTL_ARCH);
+ 			printf("Compiler:        %s\n\n", FTL_CC);
+ 
+@@ -272,14 +272,14 @@ void parse_args(int argc, char* argv[])
+ 		if(strcmp(argv[i], "-t") == 0 ||
+ 		   strcmp(argv[i], "tag") == 0)
+ 		{
+-			printf("%s\n",GIT_TAG);
++			printf("%s\n", FTL_VERSION);
+ 			exit(EXIT_SUCCESS);
+ 		}
+ 
+ 		if(strcmp(argv[i], "-b") == 0 ||
+ 		   strcmp(argv[i], "branch") == 0)
+ 		{
+-			printf("%s\n",GIT_BRANCH);
++			printf("%s\n", FTL_BRANCH);
+ 			exit(EXIT_SUCCESS);
+ 		}
+ 
+--- a/src/dnsmasq/CMakeLists.txt
++++ b/src/dnsmasq/CMakeLists.txt
+@@ -56,3 +56,4 @@ add_library(dnsmasq OBJECT ${sources})
+ target_compile_definitions(dnsmasq PRIVATE VERSION=\"${DNSMASQ_VERSION}\")
+ target_compile_options(dnsmasq PRIVATE -Wno-maybe-uninitialized)
+ target_include_directories(dnsmasq PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
++add_dependencies(dnsmasq gen_version)
+--- a/src/dnsmasq/option.c
++++ b/src/dnsmasq/option.c
+@@ -21,6 +21,7 @@
+ 
+ /* Pi-hole modification */
+ #include "../log.h"
++#include "../version.h"
+ /************************/
+ 
+ static volatile int mem_recover = 0;
+@@ -5507,7 +5508,7 @@ void read_opts(int argc, char **argv, ch
+   /************************/
+ #endif
+   /******** Pi-hole modification ********/
+-  add_txt("version.FTL", (char*)get_FTL_version(), 0 );
++  add_txt("version.FTL", FTL_VERSION, 0 );
+   /**************************************/
+ 
+   while (1) 
+--- a/src/gen_version.cmake
++++ b/src/gen_version.cmake
+@@ -8,69 +8,32 @@
+ # This file is copyright under the latest version of the EUPL.
+ # Please see LICENSE file for your rights under this license.
+ 
+-if(DEFINED ENV{GIT_BRANCH})
+-    set(GIT_BRANCH "$ENV{GIT_BRANCH}")
++if(DEFINED ENV{FTL_DATE})
++    set(FTL_DATE "$ENV{FTL_DATE}")
+ else()
+     execute_process(
+-            COMMAND           bash -c "git branch | sed -n 's/^\\* //p'"
++            COMMAND           bash -c "date -u \"+%Y-%m-%d %H:%M:%S %z\""
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_BRANCH
++            OUTPUT_VARIABLE   FTL_DATE
+             ERROR_QUIET
+             OUTPUT_STRIP_TRAILING_WHITESPACE
+     )
+ endif()
+ 
+-if(DEFINED ENV{GIT_HASH})
+-    set(GIT_HASH "$ENV{GIT_HASH}")
++if(DEFINED ENV{FTL_VERSION})
++    set(FTL_VERSION "$ENV{FTL_VERSION}")
+ else()
+-    execute_process(
+-            COMMAND           git --no-pager describe --always --dirty
+-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_HASH
+-            ERROR_QUIET
+-            OUTPUT_STRIP_TRAILING_WHITESPACE
+-    )
+-endif()
+-
+-if(DEFINED ENV{GIT_VERSION})
+-    set(GIT_VERSION "$ENV{GIT_VERSION}")
+-else()
+-    execute_process(
+-            COMMAND           git --no-pager describe --tags --always --dirty
+-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_VERSION
+-            ERROR_QUIET
+-            OUTPUT_STRIP_TRAILING_WHITESPACE
+-    )
++    set(FTL_VERSION "Unknown")
+ endif()
+ 
+-if(DEFINED ENV{GIT_DATE})
+-    set(GIT_DATE "$ENV{GIT_DATE}")
++if(DEFINED ENV{FTL_BRANCH})
++    set(FTL_BRANCH "$ENV{FTL_BRANCH}")
+ else()
+-    execute_process(
+-            COMMAND           bash -c "git --no-pager show --date=short --format=\"%ai\" --name-only | head -n 1"
+-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_DATE
+-            ERROR_QUIET
+-            OUTPUT_STRIP_TRAILING_WHITESPACE
+-    )
+-endif()
+-
+-if(DEFINED ENV{GIT_TAG})
+-    set(GIT_TAG "$ENV{GIT_TAG}")
+-else()
+-    execute_process(
+-            COMMAND           git describe --tags --abbrev=0
+-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_TAG
+-            ERROR_QUIET
+-            OUTPUT_STRIP_TRAILING_WHITESPACE
+-    )
++    set(FTL_BRANCH "Unknown")
+ endif()
+ 
+-# If CI_ARCH is unset (local compilation), ask uname -m and add locally compiled comment
+-if(DEFINED ENV{CI_ARCH})
+-    set(FTL_ARCH "$ENV{CI_ARCH} (compiled on CI)")
++if(DEFINED ENV{FTL_ARCH})
++    set(FTL_ARCH "$ENV{FTL_ARCH} (OpenWRT)")
+ else()
+     execute_process(
+             COMMAND           uname -m
+@@ -90,12 +53,9 @@ execute_process(
+ )
+ 
+ message("Building Pi-hole FTL daemon")
+-message("   - Branch: ${GIT_BRANCH}")
++message("   - Branch: ${FTL_BRANCH}")
+ message("   - Architecture: ${FTL_ARCH}")
+-message("   - Version: ${GIT_VERSION}")
+-message("   - Tag: ${GIT_TAG}")
+-message("   - Hash: ${GIT_HASH}")
+-message("   - Commit date: ${GIT_DATE}")
++message("   - Version: ${FTL_VERSION}")
+ 
+ # configure the version file, but output to a temporary location
+ configure_file(
+--- a/src/log.c
++++ b/src/log.c
+@@ -274,10 +274,9 @@ void log_counter_info(void)
+ 
+ void log_FTL_version(const bool crashreport)
+ {
+-	logg("FTL branch: %s", GIT_BRANCH);
+-	logg("FTL version: %s", get_FTL_version());
+-	logg("FTL commit: %s", GIT_HASH);
+-	logg("FTL date: %s", GIT_DATE);
++	logg("FTL branch: %s", FTL_BRANCH);
++	logg("FTL version: %s", FTL_VERSION);
++	logg("FTL build date: %s", FTL_DATE);
+ 	if(crashreport)
+ 	{
+ 		char *username_now = getUserName();
+@@ -289,38 +288,6 @@ void log_FTL_version(const bool crashrep
+ 	logg("Compiled for %s using %s", FTL_ARCH, FTL_CC);
+ }
+ 
+-static char *FTLversion = NULL;
+-const char __attribute__ ((malloc)) *get_FTL_version(void)
+-{
+-	// Obtain FTL version if not already determined
+-	if(FTLversion == NULL)
+-	{
+-		if(strlen(GIT_TAG) > 1 )
+-		{
+-			if (strlen(GIT_VERSION) > 1)
+-			{
+-				// Copy version string if this is a tagged release
+-				FTLversion = strdup(GIT_VERSION);
+-			}
+-
+-		}
+-		else if(strlen(GIT_HASH) > 0)
+-		{
+-			// Build special version string when there is a hash
+-			FTLversion = calloc(13, sizeof(char));
+-			// Build version by appending 7 characters of the hash to "vDev-"
+-			snprintf(FTLversion, 13, "vDev-%.7s", GIT_HASH);
+-		}
+-		else
+-		{
+-			// Fallback for tarball build, etc. without any GIT subsystem
+-			FTLversion = strdup("UNKNOWN (not a GIT build)");
+-		}
+-	}
+-
+-	return FTLversion;
+-}
+-
+ const char __attribute__ ((const)) *get_ordinal_suffix(unsigned int number)
+ {
+ 	if((number % 100) > 9 && (number % 100) < 20)
+@@ -450,7 +417,7 @@ const char * __attribute__ ((pure)) shor
+ 
+ void print_FTL_version(void)
+ {
+-    printf("Pi-hole FTL %s\n", get_FTL_version());
++    printf("Pi-hole FTL %s\n", FTL_VERSION);
+ }
+ 
+ // Skip leading string if found
+--- a/src/log.h
++++ b/src/log.h
+@@ -18,7 +18,6 @@ void log_counter_info(void);
+ void format_memory_size(char prefix[2], unsigned long long int bytes,
+                         double * const formated);
+ void format_time(char buffer[42], unsigned long seconds, double milliseconds);
+-const char *get_FTL_version(void) __attribute__ ((malloc));
+ void log_FTL_version(bool crashreport);
+ void get_timestr(char * const timestring, const time_t timein, const bool millis);
+ const char *get_ordinal_suffix(unsigned int number) __attribute__ ((const));
+--- a/src/lua/CMakeLists.txt
++++ b/src/lua/CMakeLists.txt
+@@ -85,3 +85,4 @@ else()
+ endif()
+ 
+ target_include_directories(lua PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
++add_dependencies(lua gen_version)
+--- a/src/lua/ftl_lua.c
++++ b/src/lua/ftl_lua.c
+@@ -12,15 +12,14 @@
+ #include "ftl_lua.h"
+ // struct luaL_Reg
+ #include "lauxlib.h"
+-// get_FTL_version()
+-#include "../log.h"
++#include "../version.h"
+ #include <readline/history.h>
+ #include <wordexp.h>
+ 
+ int run_lua_interpreter(const int argc, char **argv, bool dnsmasq_debug)
+ {
+ 	if(argc == 1) // No arguments after this one
+-		printf("Pi-hole FTL %s\n", get_FTL_version());
++		printf("Pi-hole FTL %s\n", FTL_VERSION);
+ #if defined(LUA_USE_READLINE)
+ 	wordexp_t word;
+ 	wordexp(LUA_HISTORY_FILE, &word, WRDE_NOCMD);
+@@ -77,13 +76,13 @@ int run_lua_interpreter(const int argc,
+ int run_luac(const int argc, char **argv)
+ {
+ 	if(argc == 1) // No arguments after this one
+-		printf("Pi-hole FTL %s\n", get_FTL_version());
++		printf("Pi-hole FTL %s\n", FTL_VERSION);
+ 	return luac_main(argc, argv);
+ }
+ 
+ // pihole.ftl_version()
+ static int pihole_ftl_version(lua_State *L) {
+-	lua_pushstring(L, get_FTL_version());
++	lua_pushstring(L, FTL_VERSION);
+ 	return 1;
+ }
+ 
+--- a/src/version.h.in
++++ b/src/version.h.in
+@@ -1,11 +1,9 @@
+ #ifndef VERSION_H
+ #define VERSION_H
+ 
+-#define GIT_VERSION "@GIT_VERSION@"
+-#define GIT_DATE "@GIT_DATE@"
+-#define GIT_BRANCH "@GIT_BRANCH@"
+-#define GIT_TAG "@GIT_TAG@"
+-#define GIT_HASH "@GIT_HASH@"
++#define FTL_VERSION "@FTL_VERSION@"
++#define FTL_DATE "@FTL_DATE@"
++#define FTL_BRANCH "@FTL_BRANCH@"
+ #define FTL_ARCH "@FTL_ARCH@"
+ #define FTL_CC "@FTL_CC@"
+ 

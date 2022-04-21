@@ -1,0 +1,106 @@
+--- a/src/config.c
++++ b/src/config.c
+@@ -12,8 +12,6 @@
+ #include "config.h"
+ #include "setupVars.h"
+ #include "log.h"
+-// nice()
+-#include <unistd.h>
+ // saveport()
+ #include "api/socket.h"
+ // argv_dnsmasq
+@@ -48,7 +46,6 @@ static size_t size = 0;
+ // Private prototypes
+ static char *parse_FTLconf(FILE *fp, const char * key);
+ static void getpath(FILE* fp, const char *option, const char *defaultloc, char **pointer);
+-static void set_nice(const char *buffer, int fallback);
+ static bool read_bool(const char *option, const bool fallback);
+ 
+ void init_config_mutex(void)
+@@ -397,20 +394,6 @@ void read_FTLconf(void)
+ 	else
+ 		logg("   BLOCK_ESNI: Disabled");
+ 
+-	// NICE
+-	// Shall we change the nice of the current process?
+-	// defaults to: -10 (can be disabled by setting value to -999)
+-	//
+-	// The nice value is an attribute that can be used to influence the CPU
+-	// scheduler to favor or disfavor a process in scheduling decisions.
+-	//
+-	// The range of the nice value varies across UNIX systems. On modern Linux,
+-	// the range is -20 (high priority) to +19 (low priority). On some other
+-	// systems, the range is -20..20. Very early Linux kernels (Before Linux
+-	// 2.0) had the range -infinity..15.
+-	buffer = parse_FTLconf(fp, "NICE");
+-	set_nice(buffer, -10);
+-
+ 	// MAXNETAGE
+ 	// IP addresses (and associated host names) older than the specified number
+ 	// of days are removed to avoid dead entries in the network overview table
+@@ -1142,49 +1125,6 @@ void read_debuging_settings(FILE *fp)
+ 		fclose(fp);
+ }
+ 
+-
+-static void set_nice(const char *buffer, const int fallback)
+-{
+-	int value, nice_set, nice_target = fallback;
+-
+-	// Try to read niceness value
+-	// Attempts to set a nice value outside the range are clamped to the range.
+-	if(buffer != NULL && sscanf(buffer, "%i", &value) == 1)
+-		nice_target = value;
+-
+-	// Skip setting niceness if set to -999
+-	if(nice_target == -999)
+-	{
+-		logg("   NICE: Not changing nice value");
+-		return;
+-	}
+-
+-	// Adjust if != -999
+-	errno = 0;
+-	if((nice_set = nice(nice_target)) == -1 &&
+-	   errno == EPERM)
+-	{
+-		// ERROR EPERM: The calling process attempted to increase its priority
+-		// by supplying a negative value but has insufficient privileges.
+-		// On Linux, the RLIMIT_NICE resource limit can be used to define a limit to
+-		// which an unprivileged process's nice value can be raised. We are not
+-		// affected by this limit when pihole-FTL is running with CAP_SYS_NICE
+-		logg("   NICE: Cannot change niceness to %d (permission denied)",
+-		     nice_target);
+-		return;
+-	}
+-	if(nice_set == nice_target)
+-	{
+-		logg("   NICE: Set process niceness to %d%s",
+-		     nice_set, (nice_set == fallback) ? " (default)" : "");
+-	}
+-	else
+-	{
+-		logg("   NICE: Set process niceness to %d (asked for %d)",
+-		     nice_set, nice_target);
+-	}
+-}
+-
+ static bool read_bool(const char *option, const bool fallback)
+ {
+ 	if(option == NULL)
+--- a/src/capabilities.c
++++ b/src/capabilities.c
+@@ -87,13 +87,6 @@ bool check_capabilities(void)
+ 		logg("WARNING: Required Linux capability CAP_NET_BIND_SERVICE not available");
+ 		capabilities_okay = false;
+ 	}
+-	if (!(data->permitted & (1 << CAP_SYS_NICE)) ||
+-	    !(data->effective & (1 << CAP_SYS_NICE)))
+-	{
+-		// Necessary for setting higher process priority through nice
+-		logg("WARNING: Required Linux capability CAP_SYS_NICE not available");
+-		capabilities_okay = false;
+-	}
+ 	if (!(data->permitted & (1 << CAP_CHOWN)) ||
+ 	    !(data->effective & (1 << CAP_CHOWN)))
+ 	{

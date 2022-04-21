@@ -1,0 +1,12 @@
+TIMEVALIDFILE="/var/state/piholesec"
+
+[ "$ACTION" = "stratum" ] || exit 0
+
+[ -f "$TIMEVALIDFILE" ] || {
+	echo "ntpd says time is valid" >$TIMEVALIDFILE
+	/etc/init.d/pihole-FTL enabled && {
+		initscript=pihole-FTL
+		. /lib/functions/procd.sh
+		procd_send_signal pihole-FTL '*' INT
+	}
+}

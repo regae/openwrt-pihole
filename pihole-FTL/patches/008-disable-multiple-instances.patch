@@ -1,0 +1,75 @@
+--- a/src/main.c
++++ b/src/main.c
+@@ -48,6 +48,13 @@ int main (int argc, char* argv[])
+ 	// to have arg{c,v}_dnsmasq initialized
+ 	parse_args(argc, argv);
+ 
++	// Check if there is already a running FTL process
++	if(check_running_FTL()) {
++		printf("pihole-FTL is already running.\n");
++		syslog(LOG_ERR, "pihole-FTL is already running.\n");
++		return EXIT_FAILURE;
++	}
++
+ 	// init uci
+ 	uci_init();
+ 
+@@ -65,8 +72,6 @@ int main (int argc, char* argv[])
+ 	if(!init_shmem(true))
+ 	{
+ 		logg("Initialization of shared memory failed.");
+-		// Check if there is already a running FTL process
+-		check_running_FTL();
+ 		return EXIT_FAILURE;
+ 	}
+ 
+--- a/src/procps.c
++++ b/src/procps.c
+@@ -92,8 +92,6 @@ bool check_running_FTL(void)
+ 
+ 	// Loop over entries in /proc
+ 	// This is much more efficient than iterating over all possible PIDs
+-	pid_t last_pid = 0;
+-	size_t last_len = 0u;
+ 	while ((entry = readdir(dirPos)) != NULL)
+ 	{
+ 		// We are only interested in subdirectories of /proc
+@@ -134,23 +132,6 @@ bool check_running_FTL(void)
+ 		if(!process_running)
+ 		{
+ 			process_running = true;
+-			logg("HINT: %s is already running!", PROCESS_NAME);
+-		}
+-
+-		if(last_pid != ppid)
+-		{
+-			// Independent process, may be child of init/systemd
+-			logg("%s (%d) ──> %s (PID %d, started %s)",
+-			     ppid_name, ppid, name, pid, timestr);
+-			last_pid = pid;
+-			last_len = snprintf(NULL, 0, "%s (%d) ──> ", ppid_name, ppid);
+-		}
+-		else
+-		{
+-			// Process parented by the one we analyzed before,
+-			// highlight their relationship
+-			logg("%*s └─> %s (PID %d, started %s)",
+-			     (int)last_len, "", name, pid, timestr);
+ 		}
+ 	}
+ 
+--- a/src/shmem.c
++++ b/src/shmem.c
+@@ -606,6 +606,12 @@ static SharedMemory create_shm(const cha
+ 		.ptr = NULL
+ 	};
+ 
++	if(create_new) {
++		int ret = shm_unlink(name);
++		if(ret != 0 && errno != ENOENT)
++			logg("create_shm(): shm_unlink(\"%s\") failed: %s (%i)", name, strerror(errno), errno);
++	}
++
+ 	// O_RDWR: Open the object for read-write access (we need to be able to modify the locks)
+ 	// When creating a new shared memory object, we add to this
+ 	//   - O_CREAT: Create the shared memory object if it does not exist.

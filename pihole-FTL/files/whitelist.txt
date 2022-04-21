@@ -1,0 +1,4 @@
+s.ytimg.com
+s.youtube.com
+s2.youtube.com
+geolocation.onetrust.com

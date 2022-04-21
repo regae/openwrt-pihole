@@ -1,0 +1,14 @@
+{
+	"admin/network/pihole": {
+		"title": "FTL DNS",
+		"order": 25,
+		"action": {
+			"type": "view",
+			"path": "pihole"
+		},
+		"depends": {
+			"acl": [ "luci-app-pihole" ],
+			"uci": { "pihole": true }
+		}
+	}
+}
