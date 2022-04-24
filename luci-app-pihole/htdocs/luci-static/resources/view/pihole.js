@@ -37,7 +37,6 @@ return view.extend({
 			_('Block IPv4 Address'),
 			_('Override Replied IP address for blocked A queries.<br>Leave this empty, FTL will determines the address of the interface a query arrived on and uses this address.'));
 
-		o.optional = true;
 		o.rmempty = false;
 		o.depends('blockingmode', 'ip');
 		o.depends('blockingmode', 'ip-nodata-aaaa');
@@ -47,7 +46,6 @@ return view.extend({
 			_('Block IPv6 Address'),
 			_('Override Replied IP address for blocked AAAA queries.'));
 
-		o.optional = true;
 		o.rmempty = false;
 		o.depends('blockingmode', 'ip');
 		o.placeholder = '::1';
@@ -55,30 +53,30 @@ return view.extend({
 		o = s.taboption('dns', form.Flag, 'cname_deep_inspect',
 			_('CNAME Deep Inspect'),
 			_('Use this option to disable deep CNAME inspection. This might be beneficial for very low-end devices'));
-		o.optional = true;
+		o.rmempty = false;
 
 		o = s.taboption('dns', form.Flag, 'block_esni',
 			_('Block ESNI'),
 			_('This prevents the SNI from being used to determine which websites users are visiting.'));
-		o.optional = true;
+		o.rmempty = false;
 		o.default = o.enabled;
 
 		o = s.taboption('dns', form.Flag, 'edns0_ecs',
 			_('EDNS0 ECS'),
 			_('Should we overwrite the query source when client information is provided through EDNS0 client subnet (ECS) information? This allows Pi-hole to obtain client IPs even if they are hidden behind the NAT of a router.'));
-		o.optional = true;
+		o.rmempty = false;
 		o.default = o.enabled;
 
 		o = s.taboption('dns', form.Flag, 'mozilla_canary',
 			_('Mozilla Canary'),
 			_('Should Pi-hole always replies with NXDOMAIN to A and AAAA queries of use-application-dns.net to disable Firefox automatic DNS-over-HTTP?'));
-		o.optional = true;
+		o.rmempty = false;
 		o.default = o.enabled;
 
 		o = s.taboption('dns', form.Flag, 'block_icloud_pr',
 			_('Block iCloud Private Relay'),
 			_('Should Pi-hole always replies with NXDOMAIN to A and AAAA queries of mask.icloud.com and mask-h2.icloud.com to disable Apple\'s iCloud Private Relay to prevent Apple devices from bypassing Pi-hole?'));
-		o.optional = true;
+		o.rmempty = false;
 		o.default = o.enabled;
 
 		o = s.taboption('dns', form.Value, 'rate_limit',
@@ -100,14 +98,12 @@ return view.extend({
 			_('FTL Database'),
 			_('Specify the path and filename of FTL\'s SQLite3 long-term database.<br>Empty this value disables the database altogether.'));
 		o.optional = true;
-		o.rmempty = false;
 		o.placeholder = _('/var/lib/pihole/pihole-FTL.db');
 
 		o = s.taboption('database', form.Value, 'gravitydb',
 			_('Gravity Database'),
 			_('Specify path and filename of FTL\'s SQLite3 gravity database.<br>This database contains all domains relevant for Pi-hole\'s DNS blocking'));
 		o.optional = true;
-		o.rmempty = false;
 		o.placeholder = _('/var/lib/pihole/gravity.db');
 
 		o = s.taboption('database', form.Value, 'dbinterval',
@@ -120,14 +116,13 @@ return view.extend({
 		o = s.taboption('database', form.Flag, 'dbimport',
 			_('DB Import'),
 			_('Should FTL load information from the database on startup to be aware of the most recent history?'));
-		o.optional = true;
+		o.rmempty = false;
 		o.default = o.enabled;
 
 		o = s.taboption('database', form.Value, 'maxdbdays',
 			_('Database Days'),
 			_('How long should queries be stored in the database? Setting this to 0 disables the database'));
 		o.optional = true;
-		o.rmempty = false;
 		o.datatype = 'and(uinteger,min(1),max(365))';
 		o.placeholder = 365;
 
@@ -149,33 +144,37 @@ return view.extend({
 		o = s.taboption('statistic', form.Flag, 'analyze_only_a_and_aaaa',
 			_('Analyze Only A & AAAA'),
 			_('Should FTL only analyze A and AAAA queries?'));
-		o.optional = true;
+		o.rmempty = false;
 
 		o = s.taboption('statistic', form.Flag, 'aaaa_query_analysis',
 			_('Analyze AAAA Queries'),
 			_('Should FTL analyze AAAA queries? The DNS server will handle AAAA queries the same way, reglardless of this setting.'));
-		o.optional = true;
+		o.rmempty = false;
+		o.default = o.enabled;
 
 		o = s.taboption('statistic', form.Flag, 'show_dnssec',
 			_('Show DNSSEC'),
 			_('Should FTL analyze and include automatically generated DNSSEC queries in the Query Log?'));
-		o.optional = true;
+		o.rmempty = false;
 		o.default = o.disabled;
 
 		s.taboption('statistic', form.Flag, 'ignore_localhost',
 			_('Ignore Localhost'),
 			_('Should FTL ignore queries coming from the local machine?'));
-		o.optional = true;
+		o.rmempty = false;
+		o.default = o.enabled;
 
 		o = s.taboption('other', form.Flag, 'resolve_ipv4',
 			_('Resolve IPv4'),
 			_('Should FTL try to resolve IPv4 addresses to host names?'));
-		o.optional = true;
+		o.rmempty = false;
+		o.default = o.enabled;
 
-		o = s.taboption('other', form.Flag, 'resolve_ipv4',
+		o = s.taboption('other', form.Flag, 'resolve_ipv6',
 			_('Resolve IPv6'),
 			_('Should FTL try to resolve IPv6 addresses to host names?'));
-		o.optional = true;
+		o.rmempty = false;
+		o.default = o.enabled;
 
 		o = s.taboption('other', form.Value, 'ftlport',
 			_('FTL Socket Port'),
@@ -190,12 +189,12 @@ return view.extend({
 		o.value("hostnamefqdn", _("Hostname FQDN"));
 		o.value("hostname", _("Hostname"));
 		o.value("none", _("None"));
-		o.rmempty = false;
+		o.optional = true;
 		o.default = 'hostname';
 
-		o = s.taboption("other", form.ListValue, 'socket_listening', _("Socket Listening"), _("Listen only for local socket connections or permit all connections."));
-		o.value("local", _("Local"));
-		o.value("all", _("All"));
+		o = s.taboption("other", form.ListValue, 'socket_listen_local', _("Socket Listening"), _("Listen only for local socket connections or permit all connections."));
+		o.value("1", _("Local"));
+		o.value("0", _("All"));
 		o.default = 'local';
 
 		o = s.taboption("other", form.ListValue, 'refresh_hostnames', _("Refresh Hostnames"), _("Change how hourly PTR requests are made to check for changes in client and upstream server hostnames."));
@@ -208,19 +207,19 @@ return view.extend({
 		o = s.taboption('other', form.Flag, 'parse_arp_cache',
 			_('Parse ARP Cache'),
 			_('This setting can be used to disable ARP cache processing. When disabled, client identification and the network table will stop working reliably.'));
-		o.optional = true;
+		o.rmempty = false;
 		o.default = o.enabled;
 
 		o = s.taboption('other', form.Flag, 'names_from_netdb',
 			_('Names from Database'),
 			_('Control whether FTL should use the fallback option to try to obtain client names from network table.'));
-		o.optional = true;
+		o.rmempty = false;
 		o.default = o.enabled;
 
 		o = s.taboption('other', form.Flag, 'check_load',
 			_('Check System Load'),
 			_('FTL warns about excessive load when the 15 minute system load average exceeds the number of cores.'));
-		o.optional = true;
+		o.rmempty = false;
 		o.default = o.enabled;
 
 		o = s.taboption('other', form.Value, 'check_shmem',

@@ -476,7 +476,7 @@
 -
 -	if(buffer != NULL && strcasecmp(buffer, "yes") == 0)
 -		config.ignore_localhost = true;
-+	config.ignore_localhost = uci_read_bool("pihole", "ignore_localhost", false);
++	config.ignore_localhost = uci_read_bool("pihole", "ignore_localhost", true);
  
  	if(config.ignore_localhost)
  		logg("   IGNORE_LOCALHOST: Hide queries from localhost");
