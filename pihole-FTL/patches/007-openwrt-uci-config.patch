@@ -33,44 +33,25 @@
  	if(config.privacylevel >= PRIVACY_HIDE_DOMAINS) {
  		// Always send the total number of domains, but pretend it's 0
  		if(!istelnet[*sock])
-@@ -270,9 +270,9 @@ void getTopDomains(const char *client_me
+@@ -270,7 +270,7 @@ void getTopDomains(const char *client_me
  
  
  	// Get filter
 -	const char* filter = read_setupVarsconf("API_QUERY_LOG_SHOW");
-+	char* filter = NULL;
++	const char* filter = uci_get_string("pihole", "api_query_log_show");
  	bool showpermitted = true, showblocked = true;
--	if(filter != NULL)
-+	if(uci_get_value("pihole", "api_query_log_show", &filter) == 0)
+ 	if(filter != NULL)
  	{
- 		if((strcmp(filter, "permittedonly")) == 0)
- 			showblocked = false;
-@@ -290,8 +290,7 @@ void getTopDomains(const char *client_me
+@@ -290,7 +290,7 @@ void getTopDomains(const char *client_me
  	char * excludedomains = NULL;
  	if(!audit)
  	{
 -		excludedomains = read_setupVarsconf("API_EXCLUDE_DOMAINS");
--		if(excludedomains != NULL)
-+		if(uci_get_value("pihole", "api_exclude_domains", &excludedomains) == 0)
++		excludedomains = uci_get_string("pihole", "api_exclude_domains");
+ 		if(excludedomains != NULL)
  		{
  			getSetupVarsArray(excludedomains);
- 		}
-@@ -363,8 +362,13 @@ void getTopDomains(const char *client_me
- 			break;
- 	}
- 
--	if(excludedomains != NULL)
-+	if(excludedomains != NULL) {
- 		clearSetupVarsArray();
-+		free(excludedomains);
-+	}
-+
-+	if(filter != NULL)
-+		free(filter);
- }
- 
- void getTopClients(const char *client_message, const int *sock)
-@@ -372,7 +376,7 @@ void getTopClients(const char *client_me
+@@ -372,7 +372,7 @@ void getTopClients(const char *client_me
  	int temparray[counters->clients][2], count=10, num;
  
  	// Exit before processing any data if requested via config setting
@@ -79,30 +60,16 @@
  	if(config.privacylevel >= PRIVACY_HIDE_DOMAINS_CLIENTS) {
  		// Always send the total number of clients, but pretend it's 0
  		if(!istelnet[*sock])
-@@ -430,8 +434,8 @@ void getTopClients(const char *client_me
+@@ -430,7 +430,7 @@ void getTopClients(const char *client_me
  		qsort(temparray, counters->clients, sizeof(int[2]), cmpdesc);
  
  	// Get clients which the user doesn't want to see
 -	const char* excludeclients = read_setupVarsconf("API_EXCLUDE_CLIENTS");
--	if(excludeclients != NULL)
-+	char* excludeclients = NULL;
-+	if(uci_get_value("pihole", "api_exclude_clients", &excludeclients) == 0)
++	const char* excludeclients = uci_get_string("pihole", "api_exclude_clients");
+ 	if(excludeclients != NULL)
  	{
  		getSetupVarsArray(excludeclients);
- 	}
-@@ -494,8 +498,10 @@ void getTopClients(const char *client_me
- 			break;
- 	}
- 
--	if(excludeclients != NULL)
-+	if(excludeclients != NULL) {
- 		clearSetupVarsArray();
-+		free(excludeclients);
-+	}
- }
- 
- 
-@@ -688,7 +694,7 @@ void getQueryTypes(const int *sock)
+@@ -688,7 +688,7 @@ void getQueryTypes(const int *sock)
  void getAllQueries(const char *client_message, const int *sock)
  {
  	// Exit before processing any data if requested via config setting
@@ -111,28 +78,16 @@
  	if(config.privacylevel >= PRIVACY_MAXIMUM)
  		return;
  
-@@ -892,8 +898,8 @@ void getAllQueries(const char *client_me
+@@ -892,7 +892,7 @@ void getAllQueries(const char *client_me
  	}
  
  	// Get potentially existing filtering flags
 -	char * filter = read_setupVarsconf("API_QUERY_LOG_SHOW");
--	if(filter != NULL)
-+	char *filter = NULL;
-+	if(uci_get_value("pihole", "api_query_log_show", &filter) == 0)
++	const char* filter = uci_get_string("pihole", "api_query_log_show");
+ 	if(filter != NULL)
  	{
  		if((strcmp(filter, "permittedonly")) == 0)
- 			showblocked = false;
-@@ -1131,6 +1137,9 @@ void getAllQueries(const char *client_me
- 
- 	if(clientid_list != NULL)
- 		free(clientid_list);
-+
-+	if(filter != NULL)
-+		free(filter);
- }
- 
- void getRecentBlocked(const char *client_message, const int *sock)
-@@ -1220,7 +1229,7 @@ void getClientsOverTime(const int *sock)
+@@ -1220,7 +1220,7 @@ void getClientsOverTime(const int *sock)
  	int sendit = -1, until = OVERTIME_SLOTS;
  
  	// Exit before processing any data if requested via config setting
@@ -141,34 +96,16 @@
  	if(config.privacylevel >= PRIVACY_HIDE_DOMAINS_CLIENTS)
  		return;
  
-@@ -1248,14 +1257,14 @@ void getClientsOverTime(const int *sock)
+@@ -1248,7 +1248,7 @@ void getClientsOverTime(const int *sock)
  	}
  
  	// Get clients which the user doesn't want to see
 -	char * excludeclients = read_setupVarsconf("API_EXCLUDE_CLIENTS");
-+	char *excludeclients = NULL;
++	char * excludeclients = uci_get_string("pihole", "api_exclude_clients");
  	// Array of clients to be skipped in the output
  	// if skipclient[i] == true then this client should be hidden from
  	// returned data. We initialize it with false
- 	bool skipclient[counters->clients];
- 	memset(skipclient, false, counters->clients*sizeof(bool));
- 
--	if(excludeclients != NULL)
-+	if(uci_get_value("pihole", "api_exclude_clients", &excludeclients) == 0)
- 	{
- 		getSetupVarsArray(excludeclients);
- 
-@@ -1311,26 +1320,28 @@ void getClientsOverTime(const int *sock)
- 			pack_int32(*sock, -1);
- 	}
- 
--	if(excludeclients != NULL)
-+	if(excludeclients != NULL) {
- 		clearSetupVarsArray();
-+		free(excludeclients);
-+	}
- }
- 
+@@ -1318,12 +1318,12 @@ void getClientsOverTime(const int *sock)
  void getClientNames(const int *sock)
  {
  	// Exit before processing any data if requested via config setting
@@ -179,29 +116,11 @@
  
  	// Get clients which the user doesn't want to see
 -	char * excludeclients = read_setupVarsconf("API_EXCLUDE_CLIENTS");
-+	char * excludeclients = NULL;
++	char * excludeclients = uci_get_string("pihole", "api_exclude_clients");
  	// Array of clients to be skipped in the output
  	// if skipclient[i] == true then this client should be hidden from
  	// returned data. We initialize it with false
- 	bool skipclient[counters->clients];
- 	memset(skipclient, false, counters->clients*sizeof(bool));
- 
--	if(excludeclients != NULL)
-+	if(uci_get_value("pihole", "api_exclude_clients", &excludeclients) == 0)
- 	{
- 		getSetupVarsArray(excludeclients);
- 
-@@ -1376,14 +1387,16 @@ void getClientNames(const int *sock)
- 		}
- 	}
- 
--	if(excludeclients != NULL)
-+	if(excludeclients != NULL) {
- 		clearSetupVarsArray();
-+		free(excludeclients);
-+	}
- }
- 
+@@ -1383,7 +1383,7 @@ void getClientNames(const int *sock)
  void getUnknownQueries(const int *sock)
  {
  	// Exit before processing any data if requested via config setting
@@ -229,7 +148,7 @@
  	NULL,
  	NULL,
  	NULL,
-@@ -37,95 +34,30 @@ FTLFileNamesStruct FTLfiles = {
+@@ -37,46 +34,15 @@ FTLFileNamesStruct FTLfiles = {
  	NULL
  };
  
@@ -239,7 +158,7 @@
 -static char *conflinebuffer = NULL;
 -static size_t size = 0;
 -
--// Private prototypes
+ // Private prototypes
 -static char *parse_FTLconf(FILE *fp, const char * key);
 -static void getpath(FILE* fp, const char *option, const char *defaultloc, char **pointer);
 -static bool read_bool(const char *option, const bool fallback);
@@ -256,11 +175,12 @@
 -	// Destroy the lock attributes since we're done with it
 -	pthread_mutexattr_destroy(&lock_attr);
 -}
--
++static void getpath(const char *option, const char *defaultloc, char **pointer);
+ 
  void getLogFilePath(void)
  {
 -	FILE *fp;
--	char * buffer;
+ 	char * buffer;
 -
 -	// Try to open default config file. Use fallback if not found
 -	if( ((fp = fopen(FTLfiles.conf, "r")) == NULL) &&
@@ -270,42 +190,20 @@
 -		printf("Notice: Found no readable FTL config file\n");
 -	}
 -
--	// Read LOGFILE value if available
--	// defaults to: "/var/log/pihole-FTL.log"
+ 	// Read LOGFILE value if available
+ 	// defaults to: "/var/log/pihole-FTL.log"
 -	buffer = parse_FTLconf(fp, "LOGFILE");
--
--	errno = 0;
--	// Use sscanf() to obtain filename from config file parameter only if buffer != NULL
--	if(buffer == NULL || sscanf(buffer, "%127ms", &FTLfiles.log) != 1)
-+	if(uci_get_value("pihole", "logfile", &FTLfiles.log) != 0)
- 	{
- 		// Use standard path if no custom path was obtained from the config file
- 		FTLfiles.log = strdup("/var/log/pihole-FTL.log");
- 	}
--
--	// Test if memory allocation was successful
--	if(FTLfiles.log == NULL)
--	{
--		printf("FATAL: Allocating memory for FTLfiles.log failed (%s, %i). Exiting.",
--		       strerror(errno), errno);
--		exit(EXIT_FAILURE);
--	}
- 	else if(strlen(FTLfiles.log) == 0)
- 	{
- 		printf("Fatal: Log file location cannot be empty");
- 		exit(EXIT_FAILURE);
- 	}
--	else
--		logg("Using log file %s", FTLfiles.log);
-+
-+	logg("Using log file %s", FTLfiles.log);
- }
++	buffer = uci_get_string("pihole", "logfile");
+ 
+ 	errno = 0;
+ 	// Use sscanf() to obtain filename from config file parameter only if buffer != NULL
+@@ -104,28 +70,14 @@ void getLogFilePath(void)
  
  void read_FTLconf(void)
  {
 -	FILE *fp;
--	char * buffer;
--
+ 	char * buffer;
+ 
 -	// Try to open default config file. Use fallback if not found
 -	if( ((fp = fopen(FTLfiles.conf, "r")) == NULL) &&
 -	    ((fp = fopen(FTLfiles.snapConf, "r")) == NULL) &&
@@ -317,7 +215,7 @@
 -
  	// Parse lines in the config file
 -	logg("Starting config file parsing (%s)", FTLfiles.conf);
-+	logg("Starting config file parsing (/etc/config/pihole)");
++	logg("Parsing UCI Config started");
  
  	// SOCKET_LISTENING
  	// defaults to: listen only local
@@ -330,7 +228,7 @@
  
  	if(config.socket_listenlocal)
  		logg("   SOCKET_LISTENING: only local");
-@@ -134,8 +66,7 @@ void read_FTLconf(void)
+@@ -134,8 +86,7 @@ void read_FTLconf(void)
  
  	// AAAA_QUERY_ANALYSIS
  	// defaults to: Yes
@@ -340,36 +238,16 @@
  
  	if(config.analyze_AAAA)
  		logg("   AAAA_QUERY_ANALYSIS: Show AAAA queries");
-@@ -145,20 +76,16 @@ void read_FTLconf(void)
+@@ -145,7 +96,7 @@ void read_FTLconf(void)
  	// MAXDBDAYS
  	// defaults to: 365 days
  	config.maxDBdays = 365;
 -	buffer = parse_FTLconf(fp, "MAXDBDAYS");
++	buffer = uci_get_string("pihole", "maxdbdays");
  
--	int value = 0;
-+	int value = uci_get_value_int("pihole", "maxdbdays");
+ 	int value = 0;
  	const int maxdbdays_max = INT_MAX / 24 / 60 / 60;
--	if(buffer != NULL && sscanf(buffer, "%i", &value))
--	{
--		// Prevent possible overflow
--		if(value > maxdbdays_max)
--			value = maxdbdays_max;
--
--		// Only use valid values
--		if(value == -1 || value >= 0)
--			config.maxDBdays = value;
--	}
-+	// Prevent possible overflow
-+	if(value > maxdbdays_max)
-+		value = maxdbdays_max;
-+
-+	// Only use valid values
-+	if(value == -1 || value >= 0)
-+		config.maxDBdays = value;
- 
- 	if(config.maxDBdays == 0)
- 		logg("   MAXDBDAYS: --- (DB disabled)");
-@@ -169,8 +96,7 @@ void read_FTLconf(void)
+@@ -169,8 +120,7 @@ void read_FTLconf(void)
  
  	// RESOLVE_IPV6
  	// defaults to: Yes
@@ -379,7 +257,7 @@
  
  	if(config.resolveIPv6)
  		logg("   RESOLVE_IPV6: Resolve IPv6 addresses");
-@@ -179,8 +105,7 @@ void read_FTLconf(void)
+@@ -179,8 +129,7 @@ void read_FTLconf(void)
  
  	// RESOLVE_IPV4
  	// defaults to: Yes
@@ -389,41 +267,25 @@
  
  	if(config.resolveIPv4)
  		logg("   RESOLVE_IPV4: Resolve IPv4 addresses");
-@@ -192,16 +117,19 @@ void read_FTLconf(void)
+@@ -192,7 +141,7 @@ void read_FTLconf(void)
  	// this value can be a floating point number, e.g. "DBINTERVAL=0.5"
  	// defaults to: once per minute
  	config.DBinterval = 60;
 -	buffer = parse_FTLconf(fp, "DBINTERVAL");
-+	char *buffer = NULL;
++	buffer = uci_get_string("pihole", "dbinterval");
  
  	float fvalue = 0;
--	if(buffer != NULL && sscanf(buffer, "%f", &fvalue))
-+	if(uci_get_value("pihole", "dbinterval", &buffer) == 0 && sscanf(buffer, "%f", &fvalue)) {
- 		// check if the read value is
- 		// - larger than 0.1min (6sec), and
- 		// - smaller than 1440.0min (once a day)
- 		if(fvalue >= 0.1f && fvalue <= 1440.0f)
- 			config.DBinterval = (int)(fvalue * 60);
- 
-+		free(buffer);
-+	}
-+
- 	if(config.DBinterval == 60)
- 		logg("   DBINTERVAL: saving to DB file every minute");
- 	else
-@@ -209,10 +137,7 @@ void read_FTLconf(void)
+ 	if(buffer != NULL && sscanf(buffer, "%f", &fvalue))
+@@ -209,7 +158,7 @@ void read_FTLconf(void)
  
  	// DBFILE
  	// defaults to: "/etc/pihole/pihole-FTL.db"
 -	buffer = parse_FTLconf(fp, "DBFILE");
--
--	// Use sscanf() to obtain filename from config file parameter only if buffer != NULL
--	if(!(buffer != NULL && sscanf(buffer, "%127ms", &FTLfiles.FTL_db)))
-+	if(uci_get_value("pihole", "dbfile", &FTLfiles.FTL_db) != 0)
- 	{
- 		// Use standard path if no custom path was obtained from the config file
- 		FTLfiles.FTL_db = strdup("/etc/pihole/pihole-FTL.db");
-@@ -233,28 +158,23 @@ void read_FTLconf(void)
++	buffer = uci_get_string("pihole", "dbfile");
+ 
+ 	// Use sscanf() to obtain filename from config file parameter only if buffer != NULL
+ 	if(!(buffer != NULL && sscanf(buffer, "%127ms", &FTLfiles.FTL_db)))
+@@ -233,28 +182,23 @@ void read_FTLconf(void)
  	// On which port should FTL be listening?
  	// defaults to: 4711
  	config.port = 4711;
@@ -461,7 +323,7 @@
  	logg("   MAXLOGAGE: Importing up to %.1f hours of log data%s",
  	     (float)config.maxlogage/3600.0f, hint);
  
-@@ -269,16 +189,12 @@ void read_FTLconf(void)
+@@ -269,16 +213,12 @@ void read_FTLconf(void)
  	// PRIVACY_NOSTATS (4) = Disable any analysis on queries. No counters are available in this mode.
  	// defaults to: PRIVACY_SHOW_ALL
  	config.privacylevel = PRIVACY_SHOW_ALL;
@@ -480,7 +342,7 @@
  
  	if(config.ignore_localhost)
  		logg("   IGNORE_LOCALHOST: Hide queries from localhost");
-@@ -287,7 +203,7 @@ void read_FTLconf(void)
+@@ -287,7 +227,7 @@ void read_FTLconf(void)
  
  	// BLOCKINGMODE
  	// defaults to: MODE_IP
@@ -489,7 +351,7 @@
  	switch(config.blockingmode)
  	{
  		case MODE_NX:
-@@ -309,11 +225,7 @@ void read_FTLconf(void)
+@@ -309,11 +249,7 @@ void read_FTLconf(void)
  
  	// ANALYZE_ONLY_A_AND_AAAA
  	// defaults to: false
@@ -502,7 +364,7 @@
  
  	if(config.analyze_only_A_AAAA)
  		logg("   ANALYZE_ONLY_A_AND_AAAA: Enabled. Analyzing only A and AAAA queries");
-@@ -322,8 +234,7 @@ void read_FTLconf(void)
+@@ -322,8 +258,7 @@ void read_FTLconf(void)
  
  	// DBIMPORT
  	// defaults to: Yes
@@ -512,51 +374,33 @@
  
  	if(config.DBimport)
  	{
-@@ -335,28 +246,45 @@ void read_FTLconf(void)
+@@ -335,28 +270,27 @@ void read_FTLconf(void)
  		logg("   DBIMPORT: Not importing history from database");
  
  	// PIDFILE
 -	getpath(fp, "PIDFILE", "/run/pihole-FTL.pid", &FTLfiles.pid);
-+	if(uci_get_value("pihole", "pidfile", &FTLfiles.pid) != 0)
-+		FTLfiles.pid = strdup("/var/run/pihole/pihole-FTL.pid");
-+
-+	logg("   PIDFILE: Using %s", FTLfiles.pid);
++	getpath("pidfile", "/var/run/pihole/pihole-FTL.pid", &FTLfiles.pid);
  
  	// PORTFILE
 -	getpath(fp, "PORTFILE", "/run/pihole-FTL.port", &FTLfiles.port);
-+	if(uci_get_value("pihole", "portfile", &FTLfiles.port) != 0)
-+		FTLfiles.port = strdup("/var/run/pihole/pihole-FTL.port");
-+
-+	logg("   PORTFILE: Using %s", FTLfiles.port);
++	getpath("portfile", "/var/run/pihole/pihole-FTL.port", &FTLfiles.port);
  	saveport(config.port);
  
  	// SOCKETFILE
 -	getpath(fp, "SOCKETFILE", "/run/pihole/FTL.sock", &FTLfiles.socketfile);
-+	if(uci_get_value("pihole", "socketfile", &FTLfiles.socketfile) != 0)
-+		FTLfiles.socketfile = strdup("/var/run/pihole/FTL.sock");
-+
-+	logg("   SOCKETFILE: Using %s", FTLfiles.socketfile);
++	getpath("socketfile", "/var/run/pihole/FTL.sock", &FTLfiles.socketfile);
  
  	// SETUPVARSFILE
 -	getpath(fp, "SETUPVARSFILE", "/etc/pihole/setupVars.conf", &FTLfiles.setupVars);
-+	//if(uci_get_value("pihole", "setupvarsfile", &FTLfiles.setupVars) != 0)
-+	//	FTLfiles.setupVars = strdup("/var/lib/pihole/setupVars.conf");
-+
-+	//logg("   SETUPVARSFILE: Using %s", FTLfiles.socketfile);
++	//getpath("setupvarsfile", "/etc/pihole/setupVars.conf", &FTLfiles.setupVars);
  
  	// MACVENDORDB
 -	getpath(fp, "MACVENDORDB", "/etc/pihole/macvendor.db", &FTLfiles.macvendor_db);
-+	if(uci_get_value("pihole", "macvendordb", &FTLfiles.macvendor_db) != 0)
-+		FTLfiles.macvendor_db = strdup("/etc/pihole/macvendor.db");
-+
-+	logg("   MACVENDORDB: Using %s", FTLfiles.macvendor_db);
++	getpath("macvendordb", "/etc/pihole/macvendor.db", &FTLfiles.macvendor_db);
  
  	// GRAVITYDB
 -	getpath(fp, "GRAVITYDB", "/etc/pihole/gravity.db", &FTLfiles.gravity_db);
-+	if(uci_get_value("pihole", "gravitydb", &FTLfiles.gravity_db) != 0)
-+		FTLfiles.gravity_db = strdup("/etc/pihole/gravity.db");
-+
-+	logg("   GRAVITYDB: Using %s", FTLfiles.gravity_db);
++	getpath("gravitydb", "/etc/pihole/gravity.db", &FTLfiles.gravity_db);
  
  	// PARSE_ARP_CACHE
  	// defaults to: true
@@ -566,7 +410,7 @@
  
  	if(config.parse_arp_cache)
  		logg("   PARSE_ARP_CACHE: Active");
-@@ -365,8 +293,7 @@ void read_FTLconf(void)
+@@ -365,8 +299,7 @@ void read_FTLconf(void)
  
  	// CNAME_DEEP_INSPECT
  	// defaults to: true
@@ -576,7 +420,7 @@
  
  	if(config.cname_inspection)
  		logg("   CNAME_DEEP_INSPECT: Active");
-@@ -375,19 +302,19 @@ void read_FTLconf(void)
+@@ -375,19 +308,19 @@ void read_FTLconf(void)
  
  	// DELAY_STARTUP
  	// defaults to: zero (seconds)
@@ -601,7 +445,7 @@
  
  	if(config.block_esni)
  		logg("   BLOCK_ESNI: Enabled, blocking _esni.{blocked domain}");
-@@ -399,13 +326,10 @@ void read_FTLconf(void)
+@@ -399,13 +332,10 @@ void read_FTLconf(void)
  	// of days are removed to avoid dead entries in the network overview table
  	// defaults to: the same value as MAXDBDAYS
  	config.network_expire = config.maxDBdays;
@@ -618,7 +462,7 @@
  
  	if(config.network_expire > 0u)
  		logg("   MAXNETAGE: Removing IP addresses and host names from network table after %u days",
-@@ -421,8 +345,7 @@ void read_FTLconf(void)
+@@ -421,8 +351,7 @@ void read_FTLconf(void)
  	// we use the host name associated to the other address as this is the same
  	// device. This behavior can be disabled using NAMES_FROM_NETDB=false
  	// defaults to: true
@@ -628,7 +472,7 @@
  
  	if(config.names_from_netdb)
  		logg("   NAMES_FROM_NETDB: Enabled, trying to get names from network database");
-@@ -433,8 +356,7 @@ void read_FTLconf(void)
+@@ -433,8 +362,7 @@ void read_FTLconf(void)
  	// Should we overwrite the query source when client information is
  	// provided through EDNS0 client subnet (ECS) information?
  	// defaults to: true
@@ -638,162 +482,79 @@
  
  	if(config.edns0_ecs)
  		logg("   EDNS0_ECS: Overwrite client from ECS information");
-@@ -443,26 +365,32 @@ void read_FTLconf(void)
+@@ -443,7 +371,7 @@ void read_FTLconf(void)
  
  	// REFRESH_HOSTNAMES
  	// defaults to: IPV4
 -	buffer = parse_FTLconf(fp, "REFRESH_HOSTNAMES");
--
--	if(buffer != NULL && strcasecmp(buffer, "ALL") == 0)
--	{
--		config.refresh_hostnames = REFRESH_ALL;
--		logg("   REFRESH_HOSTNAMES: Periodically refreshing all names");
--	}
--	else if(buffer != NULL && strcasecmp(buffer, "NONE") == 0)
--	{
--		config.refresh_hostnames = REFRESH_NONE;
--		logg("   REFRESH_HOSTNAMES: Not periodically refreshing names");
--	}
--	else if(buffer != NULL && strcasecmp(buffer, "UNKNOWN") == 0)
-+	config.refresh_hostnames = REFRESH_IPV4_ONLY;
-+	if(uci_get_value("pihole", "refresh_hostnames", &buffer) == 0)
- 	{
--		config.refresh_hostnames = REFRESH_UNKNOWN;
--		logg("   REFRESH_HOSTNAMES: Only refreshing recently active clients with unknown hostnames");
-+		if(strcasecmp(buffer, "ALL") == 0)
-+		{
-+			config.refresh_hostnames = REFRESH_ALL;
-+			logg("   REFRESH_HOSTNAMES: Periodically refreshing all names");
-+		}
-+		else if(strcasecmp(buffer, "NONE") == 0)
-+		{
-+			config.refresh_hostnames = REFRESH_NONE;
-+			logg("   REFRESH_HOSTNAMES: Not periodically refreshing names");
-+		}
-+		else if(strcasecmp(buffer, "UNKNOWN") == 0)
-+		{
-+			config.refresh_hostnames = REFRESH_UNKNOWN;
-+			logg("   REFRESH_HOSTNAMES: Only refreshing recently active clients with unknown hostnames");
-+		}
-+		else
-+		{
-+			logg("   REFRESH_HOSTNAMES: Periodically refreshing IPv4 names");
-+		}
-+		free(buffer);
- 	}
- 	else
- 	{
--		config.refresh_hostnames = REFRESH_IPV4_ONLY;
- 		logg("   REFRESH_HOSTNAMES: Periodically refreshing IPv4 names");
- 	}
++	buffer = uci_get_string("pihole", "refresh_hostnames");
  
-@@ -470,13 +398,13 @@ void read_FTLconf(void)
+ 	if(buffer != NULL && strcasecmp(buffer, "ALL") == 0)
+ 	{
+@@ -470,7 +398,7 @@ void read_FTLconf(void)
  	// defaults to: 1000 queries / 60 seconds
  	config.rate_limit.count = 1000;
  	config.rate_limit.interval = 60;
 -	buffer = parse_FTLconf(fp, "RATE_LIMIT");
++	buffer = uci_get_string("pihole", "rate_limit");
  
  	unsigned int count = 0, interval = 0;
--	if(buffer != NULL && sscanf(buffer, "%u/%u", &count, &interval) == 2)
-+	if(uci_get_value("pihole", "rate_limit", &buffer) == 0 && sscanf(buffer, "%u/%u", &count, &interval) == 2)
- 	{
- 		config.rate_limit.count = count;
- 		config.rate_limit.interval = interval;
-+		free(buffer);
- 	}
- 
- 	if(config.rate_limit.count > 0)
-@@ -491,9 +419,11 @@ void read_FTLconf(void)
+ 	if(buffer != NULL && sscanf(buffer, "%u/%u", &count, &interval) == 2)
+@@ -491,7 +419,7 @@ void read_FTLconf(void)
  	// defaults to: not set
  	config.reply_addr.own_host.overwrite_v4 = false;
  	config.reply_addr.own_host.v4.s_addr = 0;
 -	buffer = parse_FTLconf(fp, "LOCAL_IPV4");
--	if(buffer != NULL && inet_pton(AF_INET, buffer, &config.reply_addr.own_host.v4))
-+	if(uci_get_value("pihole", "local_ipv4", &buffer) == 0 && inet_pton(AF_INET, buffer, &config.reply_addr.own_host.v4))
-+	{
++	buffer = uci_get_string("pihole", "local_ipv4");
+ 	if(buffer != NULL && inet_pton(AF_INET, buffer, &config.reply_addr.own_host.v4))
  		config.reply_addr.own_host.overwrite_v4 = true;
-+		free(buffer);
-+	}
  
- 	if(config.reply_addr.own_host.overwrite_v4)
- 	{
-@@ -510,9 +440,11 @@ void read_FTLconf(void)
+@@ -510,7 +438,7 @@ void read_FTLconf(void)
  	// defaults to: not set
  	config.reply_addr.own_host.overwrite_v6 = false;
  	memset(&config.reply_addr.own_host.v6, 0, sizeof(config.reply_addr.own_host.v6));
 -	buffer = parse_FTLconf(fp, "LOCAL_IPV6");
--	if(buffer != NULL && inet_pton(AF_INET6, buffer, &config.reply_addr.own_host.v6))
-+	if(uci_get_value("pihole", "local_ipv6", &buffer) == 0 && inet_pton(AF_INET6, buffer, &config.reply_addr.own_host.v6))
-+	{
++	buffer = uci_get_string("pihole", "local_ipv6");
+ 	if(buffer != NULL && inet_pton(AF_INET6, buffer, &config.reply_addr.own_host.v6))
  		config.reply_addr.own_host.overwrite_v6 = true;
-+		free(buffer);
-+	}
  
- 	if(config.reply_addr.own_host.overwrite_v6)
- 	{
-@@ -528,9 +460,11 @@ void read_FTLconf(void)
+@@ -528,7 +456,7 @@ void read_FTLconf(void)
  	// defaults to: REPLY_ADDR4 setting
  	config.reply_addr.ip_blocking.overwrite_v4 = false;
  	config.reply_addr.ip_blocking.v4.s_addr = 0;
 -	buffer = parse_FTLconf(fp, "BLOCK_IPV4");
--	if(buffer != NULL && inet_pton(AF_INET, buffer, &config.reply_addr.ip_blocking.v4))
-+	if(uci_get_value("pihole", "block_ipv4", &buffer) == 0 && inet_pton(AF_INET, buffer, &config.reply_addr.ip_blocking.v4))
-+	{
++	buffer = uci_get_string("pihole", "block_ipv4");
+ 	if(buffer != NULL && inet_pton(AF_INET, buffer, &config.reply_addr.ip_blocking.v4))
  		config.reply_addr.ip_blocking.overwrite_v4 = true;
-+		free(buffer);
-+	}
  
- 	if(config.reply_addr.ip_blocking.overwrite_v4)
- 	{
-@@ -546,9 +480,11 @@ void read_FTLconf(void)
+@@ -546,7 +474,7 @@ void read_FTLconf(void)
  	// defaults to: REPLY_ADDR6 setting
  	config.reply_addr.ip_blocking.overwrite_v6 = false;
  	memset(&config.reply_addr.ip_blocking.v6, 0, sizeof(config.reply_addr.own_host.v6));
 -	buffer = parse_FTLconf(fp, "BLOCK_IPV6");
--	if(buffer != NULL && inet_pton(AF_INET6, buffer, &config.reply_addr.ip_blocking.v6))
-+	if(uci_get_value("pihole", "block_ipv6", &buffer) == 0 && inet_pton(AF_INET6, buffer, &config.reply_addr.ip_blocking.v6))
-+	{
++	buffer = uci_get_string("pihole", "block_ipv6");
+ 	if(buffer != NULL && inet_pton(AF_INET6, buffer, &config.reply_addr.ip_blocking.v6))
  		config.reply_addr.ip_blocking.overwrite_v6 = true;
-+		free(buffer);
-+	}
  
- 	if(config.reply_addr.ip_blocking.overwrite_v6)
- 	{
-@@ -564,8 +500,7 @@ void read_FTLconf(void)
+@@ -564,7 +492,7 @@ void read_FTLconf(void)
  	// IPv4 interface address a query arrived on A hostname and IP blocked queries
  	// defaults to: not set
  	struct in_addr reply_addr4;
 -	buffer = parse_FTLconf(fp, "REPLY_ADDR4");
--	if(buffer != NULL && inet_pton(AF_INET, buffer, &reply_addr4))
-+	if(uci_get_value("pihole", "reply_addr4", &buffer) == 0 && inet_pton(AF_INET, buffer, &reply_addr4))
++	buffer = uci_get_string("pihole", "reply_addr4");
+ 	if(buffer != NULL && inet_pton(AF_INET, buffer, &reply_addr4))
  	{
  		if(config.reply_addr.own_host.overwrite_v4 || config.reply_addr.ip_blocking.overwrite_v4)
- 		{
-@@ -582,6 +517,7 @@ void read_FTLconf(void)
- 			inet_ntop(AF_INET, &reply_addr4, addr, INET_ADDRSTRLEN);
- 			logg("   REPLY_ADDR4: Using IPv4 address %s instead of automatically determined IP address", addr);
- 		}
-+		free(buffer);
- 	}
- 
- 	// REPLY_ADDR6 (deprecated setting)
-@@ -589,8 +525,7 @@ void read_FTLconf(void)
+@@ -589,7 +517,7 @@ void read_FTLconf(void)
  	// IPv4 interface address a query arrived on A hostname and IP blocked queries
  	// defaults to: not set
  	struct in6_addr reply_addr6;
 -	buffer = parse_FTLconf(fp, "REPLY_ADDR6");
--	if(buffer != NULL && inet_pton(AF_INET, buffer, &reply_addr6))
-+	if(uci_get_value("pihole", "reply_addr6", &buffer) == 0 && inet_pton(AF_INET, buffer, &reply_addr6))
++	buffer = uci_get_string("pihole", "reply_addr6");
+ 	if(buffer != NULL && inet_pton(AF_INET, buffer, &reply_addr6))
  	{
  		if(config.reply_addr.own_host.overwrite_v6 || config.reply_addr.ip_blocking.overwrite_v6)
- 		{
-@@ -607,13 +542,13 @@ void read_FTLconf(void)
- 			inet_ntop(AF_INET6, &reply_addr6, addr, INET6_ADDRSTRLEN);
- 			logg("   REPLY_ADDR6: Using IPv6 address %s instead of automatically determined IP address", addr);
- 		}
-+		free(buffer);
- 	}
- 
+@@ -612,8 +540,7 @@ void read_FTLconf(void)
  	// SHOW_DNSSEC
  	// Should FTL analyze and include automatically generated DNSSEC queries in the Query Log?
  	// defaults to: true
@@ -803,7 +564,7 @@
  
  	if(config.show_dnssec)
  		logg("   SHOW_DNSSEC: Enabled, showing automatically generated DNSSEC queries");
-@@ -623,8 +558,7 @@ void read_FTLconf(void)
+@@ -623,8 +550,7 @@ void read_FTLconf(void)
  	// MOZILLA_CANARY
  	// Should FTL handle use-application-dns.net specifically and always return NXDOMAIN?
  	// defaults to: true
@@ -813,105 +574,25 @@
  
  	if(config.special_domains.mozilla_canary)
  		logg("   MOZILLA_CANARY: Enabled");
-@@ -634,64 +568,72 @@ void read_FTLconf(void)
+@@ -634,7 +560,7 @@ void read_FTLconf(void)
  	// PIHOLE_PTR
  	// Should FTL return "pi.hole" as name for PTR requests to local IP addresses?
  	// defaults to: PI.HOLE
 -	buffer = parse_FTLconf(fp, "PIHOLE_PTR");
--
--	if(buffer != NULL && (strcasecmp(buffer, "none") == 0 ||
--	                      strcasecmp(buffer, "false") == 0))
--	{
--		config.pihole_ptr = PTR_NONE;
--		logg("   PIHOLE_PTR: internal PTR generation disabled");
--	}
--	else if(buffer != NULL && strcasecmp(buffer, "hostname") == 0)
--	{
--		config.pihole_ptr = PTR_HOSTNAME;
--		logg("   PIHOLE_PTR: internal PTR generation enabled (hostname)");
--	}
--	else if(buffer != NULL && strcasecmp(buffer, "hostnamefqdn") == 0)
--	{
--		config.pihole_ptr = PTR_HOSTNAMEFQDN;
--		logg("   PIHOLE_PTR: internal PTR generation enabled (fully-qualified hostname)");
-+	config.pihole_ptr = PTR_PIHOLE;
-+	if(uci_get_value("pihole", "pihole_ptr", &buffer) == 0) {
-+		if(strcasecmp(buffer, "none") == 0 || strcasecmp(buffer, "false") == 0)
-+		{
-+			config.pihole_ptr = PTR_NONE;
-+			logg("   PIHOLE_PTR: internal PTR generation disabled");
-+		}
-+		else if(strcasecmp(buffer, "hostname") == 0)
-+		{
-+			config.pihole_ptr = PTR_HOSTNAME;
-+			logg("   PIHOLE_PTR: internal PTR generation enabled (hostname)");
-+		}
-+		else if(strcasecmp(buffer, "hostnamefqdn") == 0)
-+		{
-+			config.pihole_ptr = PTR_HOSTNAMEFQDN;
-+			logg("   PIHOLE_PTR: internal PTR generation enabled (fully-qualified hostname)");
-+		}
-+		else
-+		{
-+			logg("   PIHOLE_PTR: internal PTR generation enabled (pi.hole)");
-+		}
-+		free(buffer);
- 	}
- 	else
- 	{
--		config.pihole_ptr = PTR_PIHOLE;
- 		logg("   PIHOLE_PTR: internal PTR generation enabled (pi.hole)");
- 	}
++	buffer = uci_get_string("pihole", "pihole_ptr");
  
+ 	if(buffer != NULL && (strcasecmp(buffer, "none") == 0 ||
+ 	                      strcasecmp(buffer, "false") == 0))
+@@ -661,7 +587,7 @@ void read_FTLconf(void)
  	// REPLY_WHEN_BUSY
  	// How should FTL handle queries when the gravity database is not available?
--	// defaults to: BLOCK
+ 	// defaults to: BLOCK
 -	buffer = parse_FTLconf(fp, "REPLY_WHEN_BUSY");
--
--	if(buffer != NULL && strcasecmp(buffer, "DROP") == 0)
--	{
--		config.reply_when_busy = BUSY_DROP;
--		logg("   REPLY_WHEN_BUSY: Drop queries when the database is busy");
--	}
--	else if(buffer != NULL && strcasecmp(buffer, "REFUSE") == 0)
--	{
--		config.reply_when_busy = BUSY_REFUSE;
--		logg("   REPLY_WHEN_BUSY: Refuse queries when the database is busy");
--	}
--	else if(buffer != NULL && strcasecmp(buffer, "BLOCK") == 0)
--	{
--		config.reply_when_busy = BUSY_BLOCK;
--		logg("   REPLY_WHEN_BUSY: Block queries when the database is busy");
-+	// defaults to: ALLOW
-+	config.reply_when_busy = BUSY_ALLOW;
-+	if(uci_get_value("pihole", "reply_when_busy", &buffer) == 0) {
-+		if(strcasecmp(buffer, "DROP") == 0)
-+		{
-+			config.reply_when_busy = BUSY_DROP;
-+			logg("   REPLY_WHEN_BUSY: Drop queries when the database is busy");
-+		}
-+		else if(strcasecmp(buffer, "REFUSE") == 0)
-+		{
-+			config.reply_when_busy = BUSY_REFUSE;
-+			logg("   REPLY_WHEN_BUSY: Refuse queries when the database is busy");
-+		}
-+		else if(strcasecmp(buffer, "BLOCK") == 0)
-+		{
-+			config.reply_when_busy = BUSY_BLOCK;
-+			logg("   REPLY_WHEN_BUSY: Block queries when the database is busy");
-+		}
-+		else
-+		{
-+			logg("   REPLY_WHEN_BUSY: Permit queries when the database is busy");
-+		}
-+		free(buffer);
- 	}
- 	else
- 	{
--		config.reply_when_busy = BUSY_ALLOW;
- 		logg("   REPLY_WHEN_BUSY: Permit queries when the database is busy");
- 	}
++	buffer = uci_get_string("pihole", "reply_when_busy");
  
+ 	if(buffer != NULL && strcasecmp(buffer, "DROP") == 0)
+ 	{
+@@ -687,11 +613,10 @@ void read_FTLconf(void)
  	// BLOCK_TTL
  	// defaults to: 2 seconds
  	config.block_ttl = 2;
@@ -926,7 +607,7 @@
  
  	if(config.block_ttl == 1)
  		logg("   BLOCK_TTL: 1 second");
-@@ -702,8 +644,7 @@ void read_FTLconf(void)
+@@ -702,8 +627,7 @@ void read_FTLconf(void)
  	// Should FTL handle the iCloud privacy relay domains specifically and
  	// always return NXDOMAIN?
  	// defaults to: true
@@ -936,7 +617,7 @@
  
  	if(config.special_domains.icloud_private_relay)
  		logg("   BLOCK_ICLOUD_PR: Enabled");
-@@ -714,8 +655,7 @@ void read_FTLconf(void)
+@@ -714,8 +638,7 @@ void read_FTLconf(void)
  	// Should FTL check the 15 min average of CPU load and complain if the
  	// load is larger than the number of available CPU cores?
  	// defaults to: true
@@ -946,7 +627,7 @@
  
  	if(config.check.load)
  		logg("   CHECK_LOAD: Enabled");
-@@ -726,12 +666,10 @@ void read_FTLconf(void)
+@@ -726,12 +649,10 @@ void read_FTLconf(void)
  	// Limit above which FTL should complain about a shared-memory shortage
  	// defaults to: 90%
  	config.check.shmem = 90;
@@ -962,7 +643,7 @@
  
  	logg("   CHECK_SHMEM: Warning if shared-memory usage exceeds %d%%", config.check.shmem);
  
-@@ -739,197 +677,43 @@ void read_FTLconf(void)
+@@ -739,32 +660,27 @@ void read_FTLconf(void)
  	// Limit above which FTL should complain about disk shortage for checked files
  	// defaults to: 90%
  	config.check.disk = 90;
@@ -986,45 +667,27 @@
 -
 -	if(fp != NULL)
 -		fclose(fp);
--}
--
+ }
+ 
 -static void getpath(FILE* fp, const char *option, const char *defaultloc, char **pointer)
--{
--	// This subroutine is used to read paths from pihole-FTL.conf
--	// fp:         File pointer to opened and readable config file
--	// option:     Option string ("key") to try to read
--	// defaultloc: Value used if key is not found in file
--	// pointer:    Location where read (or default) parameter is stored
++static void getpath(const char *option, const char *defaultloc, char **pointer)
+ {
+ 	// This subroutine is used to read paths from pihole-FTL.conf
+ 	// fp:         File pointer to opened and readable config file
+ 	// option:     Option string ("key") to try to read
+ 	// defaultloc: Value used if key is not found in file
+ 	// pointer:    Location where read (or default) parameter is stored
 -	char *buffer = parse_FTLconf(fp, option);
--
--	errno = 0;
--	// Use sscanf() to obtain filename from config file parameter only if buffer != NULL
--	if(buffer == NULL || sscanf(buffer, "%127ms", pointer) != 1)
--	{
--		// Use standard path if no custom path was obtained from the config file
--		*pointer = strdup(defaultloc);
--	}
--
--	// Test if memory allocation was successful
--	if(*pointer == NULL)
--	{
--		logg("FATAL: Allocating memory for %s failed (%s, %i). Exiting.", option, strerror(errno), errno);
--		exit(EXIT_FAILURE);
--	}
--	else if(strlen(*pointer) == 0)
--	{
--		logg("   %s: Empty file name is not possible!", option);
--		exit(EXIT_FAILURE);
--	}
--	else
--	{
--		logg("   %s: Using %s", option, *pointer);
--	}
++	char *buffer = uci_get_string("pihole", option);
+ 
+ 	errno = 0;
+ 	// Use sscanf() to obtain filename from config file parameter only if buffer != NULL
+@@ -791,144 +707,29 @@ static void getpath(FILE* fp, const char
+ 	}
  }
  
 -static char *parse_FTLconf(FILE *fp, const char *key)
-+void get_privacy_level(void)
- {
+-{
 -	// Return NULL if fp is an invalid file pointer
 -	if(fp == NULL)
 -		return NULL;
@@ -1043,8 +706,7 @@
 -		logg("Obtained config lock");
 -	if(lret != 0)
 -		logg("Error when obtaining config lock: %s", strerror(lret));
-+	int value = uci_get_value_int("pihole", "privacylevel");
- 
+-
 -	// Go to beginning of file
 -	fseek(fp, 0L, SEEK_SET);
 -
@@ -1058,9 +720,7 @@
 -
 -	errno = 0;
 -	while(getline(&conflinebuffer, &size, fp) != -1)
-+	// Check for change and validity of privacy level (set in FTL.h)
-+	if(value >= PRIVACY_SHOW_ALL && value <= PRIVACY_MAXIMUM)
- 	{
+-	{
 -		if(config.debug & DEBUG_EXTRA)
 -		{
 -			logg("conflinebuffer = %p, keystr = %p, size = %zu", conflinebuffer, keystr, size);
@@ -1115,7 +775,8 @@
 -}
 -
 -void get_privacy_level(FILE *fp)
--{
++void get_privacy_level(void)
+ {
 -	// See if we got a file handle, if not we have to open
 -	// the config file ourselves
 -	bool opened = false;
@@ -1126,11 +787,14 @@
 -			return;
 -		opened = true;
 -	}
--
++	int value = uci_get_value_int("pihole", "privacylevel");
+ 
 -	int value = 0;
 -	char *buffer = parse_FTLconf(fp, "PRIVACYLEVEL");
 -	if(buffer != NULL && sscanf(buffer, "%i", &value) == 1)
--	{
++	// Check for change and validity of privacy level (set in FTL.h)
++	if(value >= PRIVACY_SHOW_ALL && value <= PRIVACY_MAXIMUM)
+ 	{
 -		// Check for change and validity of privacy level (set in FTL.h)
 -		if(value >= PRIVACY_SHOW_ALL &&
 -		   value <= PRIVACY_MAXIMUM &&
@@ -1170,23 +834,18 @@
 -
  	// Get config string (if present)
 -	char *buffer = parse_FTLconf(fp, "BLOCKINGMODE");
--	if(buffer != NULL)
-+	char *buffer = NULL;
-+	if(uci_get_value("pihole", "blockingmode", &buffer) == 0)
++	char *buffer = uci_get_string("pihole", "blockingmode");
+ 	if(buffer != NULL)
  	{
  		if(strcasecmp(buffer, "NXDOMAIN") == 0)
- 			config.blockingmode = MODE_NX;
-@@ -943,140 +727,129 @@ void get_blocking_mode(FILE *fp)
- 			config.blockingmode = MODE_NODATA;
+@@ -944,139 +745,120 @@ void get_blocking_mode(FILE *fp)
  		else
  			logg("Ignoring unknown blocking mode, fallback is NULL blocking");
--	}
- 
+ 	}
+-
 -	// Have to close the config file if we opened it
 -	if(opened)
 -		fclose(fp);
-+		free(buffer);
-+	}
  }
  
  // Routine for setting the debug flags in the config struct
@@ -1194,21 +853,18 @@
 +static void setDebugOption(const char* option, enum debug_flags bitmask)
  {
 -	const char* buffer = parse_FTLconf(fp, option);
-+	char* buffer = NULL;
- 
- 	// Return early if the key has not been found in FTL's config file
+-
+-	// Return early if the key has not been found in FTL's config file
 -	if(buffer == NULL)
-+	if(uci_get_value("debug", option, &buffer) != 0)
- 		return;
+-		return;
++	bool buffer = uci_read_bool("pihole", option, false);
  
  	// Set bit if value equals "true", clear bit otherwise
 -	if(read_bool(buffer, false))
-+	if(strcmp(buffer, "1") == 0 || strcasecmp(buffer, "true") == 0)
++	if(buffer)
  		config.debug |= bitmask;
  	else
  		config.debug &= ~bitmask;
-+
-+	free(buffer);
  }
  
 -void read_debuging_settings(FILE *fp)
@@ -1350,7 +1006,7 @@
  
  	if(config.debug)
  	{
-@@ -1108,24 +881,4 @@ void read_debuging_settings(FILE *fp)
+@@ -1108,24 +890,4 @@ void read_debuging_settings(FILE *fp)
  		// Enable debug logging in dnsmasq (only effective before starting the resolver)
  		argv_dnsmasq[2] = "--log-debug";
  	}
@@ -1416,14 +1072,17 @@
  
 --- /dev/null
 +++ b/src/config_uci.c
-@@ -0,0 +1,177 @@
-+#include "FTL.h"
+@@ -0,0 +1,167 @@
++#include <string.h>
++#include <stdlib.h>
++#include <syslog.h>
 +#include "log.h"
 +#include "config_uci.h"
 +#include <uci.h>
 +
 +static struct uci_context *uci_ctx = NULL;
 +static struct uci_package *uci_pkg = NULL;
++static struct uci_ptr ptr;
 +
 +static struct uci_package *uci_init_package(void)
 +{
@@ -1490,30 +1149,6 @@
 +	logg("Cleaning UCI Config");
 +}
 +
-+static char * __attribute__ ((malloc)) uci_get_list_value(struct uci_list *list)
-+{
-+	if (!list)
-+		return NULL;
-+
-+//	if (uci_list_empty(list))
-+//		return NULL;
-+
-+	struct uci_element *e = NULL;
-+	char buffer[512] = { 0 };
-+	unsigned pos = 0;
-+
-+	buffer[0] = 0;
-+	uci_foreach_element(list, e) {
-+		if (e->name)
-+			pos += snprintf(&buffer[pos], sizeof(buffer) - pos, "%s%s", e->name, ",");
-+	}
-+
-+	if (pos)
-+		buffer[pos - 1] = 0;
-+
-+	return strdup(buffer);
-+}
-+
 +static struct uci_section * __attribute__((pure)) get_uci_section_type(struct uci_package *pkg, const char *s)
 +{
 +	if(!pkg)
@@ -1530,69 +1165,80 @@
 +	return NULL;
 +}
 +
-+int uci_get_value_int(const char *section, const char *option)
++static int uci_init_ptr(const char *section, const char *option)
 +{
 +	struct uci_section *sec = get_uci_section_type(uci_pkg, section);
 +	if(!sec)
-+		return -1;
++		return UCI_ERR_NOTFOUND;
 +
-+	const char* str = uci_lookup_option_string(uci_ctx, sec, option);
++	memset(&ptr, 0, sizeof(struct uci_ptr));
++	ptr.p = sec->package;
++	ptr.s = sec;
++	ptr.option = option;
++
++	return uci_lookup_ptr(uci_ctx, &ptr, NULL, true);
++}
++
++int uci_get_value_int(const char *section, const char *option)
++{
 +	// -1 is useable for maxdbdays
-+	return str == NULL ? -2 : atoi(str);
++	if(uci_init_ptr(section, option) != UCI_OK)
++		return -2;
++
++	if(!(ptr.flags & UCI_LOOKUP_COMPLETE))
++		return -2;
++
++	return (ptr.o->v.string) ? atoi(ptr.o->v.string) : -2;
 +}
 +
 +bool uci_read_bool(const char *section, const char *option, const bool fallback)
 +{
-+	struct uci_section *sec = get_uci_section_type(uci_pkg, section);
-+	if(!sec)
-+		return fallback;
-+
-+	struct uci_ptr ptr = {
-+		.p = sec->package,
-+		.s = sec,
-+		.option = option,
-+	};
-+
-+	if(uci_lookup_ptr(uci_ctx, &ptr, NULL, true) != UCI_OK)
++	if(uci_init_ptr(section, option) != UCI_OK)
 +		return fallback;
 +
 +	if(!(ptr.flags & UCI_LOOKUP_COMPLETE))
 +		return fallback;
 +
-+	if (ptr.o && ptr.o->v.string)
++	if (ptr.o && ptr.o->type == UCI_TYPE_STRING)
 +	{
-+		if(strcmp(ptr.o->v.string, "false") == 0 || strcmp(ptr.o->v.string, "0") == 0)
++		if(strcasecmp(ptr.o->v.string, "false") == 0 || strcmp(ptr.o->v.string, "0") == 0)
 +			return false;
-+		else if(strcmp(ptr.o->v.string, "true") == 0 || strcmp(ptr.o->v.string, "1") == 0)
++		else if(strcasecmp(ptr.o->v.string, "true") == 0 || strcmp(ptr.o->v.string, "1") == 0)
 +			return true;
 +	}
 +
 +	return fallback;
 +}
 +
-+int uci_get_value(const char *section, const char *option, char **ptr)
++char* uci_get_string(const char *section, const char *option)
 +{
-+	int err = UCI_ERR_NOTFOUND;
-+	struct uci_section *sec = get_uci_section_type(uci_pkg, section);
-+	if(!sec)
-+		return err;
++	if(uci_init_ptr(section, option) != UCI_OK)
++		return NULL;
 +
-+	struct uci_element *e;
-+	uci_foreach_element(&sec->options, e)
++	if(!(ptr.flags & UCI_LOOKUP_COMPLETE))
++		return NULL;
++
++	if(ptr.o->type == UCI_TYPE_STRING)
++		return ptr.o->v.string;
++	else if(ptr.o->type == UCI_TYPE_LIST)
 +	{
-+		struct uci_option* opt = uci_to_option(e);
-+		if(strcmp(opt->e.name, option) == 0)
-+		{
-+			if (opt->type == UCI_TYPE_LIST)
-+				*ptr = uci_get_list_value(&opt->v.list);
-+			else /* UCI_TYPE_STRING */
-+				*ptr = opt->v.string ? strdup(opt->v.string) : NULL;
++		struct uci_element *e = NULL;
++		struct uci_list *list = &ptr.o->v.list;
++		static char buffer[512]; /* TODO size */
++		unsigned pos = 0;
 +
-+			err = UCI_OK;
-+		}
++		buffer[0] = 0;
++		uci_foreach_element(list, e)
++			if (e->name)
++				pos += snprintf(&buffer[pos], sizeof(buffer) - pos, "%s%s", e->name, ",");
++
++		if (pos)
++			buffer[pos - 1] = 0;
++
++		return buffer;
 +	}
 +
-+	return err;
++	return NULL;
 +}
 --- /dev/null
 +++ b/src/config_uci.h
@@ -1604,7 +1250,7 @@
 +void uci_reload(void);
 +int uci_init(void);
 +int uci_get_value_int(const char *section, const char *option);
-+int uci_get_value(const char *section, const char *option, char **ptr);
++char* uci_get_string(const char *section, const char *option);
 +bool uci_read_bool(const char *section, const char *option, const bool fallback);
 +
 +#endif

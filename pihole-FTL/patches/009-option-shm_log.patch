@@ -1,6 +1,6 @@
 --- a/src/config.c
 +++ b/src/config.c
-@@ -684,6 +684,15 @@ void read_FTLconf(void)
+@@ -667,6 +667,15 @@ void read_FTLconf(void)
  
  	logg("   CHECK_DISK: Warning if certain disk usage exceeds %d%%", config.check.disk);
  
