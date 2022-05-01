@@ -1277,10 +1277,6 @@ service_triggers()
 
 boot()
 {
-	# FTL needs loopback for listening socket
-	# Wait for the loopback interface to be ready
-	ubus -t 30 wait_for network.interface network.loopback 2>/dev/null
-
 	BOOT=1
 	start "$@"
 }
