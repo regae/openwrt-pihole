@@ -64,9 +64,10 @@ define Package/pihole-FTL
 	+pihole_FTL_conntrack:libnetfilter-conntrack \
 	+pihole_FTL_readline:libreadline \
 	+pihole_FTL_nftset:nftables-json \
-	$(if $(CONFIG_pihole_FTL_shared_lua),+liblua5.3 +lua5.3 +luac5.3,) \
-	$(if $(CONFIG_pihole_FTL_shared_sqlite),+libsqlite3 +sqlite3-cli,) \
-	$(if $(CONFIG_pihole_FTL_idn2),+libidn2,+libidn)
+	+pihole_FTL_shared_lua:+liblua5.3 +lua5.3 +luac5.3 \
+	+pihole_FTL_shared_sqlite:+libsqlite3 +sqlite3-cli \
+	+pihole_FTL_idn2:libidn2 \
+	+!pihole_FTL_idn2:libidn
   CONFLICTS:=dnsmasq
   USERID:=pihole=454:pihole=454
 endef
