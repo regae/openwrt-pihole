@@ -8,65 +8,78 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=pihole-FTL
-PKG_VERSION:=5.15
 PKG_RELEASE:=1
 
-PKG_SOURCE_URL:=https://codeload.github.com/pi-hole/FTL/tar.gz/v$(PKG_VERSION)?
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_HASH:=87ac5457bfcac0cc01b0440ee60da409d655cbd5d11a6e544f627901ac56d2e0
-PKG_BUILD_DIR:=$(BUILD_DIR)/FTL-$(PKG_VERSION)
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_URL:=https://github.com/pi-hole/FTL
+PKG_SOURCE_VERSION:=8eef4d81bba2cc009876e0749090364051c7e6b3
+PKG_MIRROR_HASH:=2fbd622f1aa84bc9ec01c87d4914cccc22e5ef1dc25a360a64b5b702c5ee2fda
+
+PKG_VERSION:=6.0-$(call version_abbrev,$(PKG_SOURCE_VERSION))
+
 CMAKE_INSTALL:=1
 
 PKG_MAINTAINER:=Regi Yassin <regae.yassin@gmail.com>
 PKG_LICENSE:=EUPL-1.2
 PKG_LICENSE_FILES:=LICENSE
 
-PKG_RELRO:=0
-PKG_FORTIFY_SOURCE:=0
-PKG_SSP:=0
-PKG_INSTALL:=1
-PKG_BUILD_PARALLEL:=1
 PKG_CONFIG_DEPENDS:= CONFIG_pihole_FTL_ipset \
 	CONFIG_pihole_FTL_conntrack \
 	CONFIG_pihole_FTL_shared_sqlite \
-	CONFIG_pihole_FTL_shared_lua \
-	CONFIG_pihole_FTL_idn2 \
+	CONFIG_pihole_FTL_shared_cjson \
 	CONFIG_pihole_FTL_readline \
-	CONFIG_pihole_FTL_nftset
+	CONFIG_pihole_FTL_nftset \
+	CONFIG_pihole_FTL_tls_mbedtls \
+	CONFIG_pihole_FTL_tls_openssl \
+	CONFIG_pihole_FTL_build_doc
+
+PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=no-lto
+PKG_SSP:=0
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
 
-TARGET_LDFLAGS += $(if $(CONFIG_USE_GLIBC),-pthread)
-
-CMAKE_OPTIONS += \
+CMAKE_OPTIONS += -DSHARED_TRE=ON -DFORCE_STATIC_LIB=OFF -DCMAKE_BUILD_TYPE:String="RELWITHDEBINFO" \
+	$(if $(CONFIG_pihole_FTL_build_doc),-DBUILD_DOCS=ON,-DBUILD_DOCS=OFF) \
+	$(if $(CONFIG_pihole_FTL_tls_mbedtls),-DTLS_MBEDTLS=ON,-DTLS_MBEDTLS=OFF) \
+	$(if $(CONFIG_pihole_FTL_tls_openssl),-DTLS_OPENSSL=ON,-DTLS_OPENSSL=OFF) \
 	$(if $(CONFIG_pihole_FTL_ipset),-DIPSET_SUPPORT=ON,-DIPSET_SUPPORT=OFF) \
 	$(if $(CONFIG_pihole_FTL_conntrack),-DCONNTRACK_SUPPORT=ON,-DCONNTRACK_SUPPORT=OFF) \
 	$(if $(CONFIG_pihole_FTL_shared_sqlite),-DSHARED_SQLITE=ON,-DSHARED_SQLITE=OFF) \
-	$(if $(CONFIG_pihole_FTL_idn2),-DUSE_LIBIDN2=ON,-DUSE_LIBIDN2=OFF) \
+	$(if $(CONFIG_pihole_FTL_shared_cjson),-DSHARED_CJSON=ON,-DSHARED_CJSON=OFF) \
 	$(if $(CONFIG_pihole_FTL_readline),-DUSE_READLINE=ON,-DUSE_READLINE=OFF) \
-	$(if $(CONFIG_pihole_FTL_nftset),-DNFT_SUPPORT=ON,-DNFT_SUPPORT=OFF) \
-	$(if $(CONFIG_pihole_FTL_shared_lua),-DLUA_INCLUDE_DIR=$(STAGING_DIR)/usr/include/lua5.3 \
-		-DSHARED_LUA=ON,-DSHARED_LUA=OFF)
+	$(if $(CONFIG_pihole_FTL_nftset),-DNFT_SUPPORT=ON,-DNFT_SUPPORT=OFF)
 
-export FTL_BRANCH=openwrt
-export FTL_VERSION=v$(PKG_VERSION)
+ifeq ($(CONFIG_BUILD_NLS),y)
+CMAKE_OPTIONS += -DBUILD_NLS=ON -DSTAGING_DIR=$(STAGING_DIR)
+endif
+
+export WEB_VERSION=$(PKG_VERSION)
+export CORE_VERSION=$(PKG_VERSION)
+export FTL_BRANCH=$(shell git --git-dir=$(TOPDIR)/.git rev-parse --abbrev-ref HEAD)
+export FTL_VERSION=$(PKG_VERSION)
 export FTL_ARCH=$(ARCH)
+export FTL_HASH=r23512-c22931b653
+export FTL_DATE=$(shell git --git-dir=$(TOPDIR)/.git show -s --format=%ci)
 
 # KERNEL_EXT4_FS_SECURITY is needed if using linux capabilities (setcap/getcap)
 define Package/pihole-FTL
-  SECTION:=regae
-  CATEGORY:=regae
+  SECTION:=net
+  CATEGORY:=Network
   TITLE:=The Pi-hole FTL engine
   URL:=https://pi-hole.net/
-  DEPENDS:=pihole +uci +libuci +libubus +libnettle +USE_GLIBC:librt \
+  DEPENDS:=pihole +uci +libuci +libubus +libnettle \
+	+libtre +libidn2 \
 	+pihole_FTL_ipset:kmod-ipt-ipset \
 	+pihole_FTL_conntrack:libnetfilter-conntrack \
 	+pihole_FTL_readline:libreadline \
 	+pihole_FTL_nftset:nftables-json \
-	$(if $(CONFIG_pihole_FTL_shared_lua),+liblua5.3 +lua5.3 +luac5.3,) \
-	$(if $(CONFIG_pihole_FTL_shared_sqlite),+libsqlite3 +sqlite3-cli,) \
-	$(if $(CONFIG_pihole_FTL_idn2),+libidn2,+libidn)
+	+pihole_FTL_shared_cjson:+cJSON \
+	+pihole_FTL_shared_sqlite:+libsqlite3 +sqlite3-cli \
+	+pihole_FTL_tls_mbedtls:libmbedtls \
+	+pihole_FTL_tls_openssl:libopenssl
   CONFLICTS:=dnsmasq
   USERID:=pihole=454:pihole=454
 endef
@@ -92,18 +105,24 @@ menu "pihole-FTL Compile Configuration"
 		config pihole_FTL_conntrack
 			bool "Build with Conntrack support."
 			default n
-		config pihole_FTL_idn2
-			bool "Build with IDN2."
-			default n
-		config pihole_FTL_shared_lua
-			bool "Use system library lua."
-			default n
 		config pihole_FTL_shared_sqlite
 			bool "Use system library sqlite3."
 			default n
+		config pihole_FTL_shared_cjson
+			bool "Use system library cJSON."
+			default n
+		config pihole_FTL_tls_mbedtls
+			bool "Build with MbedTLS TLS."
+			default n
+		config pihole_FTL_tls_openssl
+			bool "Build with OpenSSL TLS."
+			default y
+		config pihole_FTL_build_doc
+			bool "Build with Documentation API."
+			default n
 		config pihole_FTL_readline
 			bool "Build with Readline support."
-			depends on !pihole_FTL_shared_sqlite || !pihole_FTL_shared_lua
+			depends on !pihole_FTL_shared_sqlite
 			help
 			  Enable Readline support for pihole-FTL sqlite3-cli and lua
 			default y
@@ -143,6 +162,9 @@ define Package/pihole-FTL/install
 	$(INSTALL_DATA) ./files/pihole_acl.json $(1)/usr/share/acl.d/
 	$(INSTALL_DIR) $(1)/usr/share/pihole
 	$(INSTALL_DATA) ./files/trust-anchors.conf $(1)/usr/share/pihole
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/50-dnsmasq-migrate-resolv-conf-auto.sh $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/50-dnsmasq-migrate-ipset.sh $(1)/etc/uci-defaults
 endef
 
 $(eval $(call BuildPackage,pihole-FTL))

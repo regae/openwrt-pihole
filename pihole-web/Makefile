@@ -1,25 +1,24 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=pihole-web
-PKG_VERSION:=5.12
 PKG_RELEASE:=1
 
-PKG_SOURCE_URL:=https://codeload.github.com/pi-hole/AdminLTE/tar.gz/v$(PKG_VERSION)?
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_HASH:=c770daaf5360c659ab3b9c07a118f0170307dd1e7857ece5d02ef5e3f1ead057
-PKG_BUILD_DIR:=$(BUILD_DIR)/AdminLTE-$(PKG_VERSION)
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_URL:=https://github.com/pi-hole/web
+PKG_SOURCE_VERSION:=2889bb5a0a555a7fe12c03536058708bfdad7a88
+PKG_MIRROR_HASH:=f5f88c8e8ce7a13d2b87c1749c0332d3b0a10ae00efe6a541e824e72b359d2ec
+PKG_VERSION:=6.0-$(call version_abbrev,$(PKG_SOURCE_VERSION))
 
 PKG_LICENSE:=EUPL
 PKG_LICENSE_FILES:=LICENSE
 
 include $(INCLUDE_DIR)/package.mk
-
 define Package/pihole-web
-  SECTION:=regae
-  CATEGORY:=regae
+  SECTION:=net
+  CATEGORY:=Network
   TITLE:=Pi-hole Dashboard for stats and more
   URL:=https://pi-hole.net/
-  DEPENDS:=pihole +lighttpd +lighttpd-mod-access +lighttpd-mod-fastcgi +lighttpd-mod-setenv +php8 +php8-cgi +php8-cli +php8-mod-openssl +php8-mod-phar +php8-mod-session +php8-mod-sqlite3 +php8-mod-intl +php8-mod-xml +php8-mod-filter +zoneinfo-asia
+  DEPENDS:=pihole
 endef
 
 define Package/pihole-web/description
@@ -29,22 +28,9 @@ endef
 define Build/Compile
 endef
 
-#	$(INSTALL_DIR) $(1)/etc/sudoers.d
-#	$(INSTALL_DATA) ./files/pihole.sudo $(1)/etc/sudoers.d/pihole
 define Package/pihole-web/install
-	$(INSTALL_DIR) $(1)/etc/lighttpd/conf.d
-	$(INSTALL_DATA) ./files/pihole-lighttpd.conf $(1)/etc/lighttpd/conf.d/99-pihole.conf
-	$(INSTALL_DIR) $(1)/srv/www
-	$(INSTALL_DIR) $(1)/srv/www/admin
-	$(CP) -r $(PKG_BUILD_DIR)/{img,scripts,style,*.php} $(1)/srv/www/admin/
-	$(RM) -f $(1)/srv/www/admin/debug.php
-	$(RM) -f $(1)/srv/www/admin/scripts/pi-hole/js/debug.js
-	$(RM) -f $(1)/srv/www/admin/scripts/pi-hole/php/debug.php
-	$(INSTALL_DIR) $(1)/srv/www/pihole
-	$(INSTALL_DATA) ./files/blockingpage.css $(1)/srv/www/pihole/
-	$(INSTALL_DATA) ./files/index.php $(1)/srv/www/pihole/
-	$(INSTALL_DIR) $(1)/usr/share/acl.d
-	$(INSTALL_DATA) ./files/pihole_web.json $(1)/usr/share/acl.d
+	$(INSTALL_DIR) $(1)/usr/lib/pihole/admin
+	$(CP) -r $(PKG_BUILD_DIR)/{img,scripts,style,*.lp} $(1)/usr/lib/pihole/admin
 endef
 
 define Package/pihole-web/postinst
@@ -55,5 +41,7 @@ if [ -z "$${IPKG_INSTROOT}" ]; then
 fi
 exit 0
 endef
+
+override CONFIG_AUTOREMOVE=
 
 $(eval $(call BuildPackage,pihole-web))

@@ -1,5 +1,5 @@
---- a/advanced/Scripts/database_migration/gravity-db.sh
-+++ b/advanced/Scripts/database_migration/gravity-db.sh
+--- a/advanced/Scripts/database_migration/gravity-db.sh	2023-11-18 18:31:11.000000000 +0700
++++ b/advanced/Scripts/database_migration/gravity-db.sh	2023-11-25 10:45:52.000000000 +0700
 @@ -10,7 +10,7 @@
  # This file is copyright under the latest version of the EUPL.
  # Please see LICENSE file for your rights under this license.
@@ -9,8 +9,8 @@
  
  upgrade_gravityDB(){
  	local database piholeDir auditFile version
---- a/advanced/Scripts/list.sh
-+++ b/advanced/Scripts/list.sh
+--- a/advanced/Scripts/list.sh	2023-11-18 18:31:11.000000000 +0700
++++ b/advanced/Scripts/list.sh	2023-11-25 10:45:52.000000000 +0700
 @@ -13,15 +13,9 @@
  # Globals
  piholeDir="/etc/pihole"
@@ -30,7 +30,7 @@
  
  noReloadRequested=false
  addmode=true
-@@ -37,7 +31,7 @@
+@@ -37,7 +31,7 @@ declare -i domaincount
  domaincount=0
  reload=false
  
@@ -39,8 +39,8 @@
  source ${colfile}
  
  # IDs are hard-wired to domain interpretation in the gravity database scheme
---- a/advanced/Scripts/pihole-reenable.sh
-+++ b/advanced/Scripts/pihole-reenable.sh
+--- a/advanced/Scripts/pihole-reenable.sh	2023-11-18 18:31:11.000000000 +0700
++++ b/advanced/Scripts/pihole-reenable.sh	2023-11-25 10:45:52.000000000 +0700
 @@ -17,7 +17,7 @@
  # This ensures that pihole ends up in the correct state after a sequence of
  # commands suchs as: `pihole disable 30s; pihole enable; pihole disable`
@@ -50,8 +50,8 @@
  
  sleep "${1}"
  "${PI_HOLE_BIN_DIR}"/pihole enable
---- a/advanced/Scripts/piholeARPTable.sh
-+++ b/advanced/Scripts/piholeARPTable.sh
+--- a/advanced/Scripts/piholeARPTable.sh	2023-11-18 18:31:11.000000000 +0700
++++ b/advanced/Scripts/piholeARPTable.sh	2023-11-25 10:45:52.000000000 +0700
 @@ -10,25 +10,13 @@
  # This file is copyright under the latest version of the EUPL.
  # Please see LICENSE file for your rights under this license.
@@ -81,9 +81,9 @@
  
  flushARP(){
      local output
---- a/advanced/Scripts/piholeLogFlush.sh
-+++ b/advanced/Scripts/piholeLogFlush.sh
-@@ -8,7 +8,7 @@
+--- a/advanced/Scripts/piholeLogFlush.sh	2023-11-18 18:31:11.000000000 +0700
++++ b/advanced/Scripts/piholeLogFlush.sh	2023-11-25 10:45:52.000000000 +0700
+@@ -8,65 +8,36 @@
  # This file is copyright under the latest version of the EUPL.
  # Please see LICENSE file for your rights under this license.
  
@@ -91,11 +91,11 @@
 +colfile="/usr/lib/pihole/COL_TABLE"
  source ${colfile}
  
- # In case we're running at the same time as a system logrotate, use a
-@@ -16,57 +16,33 @@
- # toes.
- STATEFILE="/var/lib/logrotate/pihole"
- 
+-# In case we're running at the same time as a system logrotate, use a
+-# separate logrotate state file to prevent stepping on each other's
+-# toes.
+-STATEFILE="/var/lib/logrotate/pihole"
+-
 -# Determine database location
 -# Obtain DBFILE=... setting from pihole-FTL.db
 -# Constructed to return nothing when
@@ -112,10 +112,10 @@
 +DBF="$(uci -q get pihole @pihole[0] dbfile)"
 +DBFILE="${DBF:-/etc/pihole/pihole-FTL.db}"
  
- if [[ "$@" != *"quiet"* ]]; then
-     echo -ne "  ${INFO} Flushing /var/log/pihole.log ..."
+ if [[ "$*" != *"quiet"* ]]; then
+     echo -ne "  ${INFO} Flushing /var/log/pihole/pihole.log ..."
  fi
- if [[ "$@" == *"once"* ]]; then
+ if [[ "$*" == *"once"* ]]; then
      # Nightly logrotation
 -    if command -v /usr/sbin/logrotate >/dev/null; then
 -        # Logrotate once
@@ -126,16 +126,16 @@
 -        # Note that moving the file is not an option, as
 -        # dnsmasq would happily continue writing into the
 -        # moved file (it will have the same file handler)
--        cp -p /var/log/pihole.log /var/log/pihole.log.1
--        echo " " > /var/log/pihole.log
--        chmod 644 /var/log/pihole.log
+-        cp -p /var/log/pihole/pihole.log /var/log/pihole/pihole.log.1
+-        echo " " > /var/log/pihole/pihole.log
+-        chmod 640 /var/log/pihole/pihole.log
 -    fi
 +    # Note that moving the file is not an option, as
 +    # dnsmasq would happily continue writing into the
 +    # moved file (it will have the same file handler)
-+    cp -p /var/log/pihole.log /var/log/pihole.log.1
-+    echo " " > /var/log/pihole.log
-+    chmod 644 /var/log/pihole.log
++    cp -p /var/log/pihole/pihole.log /var/log/pihole/pihole.log.1
++    echo " " > /var/log/pihole/pihole.log
++    chmod 644 /var/log/pihole/pihole.log
  else
      # Manual flushing
 -    if command -v /usr/sbin/logrotate >/dev/null; then
@@ -144,301 +144,134 @@
 -        /usr/sbin/logrotate --force --state "${STATEFILE}" /etc/pihole/logrotate
 -    else
 -        # Flush both pihole.log and pihole.log.1 (if existing)
--        echo " " > /var/log/pihole.log
--        if [ -f /var/log/pihole.log.1 ]; then
--            echo " " > /var/log/pihole.log.1
--            chmod 644 /var/log/pihole.log.1
+-        echo " " > /var/log/pihole/pihole.log
+-        if [ -f /var/log/pihole/pihole.log.1 ]; then
+-            echo " " > /var/log/pihole/pihole.log.1
+-            chmod 640 /var/log/pihole/pihole.log.1
 -        fi
 +    # Flush both pihole.log and pihole.log.1 (if existing)
-+    echo " " > /var/log/pihole.log
-+    if [ -f /var/log/pihole.log.1 ]; then
-+        echo " " > /var/log/pihole.log.1
-+        chmod 644 /var/log/pihole.log.1
++    echo " " > /var/log/pihole/pihole.log
++    if [ -f /var/log/pihole/pihole.log.1 ]; then
++        echo " " > /var/log/pihole/pihole.log.1
++        chmod 644 /var/log/pihole/pihole.log.1
      fi
      # Delete most recent 24 hours from FTL's database, leave even older data intact (don't wipe out all history)
-     deleted=$(pihole-FTL sqlite3 "${DBFILE}" "DELETE FROM query_storage WHERE timestamp >= strftime('%s','now')-86400; select changes() from query_storage limit 1")
+     deleted=$(pihole-FTL sqlite3 -ni "${DBFILE}" "DELETE FROM query_storage WHERE timestamp >= strftime('%s','now')-86400; select changes() from query_storage limit 1")
  
      # Restart pihole-FTL to force reloading history
 -    sudo pihole restartdns
 +    /etc/init.d/pihole-FTL restart
  fi
  
- if [[ "$@" != *"quiet"* ]]; then
---- a/advanced/Scripts/query.sh
-+++ b/advanced/Scripts/query.sh
-@@ -18,17 +18,11 @@
- exact=""
- blockpage=""
- matchType="match"
--# Source pihole-FTL from install script
--pihole_FTL="${piholeDir}/pihole-FTL.conf"
--if [[ -f "${pihole_FTL}" ]]; then
--    source "${pihole_FTL}"
--fi
- 
--# Set this only after sourcing pihole-FTL.conf as the gravity database path may
--# have changed
--gravityDBfile="${GRAVITYDB}"
-+GDB="$(uci -q get pihole.@pihole[0].gravitydb)"
-+gravityDBfile="${GDB:-$GRAVITYDB}"
- 
--colfile="/opt/pihole/COL_TABLE"
-+colfile="/usr/lib/pihole/COL_TABLE"
- source "${colfile}"
- 
- # Scan an array of files for matching strings
-@@ -83,13 +77,14 @@
- # Strip valid options, leaving only the domain and invalid options
- # This allows users to place the options before or after the domain
- options=$(sed -E 's/ ?-(bp|adlists?|all|exact) ?//g' <<< "${options}")
-+idn2=$(command -v idn2)
- 
- # Handle remaining options
- # If $options contain non ASCII characters, convert to punycode
- case "${options}" in
-     ""             ) str="No domain specified";;
-     *" "*          ) str="Unknown query option specified";;
--    *[![:ascii:]]* ) domainQuery=$(idn2 "${options}");;
-+    *[![:ascii:]]* ) domainQuery=$(${idn2:-idn} "${options}");;
-     *              ) domainQuery="${options}";;
- esac
- 
---- a/advanced/Scripts/version.sh
-+++ b/advanced/Scripts/version.sh
-@@ -8,192 +8,37 @@
- # This file is copyright under the latest version of the EUPL.
+ if [[ "$*" != *"quiet"* ]]; then
+--- a/advanced/Scripts/query.sh	2023-11-18 18:31:11.000000000 +0700
++++ b/advanced/Scripts/query.sh	2023-11-25 10:45:52.000000000 +0700
+@@ -15,13 +15,13 @@
  # Please see LICENSE file for your rights under this license.
  
--# Variables
--DEFAULT="-1"
--COREGITDIR="/etc/.pihole/"
--WEBGITDIR="/var/www/html/admin/"
--
--# Source the setupvars config file
--# shellcheck disable=SC1091
--source /etc/pihole/setupVars.conf
--
- getLocalVersion() {
--    # FTL requires a different method
--    if [[ "$1" == "FTL" ]]; then
--        pihole-FTL version
--        return 0
+ # Globals
+-PI_HOLE_INSTALL_DIR="/opt/pihole"
++PI_HOLE_INSTALL_DIR="/usr/lib/pihole"
+ max_results="20"
+ partial="false"
+ domain=""
+ 
+ # Source color table
+-colfile="/opt/pihole/COL_TABLE"
++colfile="/usr/lib/pihole/COL_TABLE"
+ . "${colfile}"
+ 
+ # Source api functions
+--- a/advanced/Scripts/utils.sh	2023-11-18 18:31:11.000000000 +0700
++++ b/advanced/Scripts/utils.sh	2023-11-25 10:45:52.000000000 +0700
+@@ -86,7 +86,7 @@ removeKey() {
+ #######################
+ getFTLPIDFile() {
+   local FTLCONFFILE="/etc/pihole/pihole-FTL.conf"
+-  local DEFAULT_PID_FILE="/run/pihole-FTL.pid"
++  local DEFAULT_PID_FILE="$(uci_get pihole @pihole[0] pidfile)"
+   local FTL_PID_FILE
+ 
+   if [ -s "${FTLCONFFILE}" ]; then
+@@ -94,7 +94,7 @@ getFTLPIDFile() {
+     FTL_PID_FILE="$({ grep '^PIDFILE=' "${FTLCONFFILE}" || echo "${DEFAULT_PID_FILE}"; } | cut -d'=' -f2-)"
+   else
+     # if there is no pihole-FTL.conf, use the default path
+-    FTL_PID_FILE="${DEFAULT_PID_FILE}"
++    FTL_PID_FILE="${DEFAULT_PID_FILE:-/var/run/pihole-FTL.pid}"
+   fi
+ 
+   echo "${FTL_PID_FILE}"
+--- a/advanced/Scripts/version.sh
++++ b/advanced/Scripts/version.sh
+@@ -18,41 +18,19 @@
+ if [ -f ${cachedVersions} ]; then
+     # shellcheck disable=SC1090
+     . "$cachedVersions"
+-else
+-    echo "Could not find /etc/pihole/versions. Running update now."
+-    pihole updatechecker
+-    # shellcheck disable=SC1090
+-    . "$cachedVersions"
+ fi
+ 
+ main() {
+-    local details
+-    details=false
++    local CORE_VERSION
++    local WEB_VERSION
++    local FTL_VERSION
++    CORE_VERSION=$(grep Version /usr/lib/opkg/info/pihole.control | awk '{print $2}')
++    WEB_VERSION=$(grep Version /usr/lib/opkg/info/pihole-web.control | awk '{print $2}')
++    FTL_VERSION=$(grep Version /usr/lib/opkg/info/pihole-FTL.control | awk '{print $2}')
+ 
+-    # Automatically show detailed information if
+-    # at least one of the components is not on master branch
+-    if [ ! "${CORE_BRANCH}" = "master" ] || [ ! "${WEB_BRANCH}" = "master" ] || [ ! "${FTL_BRANCH}" = "master" ] ; then
+-        details=true
 -    fi
 -
--    # Get the tagged version of the local repository
--    local directory="${1}"
--    local version
--
--    cd "${directory}" 2> /dev/null || { echo "${DEFAULT}"; return 1; }
--    version=$(git describe --tags --always || echo "$DEFAULT")
--    if [[ "${version}" =~ ^v ]]; then
--        echo "${version}"
--    elif [[ "${version}" == "${DEFAULT}" ]]; then
--        echo "ERROR"
--        return 1
+-    if [ "${details}" = true ]; then
+-        echo "Core"
+-        echo "    Version is ${CORE_VERSION:=N/A} (Latest: ${GITHUB_CORE_VERSION:=N/A})"
+-        echo "    Branch is ${CORE_BRANCH:=N/A}"
+-        echo "    Hash is ${CORE_HASH:=N/A} (Latest: ${GITHUB_CORE_HASH:=N/A})"
+-        echo "Web"
+-        echo "    Version is ${WEB_VERSION:=N/A} (Latest: ${GITHUB_WEB_VERSION:=N/A})"
+-        echo "    Branch is ${WEB_BRANCH:=N/A}"
+-        echo "    Hash is ${WEB_HASH:=N/A} (Latest: ${GITHUB_WEB_HASH:=N/A})"
+-        echo "FTL"
+-        echo "    Version is ${FTL_VERSION:=N/A} (Latest: ${GITHUB_FTL_VERSION:=N/A})"
+-        echo "    Branch is ${FTL_BRANCH:=N/A}"
+-        echo "    Hash is ${FTL_HASH:=N/A} (Latest: ${GITHUB_FTL_HASH:=N/A})"
 -    else
--        echo "Untagged"
+-        echo "Core version is ${CORE_VERSION:=N/A} (Latest: ${GITHUB_CORE_VERSION:=N/A})"
+-        echo "Web version is ${WEB_VERSION:=N/A} (Latest: ${GITHUB_WEB_VERSION:=N/A})"
+-        echo "FTL version is ${FTL_VERSION:=N/A} (Latest: ${GITHUB_FTL_VERSION:=N/A})"
 -    fi
--    return 0
--}
--
--getLocalHash() {
--    # Local FTL hash does not exist on filesystem
-     if [[ "$1" == "FTL" ]]; then
--        echo "N/A"
--        return 0
--    fi
--
--    # Get the short hash of the local repository
--    local directory="${1}"
--    local hash
--
--    cd "${directory}" 2> /dev/null || { echo "${DEFAULT}"; return 1; }
--    hash=$(git rev-parse --short HEAD || echo "$DEFAULT")
--    if [[ "${hash}" == "${DEFAULT}" ]]; then
--        echo "ERROR"
--        return 1
--    else
--        echo "${hash}"
--    fi
--    return 0
--}
--
--getRemoteHash(){
--    # Remote FTL hash is not applicable
--    if [[ "$1" == "FTL" ]]; then
--        echo "N/A"
--        return 0
--    fi
--
--    local daemon="${1}"
--    local branch="${2}"
--
--    hash=$(git ls-remote --heads "https://github.com/pi-hole/${daemon}" | \
--        awk -v bra="$branch" '$0~bra {print substr($0,0,8);exit}')
--    if [[ -n "$hash" ]]; then
--        echo "$hash"
--    else
--        echo "ERROR"
--        return 1
--    fi
--    return 0
--}
--
--getRemoteVersion(){
--    # Get the version from the remote origin
--    local daemon="${1}"
--    local version
--    local cachedVersions
--    local arrCache
--    cachedVersions="/etc/pihole/GitHubVersions"
--
--    #If the above file exists, then we can read from that. Prevents overuse of GitHub API
--    if [[ -f "$cachedVersions" ]]; then
--        IFS=' ' read -r -a arrCache < "$cachedVersions"
--
--        case $daemon in
--            "pi-hole"   )  echo "${arrCache[0]}";;
--            "AdminLTE"  )  [[ "${INSTALL_WEB_INTERFACE}" == true ]] && echo "${arrCache[1]}";;
--            "FTL"       )  [[ "${INSTALL_WEB_INTERFACE}" == true ]] && echo "${arrCache[2]}" || echo "${arrCache[1]}";;
--        esac
--
--        return 0
--    fi
--
--    version=$(curl --silent --fail "https://api.github.com/repos/pi-hole/${daemon}/releases/latest" | \
--        awk -F: '$1 ~/tag_name/ { print $2 }' | \
--        tr -cd '[[:alnum:]]._-')
--    if [[ "${version}" =~ ^v ]]; then
--        echo "${version}"
--    else
--        echo "ERROR"
--        return 1
--    fi
--    return 0
--}
--
--getLocalBranch(){
--    # Get the checked out branch of the local directory
--    local directory="${1}"
--    local branch
--
--    # Local FTL btranch is stored in /etc/pihole/ftlbranch
--    if [[ "$1" == "FTL" ]]; then
--        branch="$(pihole-FTL branch)"
--    else
--        cd "${directory}" 2> /dev/null || { echo "${DEFAULT}"; return 1; }
--        branch=$(git rev-parse --abbrev-ref HEAD || echo "$DEFAULT")
--    fi
--    if [[ ! "${branch}" =~ ^v ]]; then
--        if [[ "${branch}" == "master" ]]; then
--            echo ""
--        elif [[ "${branch}" == "HEAD" ]]; then
--            echo "in detached HEAD state at "
-+        if [[ -f "/usr/lib/opkg/info/pihole-FTL.control" ]]; then
-+            grep Version /usr/lib/opkg/info/pihole-FTL.control | awk '{print $2}' | cut -d- -f1
-+        else
-+            echo "UNKNOWN"
-+        fi
-+    elif [[ "$1" == "pi-hole" ]]; then
-+        if [[ -f "/usr/lib/opkg/info/pihole.control" ]]; then
-+            grep Version /usr/lib/opkg/info/pihole.control | awk '{print $2}' | cut -d- -f1
-+        else
-+           echo "UNKNOWN"
-+        fi
-+     else
-+        if [[ -f "/usr/lib/opkg/info/pihole-web.control" ]]; then
-+            grep Version /usr/lib/opkg/info/pihole-web.control | awk '{print $2}' | cut -d- -f1
-         else
--            echo "${branch} "
-+            echo "UNKNOWN"
-         fi
--    else
--        # Branch started in "v"
--        echo "release "
-     fi
-     return 0
++    echo "Core version is ${CORE_VERSION:=N/A}"
++    echo "Web version is ${WEB_VERSION:=N/A}"
++    echo "FTL version is ${FTL_VERSION:=N/A}"
  }
  
- versionOutput() {
--    if [[ "$1" == "AdminLTE" && "${INSTALL_WEB_INTERFACE}" != true ]]; then
--        echo "  WebAdmin not installed"
--        return 1
--    fi
--
--    [[ "$1" == "pi-hole" ]] && GITDIR=$COREGITDIR
--    [[ "$1" == "AdminLTE" ]] && GITDIR=$WEBGITDIR
--    [[ "$1" == "FTL" ]] && GITDIR="FTL"
--
--    [[ "$2" == "-c" ]] || [[ "$2" == "--current" ]] || [[ -z "$2" ]] && current=$(getLocalVersion $GITDIR) && branch=$(getLocalBranch $GITDIR)
--    [[ "$2" == "-l" ]] || [[ "$2" == "--latest" ]] || [[ -z "$2" ]] && latest=$(getRemoteVersion "$1")
--    if [[ "$2" == "-h" ]] || [[ "$2" == "--hash" ]]; then
--        [[ "$3" == "-c" ]] || [[ "$3" == "--current" ]] || [[ -z "$3" ]] && curHash=$(getLocalHash "$GITDIR") && branch=$(getLocalBranch $GITDIR)
--        [[ "$3" == "-l" ]] || [[ "$3" == "--latest" ]] || [[ -z "$3" ]] && latHash=$(getRemoteHash "$1" "$(cd "$GITDIR" 2> /dev/null && git rev-parse --abbrev-ref HEAD)")
--    fi
--    if [[ -n "$current" ]] && [[ -n "$latest" ]]; then
--        output="${1^} version is $branch$current (Latest: $latest)"
--    elif [[ -n "$current" ]] && [[ -z "$latest" ]]; then
--        output="Current ${1^} version is $branch$current"
--    elif [[ -z "$current" ]] && [[ -n "$latest" ]]; then
--        output="Latest ${1^} version is $latest"
--    elif [[ "$curHash" == "N/A" ]] || [[ "$latHash" == "N/A" ]]; then
--        output="${1^} hash is not applicable"
--    elif [[ -n "$curHash" ]] && [[ -n "$latHash" ]]; then
--        output="${1^} hash is $curHash (Latest: $latHash)"
--    elif [[ -n "$curHash" ]] && [[ -z "$latHash" ]]; then
--        output="Current ${1^} hash is $curHash"
--    elif [[ -z "$curHash" ]] && [[ -n "$latHash" ]]; then
--        output="Latest ${1^} hash is $latHash"
--    else
--        errorOutput
--        return 1
--    fi
--
-+    output="${1^} version is v$(getLocalVersion $1)"
-     [[ -n "$output" ]] && echo "  $output"
- }
- 
--errorOutput() {
--    echo "  Invalid Option! Try 'pihole -v --help' for more information."
--    exit 1
--}
--
- defaultOutput() {
-     versionOutput "pi-hole" "$@"
--
--    if [[ "${INSTALL_WEB_INTERFACE}" == true ]]; then
--        versionOutput "AdminLTE" "$@"
--    fi
--
-+    versionOutput "AdminLTE" "$@"
-     versionOutput "FTL" "$@"
- }
- 
-@@ -206,11 +51,6 @@
-   -p, --pihole         Only retrieve info regarding Pi-hole repository
-   -a, --admin          Only retrieve info regarding AdminLTE repository
-   -f, --ftl            Only retrieve info regarding FTL repository
--
--Options:
--  -c, --current        Return the current version
--  -l, --latest         Return the latest version
--  --hash               Return the GitHub hash from your local repositories
-   -h, --help           Show this help dialog"
-   exit 0
- }
---- a/gravity.sh
-+++ b/gravity.sh
-@@ -13,13 +13,13 @@
+ main
+--- a/gravity.sh	2023-11-18 18:31:11.000000000 +0700
++++ b/gravity.sh	2023-11-25 10:46:47.000000000 +0700
+@@ -13,7 +13,7 @@
  
  export LC_ALL=C
  
--coltable="/opt/pihole/COL_TABLE"
-+coltable="/usr/lib/pihole/COL_TABLE"
- source "${coltable}"
+-PI_HOLE_SCRIPT_DIR="/opt/pihole"
++PI_HOLE_SCRIPT_DIR="/usr/lib/pihole"
+ # Source utils.sh for GetFTLConfigValue
+ utilsfile="${PI_HOLE_SCRIPT_DIR}/utils.sh"
+ # shellcheck disable=SC1090
+@@ -23,10 +23,10 @@ coltable="${PI_HOLE_SCRIPT_DIR}/COL_TABL
+ # shellcheck disable=SC1090
+ . "${coltable}"
  # shellcheck disable=SC1091
--source "/etc/.pihole/advanced/Scripts/database_migration/gravity-db.sh"
-+source "/usr/lib/pihole/database_migration/gravity-db.sh"
+-. "/etc/.pihole/advanced/Scripts/database_migration/gravity-db.sh"
++. "/usr/lib/pihole/database_migration/gravity-db.sh"
  
  basename="pihole"
 -PIHOLE_COMMAND="/usr/local/bin/${basename}"
@@ -446,7 +279,7 @@
  
  piholeDir="/etc/${basename}"
  
-@@ -29,41 +29,21 @@
+@@ -36,14 +36,10 @@ blacklistFile="${piholeDir}/blacklist.tx
  regexFile="${piholeDir}/regex.list"
  adListFile="${piholeDir}/adlists.list"
  
@@ -454,55 +287,40 @@
 -VPNList="/etc/openvpn/ipp.txt"
 -
 -piholeGitDir="/etc/.pihole"
- gravityDBfile_default="${piholeDir}/gravity.db"
--# GRAVITYDB may be overwritten by source pihole-FTL.conf below
--GRAVITYDB="${gravityDBfile_default}"
+ GRAVITYDB=$(getFTLConfigValue files.gravity)
+ GRAVITY_TMPDIR=$(getFTLConfigValue files.gravity_tmp)
 -gravityDBschema="${piholeGitDir}/advanced/Templates/gravity.db.sql"
 -gravityDBcopy="${piholeGitDir}/advanced/Templates/gravity_copy.sql"
-+GDB="$(uci -q get pihole.@pihole[0].gravitydb)"
-+GRAVITYDB="${GDB:-$gravityDBfile_default}"
-+gravityDBschema="/usr/lib/pihole/Templates/gravity.db.sql"
-+gravityDBcopy="/usr/lib/pihole/Templates/gravity_copy.sql"
++gravityDBschema="${PI_HOLE_SCRIPT_DIR}/Templates/gravity.db.sql"
++gravityDBcopy="${PI_HOLE_SCRIPT_DIR}/Templates/gravity_copy.sql"
  
  domainsExtension="domains"
+ curl_connect_timeout=10
+@@ -96,10 +92,15 @@ gravity_swap_databases() {
+   echo -ne "  ${INFO} ${str}..."
  
--# Source setupVars from install script
--setupVars="${piholeDir}/setupVars.conf"
--if [[ -f "${setupVars}" ]];then
--  source "${setupVars}"
--else
--  echo -e "  ${COL_LIGHT_RED}Installation Failure: ${setupVars} does not exist! ${COL_NC}
--  Please run 'pihole -r', and choose the 'reconfigure' option to fix."
--  exit 1
--fi
--
--# Source pihole-FTL from install script
--pihole_FTL="${piholeDir}/pihole-FTL.conf"
--if [[ -f "${pihole_FTL}" ]]; then
--  source "${pihole_FTL}"
--fi
--
--# Set this only after sourcing pihole-FTL.conf as the gravity database path may
- # have changed
- gravityDBfile="${GRAVITYDB}"
- gravityTEMPfile="${GRAVITYDB}_temp"
- gravityDIR="$(dirname -- "${gravityDBfile}")"
- gravityOLDfile="${gravityDIR}/gravity_old.db"
+   # Swap databases and remove or conditionally rename old database
++  if command -v stat; then
+   # Number of available blocks on disk
+   availableBlocks=$(stat -f --format "%a" "${gravityDIR}")
+   # Number of blocks, used by gravity.db
+   gravityBlocks=$(stat --format "%b" ${gravityDBfile})
++  else
++    availableBlocks=1
++    gravityBlocks=1
++  fi
+   # Only keep the old database if available disk space is at least twice the size of the existing gravity.db.
+   # Better be safe than sorry...
+   oldAvail=false
+@@ -115,6 +116,7 @@ gravity_swap_databases() {
+   if $oldAvail; then
+     echo -e "  ${TICK} The old database remains available"
+   fi
++  command -v stat || echo -e "  ${INFO} Please install coreutils-stat to backup old Database"
+ }
  
-+BLOCKINGMODE="$(uci -q get pihole.@pihole[0].blockingmode)"
- if [[ -z "${BLOCKINGMODE}" ]] ; then
-   BLOCKINGMODE="NULL"
- fi
-@@ -144,7 +124,7 @@
-   source="${2}"
-   backup_path="${piholeDir}/migration_backup"
-   backup_file="${backup_path}/$(basename "${2}")"
--  tmpFile="$(mktemp -p "/tmp" --suffix=".gravity")"
-+  tmpFile="$(mktemp -p "/tmp")"
- 
-   local timestamp
-   timestamp="$(date --utc +'%s')"
-@@ -313,15 +293,13 @@
+ # Update timestamp when the gravity table was last updated successfully
+@@ -299,15 +301,13 @@ migrate_to_database() {
  
  # Determine if DNS resolution is available before proceeding
  gravity_CheckDNSResolutionAvailable() {
@@ -523,7 +341,7 @@
      # Print confirmation of resolvability if it had previously failed
      if [[ -n "${secs:-}" ]]; then
        echo -e "${OVER}  ${TICK} DNS resolution is now available\\n"
-@@ -335,7 +313,7 @@
+@@ -321,7 +321,7 @@ gravity_CheckDNSResolutionAvailable() {
    # If the /etc/resolv.conf contains resolvers other than 127.0.0.1 then the local dnsmasq will not be queried and pi.hole is NXDOMAIN.
    # This means that even though name resolution is working, the getent hosts check fails and the holddown timer keeps ticking and eventually fails
    # So we check the output of the last command and if it failed, attempt to use dig +short as a fallback
@@ -532,7 +350,7 @@
      if [[ -n "${secs:-}" ]]; then
        echo -e "${OVER}  ${TICK} DNS resolution is now available\\n"
      fi
-@@ -356,7 +334,7 @@
+@@ -342,7 +342,7 @@ gravity_CheckDNSResolutionAvailable() {
    # Ensure DNS server is given time to be resolvable
    secs="120"
    echo -ne "  ${INFO} Time until retry: ${secs}"
@@ -541,17 +359,8 @@
      [[ "${secs:-}" -eq 0 ]] && break
      echo -ne "${OVER}  ${INFO} Time until retry: ${secs}"
      : $((secs--))
-@@ -417,7 +395,7 @@
-     echo -e "${OVER}  ${TICK} ${str}"
-   fi
+@@ -474,12 +474,19 @@ gravity_DownloadBlocklists() {
  
--  target="$(mktemp -p "/tmp" --suffix=".gravity")"
-+  target="$(mktemp -p "/tmp")"
- 
-   # Use compression to reduce the amount of data that is transferred
-   # between the Pi-hole and the ad list provider. Use this feature
-@@ -559,12 +537,19 @@
- }
  compareLists() {
    local adlistID="${1}" target="${2}"
 +  local commands suffix
@@ -559,7 +368,7 @@
 +  cmd=${cmd:-sha256sum}
 +
 +  #check GNU version
-+  $cmd --version > /dev/null 2>&1 && commands=${cmd:+$cmd -c -s --strict} || commands=${cmd:+$cmd -c -s}
++  $cmd --version > /dev/null 2>&1 && commands=${cmd:+$cmd -c --status --strict} || commands=${cmd:+$cmd -c -s}
 +  suffix="sha$(tr -d -c 0-9 <<< $cmd)"
  
    # Verify checksum when an older checksum exists
@@ -569,11 +378,11 @@
 +    if ! $commands "${target}.${suffix}"; then
        # The list changed upstream, we need to update the checksum
 -      sha1sum "${target}" > "${target}.sha1"
-+      sha1sum "${target}" > "${target}.${suffix}"
++      $commands "${target}" > "${target}.${suffix}"
        echo "  ${INFO} List has been updated"
        database_adlist_status "${adlistID}" "1"
-       database_adlist_updated "${adlistID}"
-@@ -574,7 +559,7 @@
+     else
+@@ -488,7 +495,7 @@ compareLists() {
      fi
    else
      # No checksum available, create one for comparing on the next run
@@ -581,29 +390,16 @@
 +    $cmd "${target}" > "${target}.${suffix}"
      # We assume here it was changed upstream
      database_adlist_status "${adlistID}" "1"
-     database_adlist_updated "${adlistID}"
-@@ -585,9 +570,10 @@
+   fi
+@@ -498,6 +505,7 @@ compareLists() {
  gravity_DownloadBlocklistFromUrl() {
-   local url="${1}" cmd_ext="${2}" agent="${3}" adlistID="${4}" saveLocation="${5}" target="${6}" compression="${7}"
-   local heisenbergCompensator="" patternBuffer str httpCode success="" ip
+   local url="${1}" adlistID="${2}" saveLocation="${3}" target="${4}" compression="${5}" gravity_type="${6}"
+   local heisenbergCompensator="" listCurlBuffer str httpCode success="" ip cmd_ext
 +  local dnsserver
  
    # Create temp file to store content on disk instead of RAM
--  patternBuffer=$(mktemp -p "/tmp" --suffix=".phgpb")
-+  patternBuffer=$(mktemp -p "/tmp")
- 
-   # Determine if $saveLocation has read permission
-   if [[ -r "${saveLocation}" && $url != "file"* ]]; then
-@@ -600,7 +586,7 @@
-   str="Status:"
-   echo -ne "  ${INFO} ${str} Pending..."
-   blocked=false
--  case $BLOCKINGMODE in
-+  case ${BLOCKINGMODE^^} in
-     "IP-NODATA-AAAA"|"IP")
-       # Get IP address of this domain
-       ip="$(dig "${domain}" +short)"
-@@ -623,11 +609,13 @@
+   # We don't use '--suffix' here because not all implementations of mktemp support it, e.g. on Alpine
+@@ -539,11 +547,13 @@ gravity_DownloadBlocklistFromUrl() {
    esac
  
    if [[ "${blocked}" == true ]]; then
@@ -620,37 +416,17 @@
      fi
      ip=$(dig "@${ip_addr}" -p "${port}" +short "${domain}" | tail -1)
      if [[ $(echo "${url}" | awk -F '://' '{print $1}') = "https" ]]; then
-@@ -635,7 +623,7 @@
+@@ -551,7 +561,7 @@ gravity_DownloadBlocklistFromUrl() {
      else port=80
      fi
      bad_list=$(pihole -q -adlist "${domain}" | head -n1 | awk -F 'Match found in ' '{print $2}')
 -    echo -e "${OVER}  ${CROSS} ${str} ${domain} is blocked by ${bad_list%:}. Using DNS on ${PIHOLE_DNS_1} to download ${url}";
 +    echo -e "${OVER}  ${CROSS} ${str} ${domain} is blocked by ${bad_list%:}. Using DNS on ${dnsserver} to download ${url}";
      echo -ne "  ${INFO} ${str} Pending..."
-     cmd_ext="--resolve $domain:$port:$ip $cmd_ext"
+     cmd_ext="--resolve $domain:$port:$ip"
    fi
-@@ -715,6 +703,10 @@
-       database_adlist_status "${adlistID}" "4"
-     fi
-   fi
-+
-+  # Delete tmpFile
-+  rm "${patternBuffer}" > /dev/null 2>&1 || \
-+    echo -e "  ${CROSS} Unable to remove ${patternBuffer}"
- }
- 
- # Parse source files into domains format
-@@ -734,7 +726,7 @@
-     # 5) Remove leading tabs, spaces, etc.
-     # 6) Delete lines not matching domain names
-     < "${source}" tr -d '\r' | \
--    tr '[:upper:]' '[:lower:]' | \
-+    tr '[A-Z]' '[a-z]' | \
-     sed 's/\s*#.*//g' | \
-     sed -r '/(\/).*$/d' | \
-     sed -r 's/^.*\s+//g' | \
-@@ -812,18 +804,6 @@
-   gravity_Table_Count "vw_regex_whitelist" "regex whitelist filters"
+@@ -686,18 +696,6 @@ gravity_ShowCount() {
+   gravity_Table_Count "vw_regex_whitelist" "regex allowed filters"
  }
  
 -# Create "localhost" entries into hosts format
@@ -668,127 +444,123 @@
  # Trap Ctrl-C
  gravity_Trap() {
    trap '{ echo -e "\\n\\n  ${INFO} ${COL_LIGHT_RED}User-abort detected${COL_NC}"; gravity_Cleanup "error"; }' INT
-@@ -1000,9 +980,6 @@
- 
- gravity_DownloadBlocklists
+@@ -884,9 +882,6 @@ if ! gravity_DownloadBlocklists; then
+   exit 1
+ fi
  
 -# Create local.list
 -gravity_generateLocalList
 -
- # Migrate rest of the data from old to new database
- if ! gravity_swap_databases; then
-   echo -e "   ${CROSS} Unable to create database. Please contact support."
---- a/pihole
-+++ b/pihole
-@@ -9,49 +9,26 @@
+ # Update gravity timestamp
+ update_gravity_timestamp
+ 
+--- a/pihole	2023-11-18 18:31:11.000000000 +0700
++++ b/pihole	2023-11-25 10:45:52.000000000 +0700
+@@ -9,18 +9,19 @@
  # This file is copyright under the latest version of the EUPL.
  # Please see LICENSE file for your rights under this license.
  
 -readonly PI_HOLE_SCRIPT_DIR="/opt/pihole"
 +readonly PI_HOLE_SCRIPT_DIR="/usr/lib/pihole"
  
- # setupVars and PI_HOLE_BIN_DIR are not readonly here because in some functions (checkout),
+ # PI_HOLE_BIN_DIR is not readonly here because in some functions (checkout),
  # they might get set again when the installer is sourced. This causes an
  # error due to modifying a readonly variable.
- setupVars="/etc/pihole/setupVars.conf"
 -PI_HOLE_BIN_DIR="/usr/local/bin"
--readonly FTL_PID_FILE="/run/pihole-FTL.pid"
 +PI_HOLE_BIN_DIR="/usr/bin"
  
  readonly colfile="${PI_HOLE_SCRIPT_DIR}/COL_TABLE"
  source "${colfile}"
+ 
+ utilsfile="${PI_HOLE_SCRIPT_DIR}/utils.sh"
+ source "${utilsfile}"
 +source /lib/config/uci.sh
  
--utilsfile="${PI_HOLE_SCRIPT_DIR}/utils.sh"
--source "${utilsfile}"
--
--webpageFunc() {
--  source "${PI_HOLE_SCRIPT_DIR}/webpage.sh"
--  main "$@"
--  exit 0
--}
-+FTL_PID_UCI="$(uci_get pihole @pihole[0] pidfile)"
-+FTL_PID_FILE="${FTL_PID_UCI:-/var/run/pihole/pihole-FTL.pid}"
- 
- listFunc() {
-   "${PI_HOLE_SCRIPT_DIR}"/list.sh "$@"
-   exit 0
- }
- 
--debugFunc() {
--  local automated
--  local web
--
--  # Pull off the `debug` leaving passed call augmentation flags in $1
--  shift
--  if [[ "$@" == *"-a"* ]]; then
--    automated="true"
--  fi
--  if [[ "$@" == *"-w"* ]]; then
--    web="true"
--  fi
--
--  AUTOMATED=${automated:-} WEBCALL=${web:-} "${PI_HOLE_SCRIPT_DIR}"/piholeDebug.sh
--  exit 0
--}
--
- flushFunc() {
-   "${PI_HOLE_SCRIPT_DIR}"/piholeLogFlush.sh "$@"
-   exit 0
-@@ -62,17 +39,6 @@ arpFunc() {
+ versionsfile="/etc/pihole/versions"
+ if [ -f "${versionsfile}" ]; then
+@@ -95,25 +96,6 @@ arpFunc() {
    exit 0
  }
  
 -updatePiholeFunc() {
--  shift
--  "${PI_HOLE_SCRIPT_DIR}"/update.sh "$@"
--  exit 0
+-  if [ -n "${DOCKER_VERSION}" ]; then
+-    unsupportedFunc
+-  else
+-    shift
+-    "${PI_HOLE_SCRIPT_DIR}"/update.sh "$@"
+-    exit 0
+-  fi
 -}
 -
 -reconfigurePiholeFunc() {
--  /etc/.pihole/automated\ install/basic-install.sh --reconfigure
--  exit 0;
+-  if [ -n "${DOCKER_VERSION}" ]; then
+-    unsupportedFunc
+-  else
+-    /etc/.pihole/automated\ install/basic-install.sh --reconfigure
+-    exit 0;
+-  fi
 -}
 -
  updateGravityFunc() {
    exec "${PI_HOLE_SCRIPT_DIR}"/gravity.sh "$@"
  }
-@@ -83,18 +49,6 @@ queryFunc() {
+@@ -124,21 +106,6 @@ queryFunc() {
    exit 0
  }
  
 -chronometerFunc() {
--  shift
--  "${PI_HOLE_SCRIPT_DIR}"/chronometer.sh "$@"
+-  echo "Chronometer is gone, use PADD (https://github.com/pi-hole/PADD)"
 -  exit 0
 -}
 -
 -
 -uninstallFunc() {
--  "${PI_HOLE_SCRIPT_DIR}"/uninstall.sh
--  exit 0
+-  if [ -n "${DOCKER_VERSION}" ]; then
+-    unsupportedFunc
+-  else
+-    "${PI_HOLE_SCRIPT_DIR}"/uninstall.sh
+-    exit 0
+-  fi
 -}
 -
  versionFunc() {
-   shift
-   exec "${PI_HOLE_SCRIPT_DIR}"/version.sh "$@"
-@@ -133,7 +87,7 @@ restartDNS() {
+   exec "${PI_HOLE_SCRIPT_DIR}"/version.sh
+ }
+@@ -146,8 +113,11 @@ versionFunc() {
+ 
+ restartDNS() {
+   local svcOption svc str output status pid icon FTL_PID_FILE
++  local ubus=0
+   svcOption="${1:-restart}"
+ 
++  pihole-FTL -vv | grep -qi no-ubus || ubus=1
++
+   # get the current path to the pihole-FTL.pid
+   FTL_PID_FILE="$(getFTLPIDFile)"
+ 
+@@ -163,6 +133,10 @@ restartDNS() {
+       svc="true"
        str="FTL is not running"
        icon="${INFO}"
++    elif [[ "$ubus" -eq 1 ]]; then
++      svc="eval ubus call service signal '{\"name\":\"pihole-FTL\",\"signal\":34}'"
++      str="Reloading DNS lists (UBus)"
++      icon="${TICK}"
      else
--      svc="kill -RTMIN ${pid}"
-+      svc="eval ubus call service signal '{\"name\":\"pihole-FTL\",\"signal\":35}'"
+       svc="kill -RTMIN ${pid}"
        str="Reloading DNS lists"
-       icon="${TICK}"
-     fi
-@@ -146,13 +100,13 @@ restartDNS() {
+@@ -176,6 +150,10 @@ restartDNS() {
+       svc="true"
        str="FTL is not running"
        icon="${INFO}"
-     else
--      svc="kill -HUP ${pid}"
++    elif [[ "$ubus" -eq 1 ]]; then
 +      svc="eval ubus call service signal '{\"name\":\"pihole-FTL\",\"signal\":1}'"
++      str="Flushing DNS cache (UBus)"
++      icon="${TICK}"
+     else
+       svc="kill -HUP ${pid}"
        str="Flushing DNS cache"
-       icon="${TICK}"
+@@ -183,7 +161,7 @@ restartDNS() {
      fi
    else
      # A full restart has been requested
@@ -797,204 +569,29 @@
      str="Restarting DNS server"
      icon="${TICK}"
    fi
-@@ -174,6 +128,7 @@ restartDNS() {
- }
- 
- piholeEnable() {
-+  local blocking_enabled="$(uci_get pihole @pihole[0] blocking_enabled)"
-   if [[ "${2}" == "-h" ]] || [[ "${2}" == "--help" ]]; then
-     echo "Usage: pihole disable [time]
- Example: 'pihole disable', or 'pihole disable 5m'
-@@ -186,11 +141,15 @@ Time:
- 
-   elif [[ "${1}" == "0" ]]; then
-     # Disable Pi-hole
--    if grep -cq "BLOCKING_ENABLED=false" "${setupVars}"; then
-+    if [ "$blocking_enabled" = "0" ]; then
-       echo -e "  ${INFO} Blocking already disabled, nothing to do"
-       exit 0
-     fi
-     if [[ $# > 1 ]]; then
-+      if [[ -z "$(command -v nohup)" ]]; then
-+        echo -e "  ${CROSS} command nohup not found, exiting ..."
-+        exit 1
-+      fi
-       local error=false
-       if [[ "${2}" == *"s" ]]; then
-         tt=${2%"s"}
-@@ -204,7 +163,7 @@ Time:
-         fi
-       elif [[ "${2}" == *"m" ]]; then
-         tt=${2%"m"}
--          if [[ "${tt}" =~ ^-?[0-9]+$ ]];then
-+        if [[ "${tt}" =~ ^-?[0-9]+$ ]];then
-           local str="Disabling blocking for ${tt} minutes"
-           echo -e "  ${INFO} ${str}..."
-           local str="Blocking will be re-enabled in ${tt} minutes"
-@@ -226,21 +185,22 @@ Time:
-       fi
- 
-       local str="Pi-hole Disabled"
--      addOrEditKeyValPair "${setupVars}" "BLOCKING_ENABLED" "false"
-+      uci_set "pihole" "@pihole[0]" "blocking_enabled" "0"
-     fi
-   else
-     # Enable Pi-hole
-     killall -q pihole-reenable
--    if grep -cq "BLOCKING_ENABLED=true" "${setupVars}"; then
-+    if [ "$blocking_enabled" = "1" ]; then
-       echo -e "  ${INFO} Blocking already enabled, nothing to do"
-       exit 0
-     fi
-     echo -e "  ${INFO} Enabling blocking"
-     local str="Pi-hole Enabled"
- 
--    addOrEditKeyValPair "${setupVars}" "BLOCKING_ENABLED" "true"
-+    uci_set "pihole" "@pihole[0]" "blocking_enabled" "1"
-   fi
- 
-+  uci_commit pihole
-   restartDNS reload-lists
- 
-   echo -e "${OVER}  ${TICK} ${str}"
-@@ -248,20 +208,20 @@ Time:
- 
- piholeLogging() {
-   shift
-+  local log_fac="$(uci_get dhcp @dnsmasq[0] logfacility)"
-   if [[ "${1}" == "-h" ]] || [[ "${1}" == "--help" ]]; then
-     echo "Usage: pihole logging [options]
- Example: 'pihole logging on'
- Specify whether the Pi-hole log should be used
- 
- Options:
--  on                  Enable the Pi-hole log at /var/log/pihole.log
--  off                 Disable and flush the Pi-hole log at /var/log/pihole.log
--  off noflush         Disable the Pi-hole log at /var/log/pihole.log"
-+  on                  Enable the Pi-hole log at ${log_fac:-/var/log/pihole.log}
-+  off                 Disable and flush the Pi-hole log at ${log_fac:-/var/log/pihole.log}
-+  off noflush         Disable the Pi-hole log at ${log_fac:-/var/log/pihole.log}"
-     exit 0
-   elif [[ "${1}" == "off" ]]; then
-     # Disable logging
--    removeKey /etc/dnsmasq.d/01-pihole.conf "log-queries"
--    addOrEditKeyValPair "${setupVars}" "QUERY_LOGGING" "false"
-+    uci_remove "dhcp" "@dnsmasq[0]" "logqueries"
-     if [[ "${2}" != "noflush" ]]; then
-       # Flush logs
-       "${PI_HOLE_BIN_DIR}"/pihole -f
-@@ -270,8 +230,8 @@ Options:
-     local str="Logging has been disabled!"
-   elif [[ "${1}" == "on" ]]; then
-     # Enable logging
--    addKey /etc/dnsmasq.d/01-pihole.conf "log-queries"
--    addOrEditKeyValPair "${setupVars}" "QUERY_LOGGING" "true"
-+    [[ -z "$log_fac" ]] && uci_set "dhcp" "@dnsmasq[0]" "logfacility" "/var/log/pihole.log"
-+    uci_set "dhcp" "@dnsmasq[0]" "logqueries" "1"
-     echo -e "  ${INFO} Enabling logging..."
-     local str="Logging has been enabled!"
-   else
-@@ -279,47 +239,30 @@ Options:
-   Try 'pihole logging --help' for more information."
-     exit 1
-   fi
-+  uci_commit dhcp
-   restartDNS
-   echo -e "${OVER}  ${TICK} ${str}"
- }
- 
- analyze_ports() {
--  local lv4 lv6 port=${1}
-   # FTL is listening at least on at least one port when this
+@@ -318,8 +296,8 @@ analyze_ports() {
    # function is getting called
    # Check individual address family/protocol combinations
    # For a healthy Pi-hole, they should all be up (nothing printed)
 -  lv4="$(ss --ipv4 --listening --numeric --tcp --udp src :${port})"
 -  if grep -q "udp " <<< "${lv4}"; then
--      echo -e "     ${TICK} UDP (IPv4)"
--  else
--      echo -e "     ${CROSS} UDP (IPv4)"
--  fi
--  if grep -q "tcp " <<< "${lv4}"; then
--      echo -e "     ${TICK} TCP (IPv4)"
--  else
--      echo -e "     ${CROSS} TCP (IPv4)"
--  fi
--  lv6="$(ss --ipv6 --listening --numeric --tcp --udp src :${port})"
--  if grep -q "udp " <<< "${lv6}"; then
--      echo -e "     ${TICK} UDP (IPv6)"
--  else
--      echo -e "     ${CROSS} UDP (IPv6)"
--  fi
--  if grep -q "tcp " <<< "${lv6}"; then
--      echo -e "     ${TICK} TCP (IPv6)"
--  else
--      echo -e "     ${CROSS} TCP (IPv6)"
--  fi
-+  local ns="$(netstat -tupln | grep -E ":${1}.*pihole")"
-+  grep -q "udp " <<< "${ns}" && echo -en "     ${TICK} UDP" || echo -en "     ${CROSS} UDP"
-+  grep -q "tcp " <<< "${ns}" && echo -e "  ${TICK} TCP" || echo -e " ${CROSS} TCP"
-   echo ""
- }
- 
- statusFunc() {
-   # Determine if there is pihole-FTL service is listening
-   local pid port ftl_api_port
-+  local blocking_enabled="$(uci_get pihole @pihole[0] blocking_enabled)"
- 
-   pid="$(getFTLPID)"
--  ftl_api_port="$(getFTLAPIPort)"
-+  ftl_api_port="$(uci_get pihole @pihole[0] ftlport)"
-+  ftl_api_port="${ftl_api_port:-4711}"
-   if [[ "$pid" -eq "-1" ]]; then
-     case "${1}" in
-       "web") echo "-1";;
-@@ -344,13 +287,13 @@ statusFunc() {
++  lv4="$(netstat -tupln | grep -E ":${1}.*pihole-FTL" | grep -v "::")"
++  if grep -Eq "udp " <<< "${lv4}"; then
+       echo -e "     ${TICK} UDP (IPv4)"
+   else
+       echo -e "     ${CROSS} UDP (IPv4)"
+@@ -329,7 +307,7 @@ analyze_ports() {
+   else
+       echo -e "     ${CROSS} TCP (IPv4)"
    fi
- 
-   # Determine if Pi-hole's blocking is enabled
--  if grep -q "BLOCKING_ENABLED=false" /etc/pihole/setupVars.conf; then
-+  if [ "$blocking_enabled" = "0" ]; then
-     # A config is commented out
-     case "${1}" in
-       "web") echo 0;;
-       *) echo -e "  ${CROSS} Pi-hole blocking is disabled";;
-     esac
--  elif grep -q "BLOCKING_ENABLED=true" /etc/pihole/setupVars.conf;  then
-+  elif [ "$blocking_enabled" = "1" ]; then
-     # Configs are set
-     case "${1}" in
-       "web") echo "$port";;
-@@ -368,10 +311,40 @@ statusFunc() {
- exit 0
+-  lv6="$(ss --ipv6 --listening --numeric --tcp --udp src :${port})"
++  lv6="$(netstat -tupln | grep -E ":${1}.*::.*pihole-FTL")"
+   if grep -q "udp " <<< "${lv6}"; then
+       echo -e "     ${TICK} UDP (IPv6)"
+   else
+@@ -391,9 +369,13 @@ exit 0
  }
  
-+# moved from webpage.sh
-+HashPassword() {
-+    # Compute password hash twice to avoid rainbow table vulnerability
-+    return=$(echo -n "${1}" | sha256sum | sed 's/\s.*$//')
-+    return=$(echo -n "${return}" | sha256sum | sed 's/\s.*$//')
-+    echo "${return}"
-+}
-+
-+SetWebPassword() {
-+    local action="$2" pwd="$3"
-+
-+	if [[ "$action" == "set" ]]; then
-+        hash=$(HashPassword "$pwd")
-+	    uci_set "pihole" "@pihole[0]" "web_password" "$hash"
-+	    uci_commit pihole
-+	    echo -e "  ${TICK} New password set"
-+    elif [[ "$action" == "remove" ]]; then
-+	    uci_remove "pihole" "@pihole[0]" "web_password"
-+	    uci_commit pihole
-+	    echo -e "  ${TICK} Password has been removed"
-+    else
-+        echo "Usage: pihole setpass [set|remove] YOUR_PASSWORD"
-+        exit 0
-+    fi
-+}
-+
  tailFunc() {
 -  # Warn user if Pi-hole's logging is disabled
 -  local logging_enabled=$(grep -c "^log-queries" /etc/dnsmasq.d/01-pihole.conf)
@@ -1009,40 +606,44 @@
      # No "log-queries" lines are found.
      # Commented out lines (such as "#log-queries") are ignored
      echo "  ${CROSS} Warning: Query logging is disabled"
-@@ -382,7 +355,7 @@ tailFunc() {
+@@ -404,7 +386,7 @@ tailFunc() {
    # Color blocklist/blacklist/wildcard entries as red
    # Color A/AAAA/DHCP strings as white
    # Color everything else as gray
--  tail -f /var/log/pihole.log | grep --line-buffered "${1}" | sed -E \
+-  tail -f /var/log/pihole/pihole.log | grep --line-buffered "${1}" | sed -E \
 +  tail -f ${log_fac} | grep --line-buffered "${1}" | sed -E \
      -e "s,($(date +'%b %d ')| dnsmasq\[[0-9]*\]),,g" \
      -e "s,(.*(blacklisted |gravity blocked ).*),${COL_RED}&${COL_NC}," \
      -e "s,.*(query\\[A|DHCP).*,${COL_NC}&${COL_NC}," \
-@@ -390,55 +363,6 @@ tailFunc() {
+@@ -412,59 +394,6 @@ tailFunc() {
    exit 0
  }
  
 -piholeCheckoutFunc() {
--  if [[ "$2" == "-h" ]] || [[ "$2" == "--help" ]]; then
--    echo "Usage: pihole checkout [repo] [branch]
--Example: 'pihole checkout master' or 'pihole checkout core dev'
--Switch Pi-hole subsystems to a different GitHub branch
+-  if [ -n "${DOCKER_VERSION}" ]; then
+-    unsupportedFunc
+-  else
+-    if [[ "$2" == "-h" ]] || [[ "$2" == "--help" ]]; then
+-      echo "Usage: pihole checkout [repo] [branch]
+-  Example: 'pihole checkout master' or 'pihole checkout core dev'
+-  Switch Pi-hole subsystems to a different GitHub branch
 -
--Repositories:
--  core [branch]       Change the branch of Pi-hole's core subsystem
--  web [branch]        Change the branch of Web Interface subsystem
--  ftl [branch]        Change the branch of Pi-hole's FTL subsystem
+-  Repositories:
+-    core [branch]       Change the branch of Pi-hole's core subsystem
+-    web [branch]        Change the branch of Web Interface subsystem
+-    ftl [branch]        Change the branch of Pi-hole's FTL subsystem
 -
--Branches:
--  master              Update subsystems to the latest stable release
--  dev                 Update subsystems to the latest development release
--  branchname          Update subsystems to the specified branchname"
--    exit 0
+-  Branches:
+-    master              Update subsystems to the latest stable release
+-    dev                 Update subsystems to the latest development release
+-    branchname          Update subsystems to the specified branchname"
+-      exit 0
+-    fi
+-
+-    source "${PI_HOLE_SCRIPT_DIR}"/piholeCheckout.sh
+-    shift
+-    checkout "$@"
 -  fi
--
--  source "${PI_HOLE_SCRIPT_DIR}"/piholeCheckout.sh
--  shift
--  checkout "$@"
 -}
 -
 -tricorderFunc() {
@@ -1071,43 +672,33 @@
 -  exit 0
 -}
 -
- helpFunc() {
-   echo "Usage: pihole [options]
- Example: 'pihole -w -h'
-@@ -454,31 +378,22 @@ Whitelist/Blacklist Options:
+ unsupportedFunc(){
+   echo "Function not supported in Docker images"
+   exit 0
+@@ -485,11 +414,7 @@ Whitelist/Blacklist Options:
                          Add '-h' for more info on whitelist/blacklist usage
  
  Debugging Options:
 -  -d, debug           Start a debugging session
+-                        Add '-c' or '--check-database' to include a Pi-hole database integrity check
 -                        Add '-a' to automatically upload the log to tricorder.pi-hole.net
    -f, flush           Flush the Pi-hole log
 -  -r, reconfigure     Reconfigure or Repair Pi-hole subsystems
    -t, tail [arg]      View the live output of the Pi-hole log.
                        Add an optional argument to filter the log
                        (regular expressions are supported)
- 
- 
- Options:
--  -a, admin           Web interface options
--                        Add '-h' for more info on Web Interface usage
--  -c, chronometer     Calculates stats and displays to an LCD
--                        Add '-h' for more info on chronometer usage
-+  -p, setpass [arg]   Set web access password \"[set|remove] Your_Password\"
-   -g, updateGravity   Update the list of ad-serving domains
-   -h, --help, help    Show this help dialog
-   -l, logging         Specify whether the Pi-hole log should be used
+@@ -505,10 +430,7 @@ Options:
                          Add '-h' for more info on logging usage
    -q, query           Query the adlists for a specified domain
                          Add '-h' for more info on query usage
 -  -up, updatePihole   Update Pi-hole subsystems
 -                        Add '--check-only' to exit script before update is performed.
    -v, version         Show installed versions of Pi-hole, Web Interface & FTL
-                         Add '-h' for more info on version usage
 -  uninstall           Uninstall Pi-hole from your system
    status              Display the running status of Pi-hole subsystems
    enable              Enable Pi-hole subsystems
    disable             Disable Pi-hole subsystems
-@@ -486,8 +401,6 @@ Options:
+@@ -517,8 +439,6 @@ Options:
    restartdns          Full restart Pi-hole subsystems
                          Add 'reload' to update the lists and flush the cache without restarting the DNS server
                          Add 'reload-lists' to only update the lists WITHOUT flushing the cache or restarting the DNS server
@@ -1116,50 +707,92 @@
    arpflush            Flush information stored in Pi-hole's network tables";
    exit 0
  }
-@@ -500,11 +413,9 @@ fi
+@@ -528,14 +448,11 @@ if [[ $# = 0 ]]; then
+ fi
+ 
+ # functions that do not require sudo power
+-need_root=1
  case "${1}" in
    "-h" | "help" | "--help"      ) helpFunc;;
-   "-v" | "version"              ) versionFunc "$@";;
+   "-v" | "version"              ) versionFunc;;
 -  "-c" | "chronometer"          ) chronometerFunc "$@";;
    "-q" | "query"                ) queryFunc "$@";;
    "status"                      ) statusFunc "$2";;
-   "-t" | "tail"                 ) tailFunc "$2";;
 -  "tricorder"                   ) tricorderFunc;;
  
    # we need to add all arguments that require sudo power to not trigger the * argument
    "-w" | "whitelist"            ) ;;
-@@ -514,19 +425,15 @@ case "${1}" in
+@@ -545,52 +462,19 @@ case "${1}" in
    "--white-regex" | "white-regex" ) ;;
    "--white-wild" | "white-wild"   ) ;;
    "-f" | "flush"                ) ;;
 -  "-up" | "updatePihole"        ) ;;
 -  "-r"  | "reconfigure"         ) ;;
-   "-g" | "updateGravity"        ) ;;
    "-l" | "logging"              ) ;;
 -  "uninstall"                   ) ;;
    "enable"                      ) ;;
    "disable"                     ) ;;
--  "-d" | "debug"                ) ;;
+   "-d" | "debug"                ) ;;
    "restartdns"                  ) ;;
--  "-a" | "admin"                ) ;;
-   "checkout"                    ) ;;
-   "updatechecker"               ) ;;
+-  "-g" | "updateGravity"        ) need_root=0;;
+-  "reloaddns"                   ) need_root=0;;
++  "-g" | "updateGravity"        ) ;;
++  "reloaddns"                   ) ;;
+   "setpassword"                 ) ;;
+-  "checkout"                    ) ;;
+-  "updatechecker"               ) ;;
    "arpflush"                    ) ;;
-+  "-p" | "setpass"              ) ;;
+   "-t" | "tail"                 ) ;;
    *                             ) helpFunc;;
  esac
  
-@@ -555,12 +462,10 @@ case "${1}" in
-   "-r"  | "reconfigure"         ) reconfigurePiholeFunc;;
+-# Must be root to use this tool for most functions
+-if [[ ! $EUID -eq 0 && need_root -eq 1 ]];then
+-  if [[ -x "$(command -v sudo)" ]]; then
+-    exec sudo bash "$0" "$@"
+-    exit $?
+-  else
+-    echo -e "  ${CROSS} sudo is needed to run pihole commands.  Please run this script as root or install sudo."
+-    exit 1
+-  fi
+-fi
+-
+-# In the case of alpine running in a container, the USER variable appears to be blank
+-# which prevents the next trap from working correctly. Set it by running whoami
+-if [[ -z ${USER} ]]; then
+-  USER=$(whoami)
+-fi
+-
+-# Can also be user pihole for other functions
+-if [[ ${USER} != "pihole" && need_root -eq 0 ]];then
+-  if [[ -x "$(command -v sudo)" ]]; then
+-    exec sudo -u pihole bash "$0" "$@"
+-    exit $?
+-  else
+-    echo -e "  ${CROSS} sudo is needed to run pihole commands.  Please run this script as root or install sudo."
+-    exit 1
+-  fi
+-fi
+-
+ # Handle redirecting to specific functions based on arguments
+ case "${1}" in
+   "-w" | "whitelist"            ) listFunc "$@";;
+@@ -601,18 +485,13 @@ case "${1}" in
+   "--white-wild" | "white-wild"   ) listFunc "$@";;
+   "-d" | "debug"                ) debugFunc "$@";;
+   "-f" | "flush"                ) flushFunc "$@";;
+-  "-up" | "updatePihole"        ) updatePiholeFunc "$@";;
+-  "-r"  | "reconfigure"         ) reconfigurePiholeFunc;;
    "-g" | "updateGravity"        ) updateGravityFunc "$@";;
    "-l" | "logging"              ) piholeLogging "$@";;
-+  "-p" | "setpass"              ) SetWebPassword "$@";;
-   "uninstall"                   ) uninstallFunc;;
+-  "uninstall"                   ) uninstallFunc;;
    "enable"                      ) piholeEnable 1;;
    "disable"                     ) piholeEnable 0 "$2";;
    "restartdns"                  ) restartDNS "$2";;
--  "-a" | "admin"                ) webpageFunc "$@";;
+   "reloaddns"                   ) restartDNS "reload";;
+   "setpassword"                 ) SetWebPassword "$@";;
 -  "checkout"                    ) piholeCheckoutFunc "$@";;
--  "updatechecker"               ) updateCheckFunc "$@";;
+-  "updatechecker"               ) shift; updateCheckFunc "$@";;
    "arpflush"                    ) arpFunc "$@";;
+   "-t" | "tail"                 ) tailFunc "$2";;
  esac

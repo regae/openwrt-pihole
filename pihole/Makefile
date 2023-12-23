@@ -1,13 +1,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=pihole
-PKG_VERSION:=5.10
 PKG_RELEASE:=1
 
-PKG_SOURCE_URL:=https://codeload.github.com/pi-hole/pi-hole/tar.gz/v$(PKG_VERSION)?
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_HASH:=fb995f62ab83713222d538e0836557de651a94f61622bf930aa88187b70ae2ee
-PKG_BUILD_DIR:=$(BUILD_DIR)/pi-hole-$(PKG_VERSION)
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_URL:=https://github.com/pi-hole/pi-hole
+PKG_SOURCE_VERSION:=719ce801f52f05f1ee52cb8213b526218b481a3b
+PKG_MIRROR_HASH:=c88508c342ea5e573cfda04782c99e260c147ab4a73c305e047fd533030e00c6
+PKG_VERSION:=6.0-$(call version_abbrev,$(PKG_SOURCE_VERSION))
 
 PKG_LICENSE:=EUPL
 PKG_LICENSE_FILES:=LICENSE
@@ -15,11 +15,11 @@ PKG_LICENSE_FILES:=LICENSE
 include $(INCLUDE_DIR)/package.mk
 
 define Package/pihole
-  SECTION:=regae
-  CATEGORY:=regae
+  SECTION:=net
+  CATEGORY:=Network
   TITLE:=A black hole for Internet advertisements
   URL:=https://pi-hole.net/
-  DEPENDS:=+bash +bind-dig +bind-host +ca-bundle +coreutils +coreutils-sha1sum +curl +grep +idn2 +sed
+  DEPENDS:=+bash +bind-dig +bind-host +ca-bundle +coreutils +coreutils-tr +coreutils-sha1sum +curl +grep +idn2 +sed
 endef
 
 define Package/pihole/description
@@ -38,10 +38,12 @@ endif
 	$(INSTALL_DIR) $(1)/usr/lib/pihole
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/gravity.sh $(1)/usr/lib/pihole/
 	
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/advanced/Scripts/api.sh $(1)/usr/lib/pihole/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/advanced/Scripts/version.sh $(1)/usr/lib/pihole/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/advanced/Scripts/piholeLogFlush.sh $(1)/usr/lib/pihole/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/advanced/Scripts/list.sh $(1)/usr/lib/pihole/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/advanced/Scripts/query.sh $(1)/usr/lib/pihole/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/advanced/Scripts/utils.sh $(1)/usr/lib/pihole/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/advanced/Scripts/pihole-reenable.sh $(1)/usr/lib/pihole/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/advanced/Scripts/piholeARPTable.sh $(1)/usr/lib/pihole/
 
@@ -81,5 +83,7 @@ if [ -z "$${IPKG_INSTROOT}" ]; then
 fi
 exit 0
 endef
+
+override CONFIG_AUTOREMOVE=
 
 $(eval $(call BuildPackage,pihole))
