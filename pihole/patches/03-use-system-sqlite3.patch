@@ -1,0 +1,449 @@
+--- a/advanced/Scripts/database_migration/gravity-db.sh
++++ b/advanced/Scripts/database_migration/gravity-db.sh
+@@ -19,13 +19,13 @@
+ 	auditFile="${piholeDir}/auditlog.list"
+ 
+ 	# Get database version
+-	version="$(pihole-FTL sqlite3 -ni "${database}" "SELECT \"value\" FROM \"info\" WHERE \"property\" = 'version';")"
++	version="$(sqlite3 "${database}" "SELECT \"value\" FROM \"info\" WHERE \"property\" = 'version';")"
+ 
+ 	if [[ "$version" == "1" ]]; then
+ 		# This migration script upgrades the gravity.db file by
+ 		# adding the domain_audit table
+ 		echo -e "  ${INFO} Upgrading gravity database from version 1 to 2"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/1_to_2.sql"
++		sqlite3 "${database}" < "${scriptPath}/1_to_2.sql"
+ 		version=2
+ 
+ 		# Store audit domains in database table
+@@ -40,28 +40,28 @@
+ 		# renaming the regex table to regex_blacklist, and
+ 		# creating a new regex_whitelist table + corresponding linking table and views
+ 		echo -e "  ${INFO} Upgrading gravity database from version 2 to 3"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/2_to_3.sql"
++		sqlite3 "${database}" < "${scriptPath}/2_to_3.sql"
+ 		version=3
+ 	fi
+ 	if [[ "$version" == "3" ]]; then
+ 		# This migration script unifies the formally separated domain
+ 		# lists into a single table with a UNIQUE domain constraint
+ 		echo -e "  ${INFO} Upgrading gravity database from version 3 to 4"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/3_to_4.sql"
++		sqlite3 "${database}" < "${scriptPath}/3_to_4.sql"
+ 		version=4
+ 	fi
+ 	if [[ "$version" == "4" ]]; then
+ 		# This migration script upgrades the gravity and list views
+ 		# implementing necessary changes for per-client blocking
+ 		echo -e "  ${INFO} Upgrading gravity database from version 4 to 5"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/4_to_5.sql"
++		sqlite3 "${database}" < "${scriptPath}/4_to_5.sql"
+ 		version=5
+ 	fi
+ 	if [[ "$version" == "5" ]]; then
+ 		# This migration script upgrades the adlist view
+ 		# to return an ID used in gravity.sh
+ 		echo -e "  ${INFO} Upgrading gravity database from version 5 to 6"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/5_to_6.sql"
++		sqlite3 "${database}" < "${scriptPath}/5_to_6.sql"
+ 		version=6
+ 	fi
+ 	if [[ "$version" == "6" ]]; then
+@@ -69,7 +69,7 @@
+ 		# which is automatically associated to all clients not
+ 		# having their own group assignments
+ 		echo -e "  ${INFO} Upgrading gravity database from version 6 to 7"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/6_to_7.sql"
++		sqlite3 "${database}" < "${scriptPath}/6_to_7.sql"
+ 		version=7
+ 	fi
+ 	if [[ "$version" == "7" ]]; then
+@@ -77,21 +77,21 @@
+ 		# to ensure uniqueness on the group name
+ 		# We also add date_added and date_modified columns
+ 		echo -e "  ${INFO} Upgrading gravity database from version 7 to 8"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/7_to_8.sql"
++		sqlite3 "${database}" < "${scriptPath}/7_to_8.sql"
+ 		version=8
+ 	fi
+ 	if [[ "$version" == "8" ]]; then
+ 		# This migration fixes some issues that were introduced
+ 		# in the previous migration script.
+ 		echo -e "  ${INFO} Upgrading gravity database from version 8 to 9"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/8_to_9.sql"
++		sqlite3 "${database}" < "${scriptPath}/8_to_9.sql"
+ 		version=9
+ 	fi
+ 	if [[ "$version" == "9" ]]; then
+ 		# This migration drops unused tables and creates triggers to remove
+ 		# obsolete groups assignments when the linked items are deleted
+ 		echo -e "  ${INFO} Upgrading gravity database from version 9 to 10"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/9_to_10.sql"
++		sqlite3 "${database}" < "${scriptPath}/9_to_10.sql"
+ 		version=10
+ 	fi
+ 	if [[ "$version" == "10" ]]; then
+@@ -101,44 +101,44 @@
+ 		# to keep the copying process generic (needs the same columns in both the
+ 		# source and the destination databases).
+ 		echo -e "  ${INFO} Upgrading gravity database from version 10 to 11"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/10_to_11.sql"
++		sqlite3 "${database}" < "${scriptPath}/10_to_11.sql"
+ 		version=11
+ 	fi
+ 	if [[ "$version" == "11" ]]; then
+ 		# Rename group 0 from "Unassociated" to "Default"
+ 		echo -e "  ${INFO} Upgrading gravity database from version 11 to 12"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/11_to_12.sql"
++		sqlite3 "${database}" < "${scriptPath}/11_to_12.sql"
+ 		version=12
+ 	fi
+ 	if [[ "$version" == "12" ]]; then
+ 		# Add column date_updated to adlist table
+ 		echo -e "  ${INFO} Upgrading gravity database from version 12 to 13"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/12_to_13.sql"
++		sqlite3 "${database}" < "${scriptPath}/12_to_13.sql"
+ 		version=13
+ 	fi
+ 	if [[ "$version" == "13" ]]; then
+ 		# Add columns number and status to adlist table
+ 		echo -e "  ${INFO} Upgrading gravity database from version 13 to 14"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/13_to_14.sql"
++		sqlite3 "${database}" < "${scriptPath}/13_to_14.sql"
+ 		version=14
+ 	fi
+ 	if [[ "$version" == "14" ]]; then
+ 		# Changes the vw_adlist created in 5_to_6
+ 		echo -e "  ${INFO} Upgrading gravity database from version 14 to 15"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/14_to_15.sql"
++		sqlite3 "${database}" < "${scriptPath}/14_to_15.sql"
+ 		version=15
+ 	fi
+ 	if [[ "$version" == "15" ]]; then
+ 		# Add column abp_entries to adlist table
+ 		echo -e "  ${INFO} Upgrading gravity database from version 15 to 16"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/15_to_16.sql"
++		sqlite3 "${database}" < "${scriptPath}/15_to_16.sql"
+ 		version=16
+ 	fi
+ 	if [[ "$version" == "16" ]]; then
+ 		# Add antigravity table
+ 		# Add column type to adlist table (to support adlist types)
+ 		echo -e "  ${INFO} Upgrading gravity database from version 16 to 17"
+-		pihole-FTL sqlite3 -ni "${database}" < "${scriptPath}/16_to_17.sql"
++		sqlite3 "${database}" < "${scriptPath}/16_to_17.sql"
+ 		version=17
+ 	fi
+ }
+--- a/advanced/Scripts/list.sh	2023-11-20 22:51:14.000000000 +0700
++++ b/advanced/Scripts/list.sh	2023-11-25 10:16:42.000000000 +0700
+@@ -144,18 +144,18 @@ AddDomain() {
+     domain="$1"
+ 
+     # Is the domain in the list we want to add it to?
+-    num="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT COUNT(*) FROM domainlist WHERE domain = '${domain}';")"
++    num="$(sqlite3 "${gravityDBfile}" "SELECT COUNT(*) FROM domainlist WHERE domain = '${domain}';")"
+     requestedListname="$(GetListnameFromTypeId "${typeId}")"
+ 
+     if [[ "${num}" -ne 0 ]]; then
+-        existingTypeId="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT type FROM domainlist WHERE domain = '${domain}';")"
++        existingTypeId="$(sqlite3 "${gravityDBfile}" "SELECT type FROM domainlist WHERE domain = '${domain}';")"
+         if [[ "${existingTypeId}" == "${typeId}" ]]; then
+             if [[ "${verbose}" == true ]]; then
+                 echo -e "  ${INFO} ${1} already exists in ${requestedListname}, no need to add!"
+             fi
+         else
+             existingListname="$(GetListnameFromTypeId "${existingTypeId}")"
+-            pihole-FTL sqlite3 -ni "${gravityDBfile}" "UPDATE domainlist SET type = ${typeId} WHERE domain='${domain}';"
++            sqlite3 "${gravityDBfile}" "UPDATE domainlist SET type = ${typeId} WHERE domain='${domain}';"
+             if [[ "${verbose}" == true ]]; then
+                 echo -e "  ${INFO} ${1} already exists in ${existingListname}, it has been moved to ${requestedListname}!"
+             fi
+@@ -171,10 +171,10 @@ AddDomain() {
+     # Insert only the domain here. The enabled and date_added fields will be filled
+     # with their default values (enabled = true, date_added = current timestamp)
+     if [[ -z "${comment}" ]]; then
+-        pihole-FTL sqlite3 -ni "${gravityDBfile}" "INSERT INTO domainlist (domain,type) VALUES ('${domain}',${typeId});"
++        sqlite3 "${gravityDBfile}" "INSERT INTO domainlist (domain,type) VALUES ('${domain}',${typeId});"
+     else
+         # also add comment when variable has been set through the "--comment" option
+-        pihole-FTL sqlite3 -ni "${gravityDBfile}" "INSERT INTO domainlist (domain,type,comment) VALUES ('${domain}',${typeId},'${comment}');"
++        sqlite3 "${gravityDBfile}" "INSERT INTO domainlist (domain,type,comment) VALUES ('${domain}',${typeId},'${comment}');"
+     fi
+ }
+ 
+@@ -183,7 +183,7 @@ RemoveDomain() {
+     domain="$1"
+ 
+     # Is the domain in the list we want to remove it from?
+-    num="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT COUNT(*) FROM domainlist WHERE domain = '${domain}' AND type = ${typeId};")"
++    num="$(sqlite3 "${gravityDBfile}" "SELECT COUNT(*) FROM domainlist WHERE domain = '${domain}' AND type = ${typeId};")"
+ 
+     requestedListname="$(GetListnameFromTypeId "${typeId}")"
+ 
+@@ -200,14 +200,14 @@ RemoveDomain() {
+     fi
+     reload=true
+     # Remove it from the current list
+-    pihole-FTL sqlite3 -ni "${gravityDBfile}" "DELETE FROM domainlist WHERE domain = '${domain}' AND type = ${typeId};"
++    sqlite3 "${gravityDBfile}" "DELETE FROM domainlist WHERE domain = '${domain}' AND type = ${typeId};"
+ }
+ 
+ Displaylist() {
+     local count num_pipes domain enabled status nicedate requestedListname
+ 
+     requestedListname="$(GetListnameFromTypeId "${typeId}")"
+-    data="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT domain,enabled,date_modified FROM domainlist WHERE type = ${typeId};" 2> /dev/null)"
++    data="$(sqlite3 "${gravityDBfile}" "SELECT domain,enabled,date_modified FROM domainlist WHERE type = ${typeId};" 2> /dev/null)"
+ 
+     if [[ -z $data ]]; then
+         echo -e "Not showing empty list"
+@@ -245,10 +245,10 @@ Displaylist() {
+ }
+ 
+ NukeList() {
+-    count=$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT COUNT(1) FROM domainlist WHERE type = ${typeId};")
++    count=$(sqlite3 "${gravityDBfile}" "SELECT COUNT(1) FROM domainlist WHERE type = ${typeId};")
+     listname="$(GetListnameFromTypeId "${typeId}")"
+     if [ "$count" -gt 0 ];then
+-        pihole-FTL sqlite3 -ni "${gravityDBfile}" "DELETE FROM domainlist WHERE type = ${typeId};"
++        sqlite3 "${gravityDBfile}" "DELETE FROM domainlist WHERE type = ${typeId};"
+         echo "  ${TICK} Removed ${count} domain(s) from the ${listname}"
+     else
+         echo "  ${INFO} ${listname} already empty. Nothing to do!"
+--- a/advanced/Scripts/piholeARPTable.sh	2023-11-20 22:51:14.000000000 +0700
++++ b/advanced/Scripts/piholeARPTable.sh	2023-11-25 10:16:49.000000000 +0700
+@@ -27,7 +27,7 @@ flushARP(){
+     # Truncate network_addresses table in pihole-FTL.db
+     # This needs to be done before we can truncate the network table due to
+     # foreign key constraints
+-    if ! output=$(pihole-FTL sqlite3 -ni "${DBFILE}" "DELETE FROM network_addresses" 2>&1); then
++    if ! output=$(sqlite3 "${DBFILE}" "DELETE FROM network_addresses" 2>&1); then
+         echo -e "${OVER}  ${CROSS} Failed to truncate network_addresses table"
+         echo "  Database location: ${DBFILE}"
+         echo "  Output: ${output}"
+@@ -35,7 +35,7 @@ flushARP(){
+     fi
+ 
+     # Truncate network table in pihole-FTL.db
+-    if ! output=$(pihole-FTL sqlite3 -ni "${DBFILE}" "DELETE FROM network" 2>&1); then
++    if ! output=$(sqlite3 "${DBFILE}" "DELETE FROM network" 2>&1); then
+         echo -e "${OVER}  ${CROSS} Failed to truncate network table"
+         echo "  Database location: ${DBFILE}"
+         echo "  Output: ${output}"
+--- a/advanced/Scripts/piholeDebug.sh	2023-11-18 18:31:11.000000000 +0700
++++ b/advanced/Scripts/piholeDebug.sh	2023-11-25 10:16:58.000000000 +0700
+@@ -718,7 +718,7 @@ dig_at() {
+     # This helps emulate queries to different domains that a user might query
+     # It will also give extra assurance that Pi-hole is correctly resolving and blocking domains
+     local random_url
+-    random_url=$(pihole-FTL sqlite3 -ni "${PIHOLE_GRAVITY_DB_FILE}" "SELECT domain FROM vw_gravity WHERE domain not like '||%^' ORDER BY RANDOM() LIMIT 1")
++    random_url=$(sqlite3 "${PIHOLE_GRAVITY_DB_FILE}" "SELECT domain FROM vw_gravity WHERE domain not like '||%^' ORDER BY RANDOM() LIMIT 1")
+     # Fallback if no non-ABP style domains were found
+     if [ -z "${random_url}" ]; then
+         random_url="flurry.com"
+@@ -1064,7 +1064,7 @@ show_db_entries() {
+     IFS=$'\r\n'
+     local entries=()
+     mapfile -t entries < <(\
+-        pihole-FTL sqlite3 -ni "${PIHOLE_GRAVITY_DB_FILE}" \
++        sqlite3 "${PIHOLE_GRAVITY_DB_FILE}" \
+             -cmd ".headers on" \
+             -cmd ".mode column" \
+             -cmd ".width ${widths}" \
+@@ -1089,7 +1089,7 @@ show_FTL_db_entries() {
+     IFS=$'\r\n'
+     local entries=()
+     mapfile -t entries < <(\
+-        pihole-FTL sqlite3 -ni "${PIHOLE_FTL_DB_FILE}" \
++        sqlite3 "${PIHOLE_FTL_DB_FILE}" \
+             -cmd ".headers on" \
+             -cmd ".mode column" \
+             -cmd ".width ${widths}" \
+@@ -1155,7 +1155,7 @@ analyze_gravity_list() {
+     fi
+ 
+     show_db_entries "Info table" "SELECT property,value FROM info" "20 40"
+-    gravity_updated_raw="$(pihole-FTL sqlite3 -ni "${PIHOLE_GRAVITY_DB_FILE}" "SELECT value FROM info where property = 'updated'")"
++    gravity_updated_raw="$(sqlite3 "${PIHOLE_GRAVITY_DB_FILE}" "SELECT value FROM info where property = 'updated'")"
+     gravity_updated="$(date -d @"${gravity_updated_raw}")"
+     log_write "   Last gravity run finished at: ${COL_CYAN}${gravity_updated}${COL_NC}"
+     log_write ""
+@@ -1163,7 +1163,7 @@ analyze_gravity_list() {
+     OLD_IFS="$IFS"
+     IFS=$'\r\n'
+     local gravity_sample=()
+-    mapfile -t gravity_sample < <(pihole-FTL sqlite3 -ni "${PIHOLE_GRAVITY_DB_FILE}" "SELECT domain FROM vw_gravity LIMIT 10")
++    mapfile -t gravity_sample < <(sqlite3 "${PIHOLE_GRAVITY_DB_FILE}" "SELECT domain FROM vw_gravity LIMIT 10")
+     log_write "   ${COL_CYAN}----- First 10 Gravity Domains -----${COL_NC}"
+ 
+     for line in "${gravity_sample[@]}"; do
+@@ -1195,7 +1195,7 @@ database_integrity_check(){
+ 
+       log_write "${INFO} Checking foreign key constraints of ${database} ... (this can take several minutes)"
+       unset result
+-      result="$(pihole-FTL sqlite3 -ni "${database}" -cmd ".headers on" -cmd ".mode column" "PRAGMA foreign_key_check" 2>&1 & spinner)"
++      result="$(sqlite3 "${database}" -cmd ".headers on" -cmd ".mode column" "PRAGMA foreign_key_check" 2>&1 & spinner)"
+       if [[ -z ${result} ]]; then
+         log_write "${TICK} No foreign key errors in ${database}"
+       else
+--- a/advanced/Scripts/piholeLogFlush.sh	2023-11-20 22:51:14.000000000 +0700
++++ b/advanced/Scripts/piholeLogFlush.sh	2023-11-25 10:17:03.000000000 +0700
+@@ -34,7 +34,7 @@ else
+         chmod 644 /var/log/pihole/pihole.log.1
+     fi
+     # Delete most recent 24 hours from FTL's database, leave even older data intact (don't wipe out all history)
+-    deleted=$(pihole-FTL sqlite3 -ni "${DBFILE}" "DELETE FROM query_storage WHERE timestamp >= strftime('%s','now')-86400; select changes() from query_storage limit 1")
++    deleted=$(sqlite3 "${DBFILE}" "DELETE FROM query_storage WHERE timestamp >= strftime('%s','now')-86400; select changes() from query_storage limit 1")
+ 
+     # Restart pihole-FTL to force reloading history
+     /etc/init.d/pihole-FTL restart
+Only in ../pihole-6.0: apus.diff
+--- a/gravity.sh	2023-11-20 22:51:14.000000000 +0700
++++ b/gravity.sh	2023-11-25 10:16:22.000000000 +0700
+@@ -61,7 +61,7 @@ gravityOLDfile="${gravityDIR}/gravity_ol
+ 
+ # Generate new SQLite3 file from schema template
+ generate_gravity_database() {
+-  if ! pihole-FTL sqlite3 -ni "${gravityDBfile}" < "${gravityDBschema}"; then
++  if ! sqlite3 "${gravityDBfile}" < "${gravityDBschema}"; then
+     echo -e "   ${CROSS} Unable to create ${gravityDBfile}"
+     return 1
+   fi
+@@ -76,7 +76,7 @@ gravity_build_tree() {
+   echo -ne "  ${INFO} ${str}..."
+ 
+   # The index is intentionally not UNIQUE as poor quality adlists may contain domains more than once
+-  output=$( { pihole-FTL sqlite3 -ni "${gravityTEMPfile}" "CREATE INDEX idx_gravity ON gravity (domain, adlist_id);"; } 2>&1 )
++  output=$( { sqlite3 "${gravityTEMPfile}" "CREATE INDEX idx_gravity ON gravity (domain, adlist_id);"; } 2>&1 )
+   status="$?"
+ 
+   if [[ "${status}" -ne 0 ]]; then
+@@ -116,7 +116,7 @@ gravity_swap_databases() {
+ 
+ # Update timestamp when the gravity table was last updated successfully
+ update_gravity_timestamp() {
+-  output=$( { printf ".timeout 30000\\nINSERT OR REPLACE INTO info (property,value) values ('updated',cast(strftime('%%s', 'now') as int));" | pihole-FTL sqlite3 -ni "${gravityTEMPfile}"; } 2>&1 )
++  output=$( { printf ".timeout 30000\\nINSERT OR REPLACE INTO info (property,value) values ('updated',cast(strftime('%%s', 'now') as int));" | sqlite3 "${gravityTEMPfile}"; } 2>&1 )
+   status="$?"
+ 
+   if [[ "${status}" -ne 0 ]]; then
+@@ -161,7 +161,7 @@ database_table_from_file() {
+ 
+   # Get MAX(id) from domainlist when INSERTing into this table
+   if [[ "${table}" == "domainlist" ]]; then
+-    rowid="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT MAX(id) FROM domainlist;")"
++    rowid="$(sqlite3 "${gravityDBfile}" "SELECT MAX(id) FROM domainlist;")"
+     if [[ -z "$rowid" ]]; then
+       rowid=0
+     fi
+@@ -191,7 +191,7 @@ database_table_from_file() {
+   # Store domains in database table specified by ${table}
+   # Use printf as .mode and .import need to be on separate lines
+   # see https://unix.stackexchange.com/a/445615/83260
+-  output=$( { printf ".timeout 30000\\n.mode csv\\n.import \"%s\" %s\\n" "${tmpFile}" "${table}" | pihole-FTL sqlite3 -ni "${gravityDBfile}"; } 2>&1 )
++  output=$( { printf ".timeout 30000\\n.mode csv\\n.import \"%s\" %s\\n" "${tmpFile}" "${table}" | sqlite3 "${gravityDBfile}"; } 2>&1 )
+   status="$?"
+ 
+   if [[ "${status}" -ne 0 ]]; then
+@@ -211,7 +211,7 @@ database_table_from_file() {
+ 
+ # Check if a column with name ${2} exists in gravity table with name ${1}
+ gravity_column_exists() {
+-  output=$( { printf ".timeout 30000\\nSELECT EXISTS(SELECT * FROM pragma_table_info('%s') WHERE name='%s');\\n" "${1}" "${2}" | pihole-FTL sqlite3 -ni "${gravityTEMPfile}"; } 2>&1 )
++  output=$( { printf ".timeout 30000\\nSELECT EXISTS(SELECT * FROM pragma_table_info('%s') WHERE name='%s');\\n" "${1}" "${2}" | sqlite3 "${gravityTEMPfile}"; } 2>&1 )
+   if [[ "${output}" == "1" ]]; then
+     return 0 # Bash 0 is success
+   fi
+@@ -226,7 +226,7 @@ database_adlist_number() {
+     return;
+   fi
+ 
+-  output=$( { printf ".timeout 30000\\nUPDATE adlist SET number = %i, invalid_domains = %i WHERE id = %i;\\n" "${2}" "${3}" "${1}" | pihole-FTL sqlite3 -ni "${gravityTEMPfile}"; } 2>&1 )
++  output=$( { printf ".timeout 30000\\nUPDATE adlist SET number = %i, invalid_domains = %i WHERE id = %i;\\n" "${2}" "${3}" "${1}" | sqlite3 "${gravityTEMPfile}"; } 2>&1 )
+   status="$?"
+ 
+   if [[ "${status}" -ne 0 ]]; then
+@@ -242,7 +242,7 @@ database_adlist_status() {
+     return;
+   fi
+ 
+-  output=$( { printf ".timeout 30000\\nUPDATE adlist SET status = %i WHERE id = %i;\\n" "${2}" "${1}" | pihole-FTL sqlite3 -ni "${gravityTEMPfile}"; } 2>&1 )
++  output=$( { printf ".timeout 30000\\nUPDATE adlist SET status = %i WHERE id = %i;\\n" "${2}" "${1}" | sqlite3 "${gravityTEMPfile}"; } 2>&1 )
+   status="$?"
+ 
+   if [[ "${status}" -ne 0 ]]; then
+@@ -358,9 +358,9 @@ gravity_DownloadBlocklists() {
+ 
+   # Retrieve source URLs from gravity database
+   # We source only enabled adlists, SQLite3 stores boolean values as 0 (false) or 1 (true)
+-  mapfile -t sources <<< "$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT address FROM vw_adlist;" 2> /dev/null)"
+-  mapfile -t sourceIDs <<< "$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT id FROM vw_adlist;" 2> /dev/null)"
+-  mapfile -t sourceTypes <<< "$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT type FROM vw_adlist;" 2> /dev/null)"
++  mapfile -t sources <<< "$(sqlite3 "${gravityDBfile}" "SELECT address FROM vw_adlist;" 2> /dev/null)"
++  mapfile -t sourceIDs <<< "$(sqlite3 "${gravityDBfile}" "SELECT id FROM vw_adlist;" 2> /dev/null)"
++  mapfile -t sourceTypes <<< "$(sqlite3 "${gravityDBfile}" "SELECT type FROM vw_adlist;" 2> /dev/null)"
+ 
+   # Parse source domains from $sources
+   mapfile -t sourceDomains <<< "$(
+@@ -389,7 +389,7 @@ gravity_DownloadBlocklists() {
+   str="Preparing new gravity database"
+   echo -ne "  ${INFO} ${str}..."
+   rm "${gravityTEMPfile}" > /dev/null 2>&1
+-  output=$( { pihole-FTL sqlite3 -ni "${gravityTEMPfile}" < "${gravityDBschema}"; } 2>&1 )
++  output=$( { sqlite3 "${gravityTEMPfile}" < "${gravityDBschema}"; } 2>&1 )
+   status="$?"
+ 
+   if [[ "${status}" -ne 0 ]]; then
+@@ -409,7 +409,7 @@ gravity_DownloadBlocklists() {
+     copyGravity="${copyGravity//"${gravityDBfile_default}"/"${gravityDBfile}"}"
+   fi
+ 
+-  output=$( { pihole-FTL sqlite3 -ni "${gravityTEMPfile}" <<< "${copyGravity}"; } 2>&1 )
++  output=$( { sqlite3 "${gravityTEMPfile}" <<< "${copyGravity}"; } 2>&1 )
+   status="$?"
+ 
+   if [[ "${status}" -ne 0 ]]; then
+@@ -669,12 +669,12 @@ gravity_Table_Count() {
+   local table="${1}"
+   local str="${2}"
+   local num
+-  num="$(pihole-FTL sqlite3 -ni "${gravityTEMPfile}" "SELECT COUNT(*) FROM ${table};")"
++  num="$(sqlite3 "${gravityTEMPfile}" "SELECT COUNT(*) FROM ${table};")"
+   if [[ "${table}" == "gravity" ]]; then
+     local unique
+-    unique="$(pihole-FTL sqlite3 -ni "${gravityTEMPfile}" "SELECT COUNT(*) FROM (SELECT DISTINCT domain FROM ${table});")"
++    unique="$(sqlite3 "${gravityTEMPfile}" "SELECT COUNT(*) FROM (SELECT DISTINCT domain FROM ${table});")"
+     echo -e "  ${INFO} Number of ${str}: ${num} (${COL_BOLD}${unique} unique domains${COL_NC})"
+-    pihole-FTL sqlite3 -ni "${gravityTEMPfile}" "INSERT OR REPLACE INTO info (property,value) VALUES ('gravity_count',${unique});"
++    sqlite3 "${gravityTEMPfile}" "INSERT OR REPLACE INTO info (property,value) VALUES ('gravity_count',${unique});"
+   else
+     echo -e "  ${INFO} Number of ${str}: ${num}"
+   fi
+@@ -743,7 +743,7 @@ database_recovery() {
+   local str="Checking integrity of existing gravity database (this can take a while)"
+   local option="${1}"
+   echo -ne "  ${INFO} ${str}..."
+-  result="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "PRAGMA integrity_check" 2>&1)"
++  result="$(sqlite3 "${gravityDBfile}" "PRAGMA integrity_check" 2>&1)"
+ 
+   if [[ ${result} = "ok" ]]; then
+     echo -e "${OVER}  ${TICK} ${str} - no errors found"
+@@ -751,7 +751,7 @@ database_recovery() {
+     str="Checking foreign keys of existing gravity database (this can take a while)"
+     echo -ne "  ${INFO} ${str}..."
+     unset result
+-    result="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "PRAGMA foreign_key_check" 2>&1)"
++    result="$(sqlite3 "${gravityDBfile}" "PRAGMA foreign_key_check" 2>&1)"
+     if [[ -z ${result} ]]; then
+       echo -e "${OVER}  ${TICK} ${str} - no errors found"
+       if [[ "${option}" != "force" ]]; then
+@@ -770,7 +770,7 @@ database_recovery() {
+   echo -ne "  ${INFO} ${str}..."
+   # We have to remove any possibly existing recovery database or this will fail
+   rm -f "${gravityDBfile}.recovered" > /dev/null 2>&1
+-  if result="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" ".recover" | pihole-FTL sqlite3 -ni "${gravityDBfile}.recovered" 2>&1)"; then
++  if result="$(sqlite3 "${gravityDBfile}" ".recover" | sqlite3 "${gravityDBfile}.recovered" 2>&1)"; then
+     echo -e "${OVER}  ${TICK} ${str} - success"
+     mv "${gravityDBfile}" "${gravityDBfile}.old"
+     mv "${gravityDBfile}.recovered" "${gravityDBfile}"

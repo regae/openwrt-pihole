@@ -1,0 +1,752 @@
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -20,6 +20,16 @@ endif()
+ # Put runtime output, i.e. pihole-FTL, in the root of the build dir
+ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
+ 
++option(BUILD_DOCS "Should FTL compile with API Doc" OFF)
++option(SHARED_SQLITE "Compile with system sqlite3" OFF)
++option(SHARED_CJSON "Compile with system cJSON" OFF)
++option(CONNTRACK_SUPPORT "Compile with conntrack support" OFF)
++option(NFT_SUPPORT "Compile with NFTables support" OFF)
++option(IPSET_SUPPORT "Compile with ipset support" ON)
++option(USE_READLINE "Compile with readline support" OFF)
++option(TLS_MBEDTLS "Compile with TLS Support for webserver" OFF)
++option(TLS_OPENSSL "Compile with TLS Support using OpenSSL for webserver" OFF)
++
+ # SQLITE_OMIT_LOAD_EXTENSION: This option omits the entire extension loading mechanism from SQLite, including sqlite3_enable_load_extension() and sqlite3_load_extension() interfaces. (needs -ldl linking option, otherwise)
+ # SQLITE_DEFAULT_MEMSTATUS=0: This setting causes the sqlite3_status() interfaces that track memory usage to be disabled. This helps the sqlite3_malloc() routines run much faster, and since SQLite uses sqlite3_malloc() internally, this helps to make the entire library faster.
+ # SQLITE_OMIT_DEPRECATED: Omitting deprecated interfaces and features will not help SQLite to run any faster. It will reduce the library footprint, however. And it is the right thing to do.
+@@ -31,7 +41,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PRO
+ # SQLITE_USE_URI=1: The advantage of using a URI filename is that query parameters on the URI can be used to control details of the newly created database connection.
+ # HAVE_READLINE: Enable readline support to allow easy editing, history and auto-completion
+ # SQLITE_DEFAULT_CACHE_SIZE=-16384: Allow up to 16 MiB of cache to be used by SQLite3 (default is 2000 kiB)
+-set(SQLITE_DEFINES "-DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_PROGRESS_CALLBACK -DSQLITE_DEFAULT_FOREIGN_KEYS=1 -DSQLITE_DQS=0 -DSQLITE_ENABLE_DBPAGE_VTAB -DSQLITE_TEMP_STORE=2 -DSQLITE_USE_URI=1 -DHAVE_READLINE -DSQLITE_DEFAULT_CACHE_SIZE=16384")
++if(NOT SHARED_SQLITE)
++    set(SQLITE_DEFINES "-DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_PROGRESS_CALLBACK -DSQLITE_DEFAULT_FOREIGN_KEYS=1 -DSQLITE_DQS=0 -DSQLITE_ENABLE_DBPAGE_VTAB -DSQLITE_TEMP_STORE=2 -DSQLITE_USE_URI=1 -DSQLITE_DEFAULT_CACHE_SIZE=16384")
++endif()
+ 
+ # Code hardening and debugging improvements
+ # -fstack-protector-strong: The program will be resistant to having its stack overflowed
+@@ -184,6 +196,9 @@ set(HARDENING_FLAGS "${HARDENING_FLAGS}
+ # -FILE_OFFSET_BITS=64: used by stat(). Avoids problems with files > 2 GB on 32bit machines
+ # We define HAVE_POLL_H as this is needed for the musl builds to succeed
+ set(CMAKE_C_FLAGS "-pipe ${WARN_FLAGS} -D_FILE_OFFSET_BITS=64 ${HARDENING_FLAGS} ${DEBUG_FLAGS} ${CMAKE_C_FLAGS} -DHAVE_POLL_H ${SQLITE_DEFINES}")
++if(SHARED_CJSON)
++	set(CMAKE_C_FLAGS "-${CMAKE_C_FLAGS} -DSYSTEM_CJSON")
++endif()
+ 
+ set(CMAKE_C_FLAGS_DEBUG "-O0 -g3")
+ set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
+@@ -251,18 +266,15 @@ target_include_directories(FTL PRIVATE $
+ add_dependencies(FTL gen_version)
+ 
+ 
+-add_executable(pihole-FTL
++set(ObjList
+         $<TARGET_OBJECTS:FTL>
+         $<TARGET_OBJECTS:api>
+-        $<TARGET_OBJECTS:api_docs>
+         $<TARGET_OBJECTS:webserver>
+         $<TARGET_OBJECTS:civetweb>
+-        $<TARGET_OBJECTS:cJSON>
+         $<TARGET_OBJECTS:miniz>
+         $<TARGET_OBJECTS:zip>
+         $<TARGET_OBJECTS:database>
+         $<TARGET_OBJECTS:dnsmasq>
+-        $<TARGET_OBJECTS:sqlite3>
+         $<TARGET_OBJECTS:lua>
+         $<TARGET_OBJECTS:tre-regex>
+         $<TARGET_OBJECTS:syscalls>
+@@ -270,6 +282,17 @@ add_executable(pihole-FTL
+         $<TARGET_OBJECTS:config>
+         $<TARGET_OBJECTS:tools>
+         )
++if(BUILD_DOCS)
++    list(APPEND ObjList $<TARGET_OBJECTS:api_docs>)
++endif()
++if(NOT SHARED_SQLITE)
++    list(APPEND ObjList $<TARGET_OBJECTS:sqlite3>)
++endif()
++if(NOT SHARED_CJSON)
++    list(APPEND ObjList $<TARGET_OBJECTS:cJSON>)
++endif()
++add_executable(pihole-FTL ${ObjList})
++
+ if(STATIC)
+     set_target_properties(pihole-FTL PROPERTIES LINK_SEARCH_START_STATIC ON)
+     set_target_properties(pihole-FTL PROPERTIES LINK_SEARCH_END_STATIC ON)
+@@ -283,29 +306,58 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+ find_package(Threads REQUIRED)
+ 
+ # for DNSSEC we need the nettle (+ hogweed) crypto and the gmp math libraries
+-find_library(LIBHOGWEED NAMES libhogweed${CMAKE_STATIC_LIBRARY_SUFFIX} hogweed HINTS /usr/local/lib64)
+-find_library(LIBGMP NAMES libgmp${CMAKE_STATIC_LIBRARY_SUFFIX} gmp)
+-find_library(LIBNETTLE NAMES libnettle${CMAKE_STATIC_LIBRARY_SUFFIX} nettle HINTS /usr/local/lib64)
++find_library(LIBHOGWEED hogweed)
++find_library(LIBGMP gmp)
++find_library(LIBNETTLE nettle)
++find_library(LIBUBOX ubox)
++find_library(LIBUBUS ubus)
+ 
+ # for IDN2 we need the idn2 library which in turn depends on the unistring library
+-find_library(LIBIDN2 NAMES libidn2${CMAKE_STATIC_LIBRARY_SUFFIX} idn)
++find_library(LIBIDN2 idn2)
++if(STATIC)
+ find_library(LIBUNISTRING NAMES libunistring${CMAKE_STATIC_LIBRARY_SUFFIX} unistring)
++endif()
+ 
+-target_link_libraries(pihole-FTL rt Threads::Threads ${LIBHOGWEED} ${LIBGMP} ${LIBNETTLE} ${LIBIDN2} ${LIBUNISTRING})
++target_link_libraries(pihole-FTL rt Threads::Threads ${LIBHOGWEED} ${LIBGMP} ${LIBNETTLE} ${LIBIDN2} ${LIBUBOX} ${LIBUBUS})
++
++if(CONNTRACK_SUPPORT)
++    find_library(LIBNETFILTER_CONNTRACK netfilter_conntrack)
++    find_library(LIBNFNETLINK nfnetlink)
++    target_link_libraries(pihole-FTL ${LIBNETFILTER_CONNTRACK} ${LIBNFNETLINK})
++endif()
++
++if(NFT_SUPPORT)
++    find_library(LIBNFTABLES nftables)
++    target_link_libraries(pihole-FTL ${LIBNFTABLES})
++endif()
++
++if(SHARED_SQLITE)
++    message(STATUS "Using system sqlite3")
++    find_library(LIBSQLITE sqlite3)
++    target_link_libraries(pihole-FTL ${LIBSQLITE})
++    target_compile_definitions(FTL PRIVATE SYSTEM_SQLITE3=\"/usr/bin/sqlite3\")
++endif()
++
++if(SHARED_CJSON)
++    message(STATUS "Using system sqlite3")
++    find_library(LIBCJSON cjson)
++    target_link_libraries(pihole-FTL ${LIBCJSON})
++    target_compile_definitions(FTL PRIVATE SYSTEM_CJSON)
++endif()
+ 
+ if(LUA_DL STREQUAL "true")
+     find_library(LIBDL dl)
+     target_link_libraries(pihole-FTL ${LIBDL})
+ endif()
+ 
+-find_library(LIBREADLINE NAMES libreadline${CMAKE_STATIC_LIBRARY_SUFFIX} readline)
+-find_library(LIBHISTORY NAMES libhistory${CMAKE_STATIC_LIBRARY_SUFFIX} history)
+-find_library(LIBTERMCAP NAMES libtermcap${CMAKE_STATIC_LIBRARY_SUFFIX} termcap)
+-if(LIBREADLINE AND LIBHISTORY AND LIBTERMCAP)
++if(NOT SHARED_SQLITE AND USE_READLINE)
++    find_library(LIBREADLINE readline)
++    find_library(LIBHISTORY history)
++    find_library(LIBNCURSES ncurses)
+     message(STATUS "Building FTL with readline support: YES")
+     target_compile_definitions(FTL PRIVATE LUA_USE_READLINE)
+     target_compile_definitions(pihole-FTL PRIVATE LUA_USE_READLINE)
+-    target_link_libraries(pihole-FTL ${LIBREADLINE} ${LIBHISTORY} ${LIBTERMCAP})
++    target_link_libraries(pihole-FTL ${LIBREADLINE} ${LIBHISTORY} ${LIBNCURSES})
+ else()
+     message(STATUS "Building FTL with readline support: NO")
+ endif()
+@@ -332,6 +384,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_D
+     set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "..." FORCE)
+ endif()
+ 
++if(TLS_MBEDTLS)
+ find_library(LIBMBEDCRYPTO NAMES lmbedcrypto${CMAKE_STATIC_LIBRARY_SUFFIX} mbedcrypto)
+ find_library(LIBMBEDX509 NAMES lmbedx509${CMAKE_STATIC_LIBRARY_SUFFIX} mbedx509)
+ find_library(LIBMBEDTLS NAMES lmbedtls${CMAKE_STATIC_LIBRARY_SUFFIX} mbedtls)
+@@ -340,12 +393,15 @@ if(LIBMBEDCRYPTO AND LIBMBEDX509 AND LIB
+     target_compile_definitions(FTL PRIVATE HAVE_MBEDTLS)
+     target_link_libraries(pihole-FTL ${LIBMBEDTLS} ${LIBMBEDX509} ${LIBMBEDCRYPTO})
+ endif()
++elseif(TLS_OPENSSL)
++find_library(LIBSSL ssl)
++find_library(LIBCRYPTO crypto)
++target_link_libraries(pihole-FTL ${LIBSSL} ${LIBCRYPTO})
++endif()
+ 
+-find_program(SETCAP setcap)
+ install(TARGETS pihole-FTL
+         RUNTIME DESTINATION bin
+         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+-install(CODE "execute_process(COMMAND ${SETCAP} CAP_NET_BIND_SERVICE,CAP_NET_RAW,CAP_NET_ADMIN,CAP_SYS_NICE,CAP_CHOWN+eip \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/bin/pihole-FTL)")
+ 
+ add_subdirectory(api)
+ add_subdirectory(webserver)
+--- a/src/api/CMakeLists.txt
++++ b/src/api/CMakeLists.txt
+@@ -37,4 +37,7 @@ add_library(api OBJECT ${sources})
+ add_dependencies(api gen_version)
+ target_compile_options(api PRIVATE ${EXTRAWARN})
+ target_include_directories(api PRIVATE ${PROJECT_SOURCE_DIR}/src)
++if(BUILD_DOCS)
++target_compile_definitions(api PRIVATE API_DOC)
+ add_subdirectory(docs)
++endif()
+--- a/src/api/api.c
++++ b/src/api/api.c
+@@ -97,7 +97,9 @@ static struct {
+ 	{ "/api/action/restartdns",                 "",                           api_action_restartDNS,                 { false, true,  0               }, true,  HTTP_POST },
+ 	{ "/api/action/flush/logs",                 "",                           api_action_flush_logs,                 { false, true,  0               }, true,  HTTP_POST },
+ 	{ "/api/action/flush/arp",                  "",                           api_action_flush_arp,                  { false, true,  0               }, true,  HTTP_POST },
++#ifdef API_DOC
+ 	{ "/api/docs",                              "",                           api_docs,                              { false, true,  0               }, false, HTTP_GET },
++#endif
+ };
+ 
+ int api_handler(struct mg_connection *conn, void *ignored)
+--- a/src/api/api.h
++++ b/src/api/api.h
+@@ -13,7 +13,11 @@
+ // struct mg_connection
+ #include "webserver/civetweb/civetweb.h"
+ // type cJSON
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ #include "webserver/http-common.h"
+ 
+ // Common definitions
+@@ -103,7 +107,9 @@ int printTOTP(void);
+ int generateAppPw(struct ftl_conn *api);
+ 
+ // Documentation methods
++#ifdef API_DOC
+ int api_docs(struct ftl_conn *api);
++#endif
+ 
+ // Teleporter methods
+ int api_teleporter(struct ftl_conn *api);
+--- a/src/api/docs/CMakeLists.txt
++++ b/src/api/docs/CMakeLists.txt
+@@ -62,5 +62,8 @@ foreach(INPUT_FILE ${COMPILED_RESOURCES}
+ endforeach()
+ 
+ add_library(api_docs OBJECT ${sources})
++if(BUILD_DOCS)
++target_compile_definitions(api_docs PRIVATE API_DOC)
++endif()
+ target_compile_options(api_docs PRIVATE ${EXTRAWARN})
+ target_include_directories(api_docs PRIVATE ${PROJECT_SOURCE_DIR}/src)
+--- a/src/args.c
++++ b/src/args.c
+@@ -43,7 +43,11 @@
+ // mg_version()
+ #include "webserver/civetweb/civetweb.h"
+ // cJSON_Version()
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ #include "config/cli.h"
+ #include "config/config.h"
+ // compression functions
+@@ -52,8 +56,10 @@
+ #include "zip/teleporter.h"
+ // printTOTP()
+ #include "api/api.h"
++#ifdef HAVE_MBEDTLS
+ // generate_certificate()
+ #include "webserver/x509.h"
++#endif
+ // run_dhcp_discover()
+ #include "tools/dhcp-discover.h"
+ // run_arp_scan()
+@@ -70,8 +76,10 @@ extern void print_dnsmasq_version(const
+ extern void do_version(void);
+ extern void do_usage(void);
+ 
++#ifndef SYSTEM_SQLITE3
+ // defined in database/shell.c
+ extern int sqlite3_shell_main(int argc, char **argv);
++#endif
+ 
+ bool dnsmasq_debug = false;
+ bool daemonmode = true, cli_mode = false;
+@@ -169,6 +177,18 @@ static inline bool strEndsWith(const cha
+ 	return strcmp(input + strlen(input) - strlen(end), end) == 0;
+ }
+ 
++#ifdef SYSTEM_SQLITE3
++static int sqlite3_shell_main(int argc, char **argv)
++{
++	if (execv(SYSTEM_SQLITE3, argv) == -1) {
++		perror("execv");
++		return 1;
++	}
++	(void)argc;
++	return 0;
++}
++#endif
++
+ void parse_args(int argc, char* argv[])
+ {
+ 	bool quiet = false;
+@@ -316,6 +336,7 @@ void parse_args(int argc, char* argv[])
+ 	}
+ 
+ 	// Generate X.509 certificate
++#ifdef HAVE_MBEDTLS
+ 	if(argc > 1 && strcmp(argv[1], "--gen-x509") == 0)
+ 	{
+ 		if(argc < 3 || argc > 5)
+@@ -382,6 +403,7 @@ void parse_args(int argc, char* argv[])
+ 			exit(EXIT_FAILURE);
+ 		}
+ 	}
++#endif
+ 
+ 	// If the first argument is "gravity" (e.g., /usr/bin/pihole-FTL gravity),
+ 	// we offer some specialized gravity tools
+@@ -737,7 +759,7 @@ void parse_args(int argc, char* argv[])
+ 			printf("\n\n");
+ 			printf("******************************** %s%sLUA%s ********************************\n",
+ 			       yellow, bold, normal);
+-			printf("Version:         %s%s" LUA_VERSION_MAJOR "." LUA_VERSION_MINOR"%s\n",
++			printf("Version:         %s%s" LUA_VERSION_MAJOR "." LUA_VERSION_MINOR "." LUA_VERSION_RELEASE"%s\n",
+ 			       green, bold, normal);
+ 			printf("Libraries:       ");
+ 			print_embedded_scripts();
+@@ -970,6 +992,7 @@ void parse_args(int argc, char* argv[])
+ 			printf("\t                    current directory and print its name\n");
+ 			printf("\t%s--teleporter%s file%s   Import the Teleporter archive %sfile%s\n\n", green, cyan, normal, cyan, normal);
+ 
++#ifdef HAVE_MBEDTLS
+ 			printf("%sTLS X.509 certificate generator:%s\n", yellow, normal);
+ 			printf("    Generate a self-signed certificate suitable for SSL/TLS\n");
+ 			printf("    and store it in %soutfile%s.\n\n", cyan, normal);
+@@ -987,6 +1010,7 @@ void parse_args(int argc, char* argv[])
+ 			printf("    about the private key are printed as well.\n\n");
+ 			printf("    Usage: %spihole-FTL --read-x509 %s[certfile] %s[domain]%s\n", green, cyan, purple, normal);
+ 			printf("    Usage: %spihole-FTL --read-x509-key %s[certfile] %s[domain]%s\n\n", green, cyan, purple, normal);
++#endif
+ 
+ 			printf("%sGravity tools:%s\n", yellow, normal);
+ 			printf("    Check domains in a given file for validity using Pi-hole's\n");
+--- a/src/config/config.h
++++ b/src/config/config.h
+@@ -24,7 +24,11 @@
+ // type FILE
+ #include <stdio.h>
+ // type cJSON
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ // enum web_theme
+ #include "api/theme.h"
+ 
+--- a/src/config/dnsmasq_config.c
++++ b/src/config/dnsmasq_config.c
+@@ -20,7 +20,11 @@
+ // struct config
+ #include "config/config.h"
+ // JSON array functions
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ // directory_exists()
+ #include "files.h"
+ // trim_whitespace()
+--- a/src/config/password.c
++++ b/src/config/password.c
+@@ -17,8 +17,10 @@
+ // sleepms()
+ #include "timers.h"
+ 
++#ifdef HAVE_MBEDTLS
+ // Randomness generator
+ #include "webserver/x509.h"
++#endif
+ 
+ // writeFTLtoml()
+ #include "config/toml_writer.h"
+--- a/src/database/CMakeLists.txt
++++ b/src/database/CMakeLists.txt
+@@ -12,13 +12,22 @@
+ # to build. It is placed in its own target so that it does not include any other
+ # headers in the build command and thus does not need to be rebuilt when headers
+ # are modified.
+-set(sqlite3_sources
++if (NOT SHARED_SQLITE)
++	set(sqlite3_sources
+         shell.c
+         sqlite3.c
+         )
+ 
+-add_library(sqlite3 OBJECT ${sqlite3_sources})
+-target_compile_options(sqlite3 PRIVATE -Wno-implicit-fallthrough -Wno-cast-function-type -Wno-sign-compare)
++	add_library(sqlite3 OBJECT ${sqlite3_sources})
++	target_compile_options(sqlite3 PRIVATE -Wno-implicit-fallthrough -Wno-cast-function-type)
++
++	if(USE_READLINE)
++	    message(STATUS "Embedded SQLITE3 will use readline for history: YES")
++	    target_compile_definitions(sqlite3 PRIVATE HAVE_READLINE)
++	else()
++	    message(STATUS "Embedded SQLITE3 will use readline for history: NO")
++	endif()
++endif()
+ 
+ set(database_sources
+         common.c
+@@ -35,13 +44,16 @@ set(database_sources
+         query-table.h
+         session-table.c
+         session-table.h
+-        sqlite3.h
+         sqlite3-ext.c
+         sqlite3-ext.h
+         aliasclients.c
+         aliasclients.h
+         )
+ 
++if(NOT SHARED_SQLITE)
++   list(APPEND database_sources sqlite3.h)
++endif()
++
+ add_library(database OBJECT ${database_sources})
+ target_compile_options(database PRIVATE "${EXTRAWARN}")
+ target_include_directories(database PRIVATE ${PROJECT_SOURCE_DIR}/src)
+--- a/src/database/common.c
++++ b/src/database/common.c
+@@ -148,8 +148,12 @@ int dbquery(sqlite3* db, const char *for
+ 
+ 	int rc = sqlite3_exec(db, query, NULL, NULL, NULL);
+ 	if( rc != SQLITE_OK ){
++#ifdef SYSTEM_SQLITE3
++		log_err("ERROR: SQL query \"%s\" failed: %s", query, sqlite3_errstr(rc));
++#else
+ 		log_err("ERROR: SQL query \"%s\" failed: %s (%s)",
+ 		        query, sqlite3_errstr(rc), sqlite3ErrName(sqlite3_extended_errcode(db)));
++#endif
+ 		sqlite3_free(query);
+ 		checkFTLDBrc(rc);
+ 		return rc;
+--- a/src/database/common.h
++++ b/src/database/common.h
+@@ -13,7 +13,11 @@
+ // logging routines
+ #include "log.h"
+ 
++#ifdef SYSTEM_SQLITE3
++#include <sqlite3.h>
++#else
+ #include "sqlite3.h"
++#endif
+ 
+ // Database table "ftl"
+ enum ftl_table_props {
+@@ -64,7 +68,9 @@ bool FTLDBerror(void) __attribute__ ((pu
+ bool checkFTLDBrc(const int rc);
+ 
+ // Get human-readable *extended* error codes (defined in sqlite3.c)
++#ifndef SYSTEM_SQLITE3
+ extern const char *sqlite3ErrName(int rc);
++#endif
+ 
+ // Database macros
+ #define SQL_bool(db, ...) {\
+--- a/src/database/gravity-db.c
++++ b/src/database/gravity-db.c
+@@ -9,7 +9,11 @@
+ *  Please see LICENSE file for your rights under this license. */
+ 
+ #include "../FTL.h"
++#ifdef SYSTEM_SQLITE3
++#include <sqlite3.h>
++#else
+ #include "sqlite3.h"
++#endif
+ #include "gravity-db.h"
+ // struct config
+ #include "../config/config.h"
+--- a/src/database/message-table.h
++++ b/src/database/message-table.h
+@@ -10,8 +10,16 @@
+ #ifndef MESSAGETABLE_H
+ #define MESSAGETABLE_H
+ 
++#ifdef SYSTEM_SQLITE3
++#include <sqlite3.h>
++#else
+ #include "sqlite3.h"
++#endif
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ 
+ int count_messages(const bool filter_dnsmasq_warnings);
+ bool format_messages(cJSON *array);
+--- a/src/database/network-table.h
++++ b/src/database/network-table.h
+@@ -10,7 +10,11 @@
+ #ifndef NETWORKTABLE_H
+ #define NETWORKTABLE_H
+ 
++#ifdef SYSTEM_SQLITE3
++#include <sqlite3.h>
++#else
+ #include "sqlite3.h"
++#endif
+ 
+ bool create_network_table(sqlite3 *db);
+ bool create_network_addresses_table(sqlite3 *db);
+--- a/src/database/query-table.c
++++ b/src/database/query-table.c
+@@ -11,7 +11,11 @@
+ #include "FTL.h"
+ #define QUERY_TABLE_PRIVATE
+ #include "database/query-table.h"
++#ifdef SYSTEM_SQLITE3
++#include <sqlite3.h>
++#else
+ #include "database/sqlite3.h"
++#endif
+ #include "log.h"
+ #include "config/config.h"
+ #include "enums.h"
+--- a/src/datastructure.h
++++ b/src/datastructure.h
+@@ -11,7 +11,11 @@
+ #define DATASTRUCTURE_H
+ 
+ // Definition of sqlite3_stmt
++#ifdef SYSTEM_SQLITE3
++#include <sqlite3.h>
++#else
+ #include "database/sqlite3.h"
++#endif
+ 
+ // enum privacy_level
+ #include "enums.h"
+--- a/src/dnsmasq/CMakeLists.txt
++++ b/src/dnsmasq/CMakeLists.txt
+@@ -62,9 +62,20 @@ set(sources
+         util.c
+         )
+ 
++set(DNSMQ_OPTS "-DHAVE_UBUS")
++if(CONNTRACK_SUPPORT)
++    set(DNSMQ_OPTS "${DNSMQ_OPTS} -DHAVE_CONNTRACK")
++endif()
++if(NFT_SUPPORT)
++    set(DNSMQ_OPTS "${DNSMQ_OPTS} -DHAVE_NFTSET")
++endif()
++if(NOT IPSET_SUPPORT)
++    set(DNSMQ_OPTS "${DNSMQ_OPTS} -DNO_IPSET")
++endif()
++
+ add_library(dnsmasq OBJECT ${sources})
+-target_compile_definitions(dnsmasq PRIVATE VERSION=\"${DNSMASQ_VERSION}\")
+-target_compile_definitions(dnsmasq PRIVATE CONFFILE=\"/etc/pihole/dnsmasq.conf\")
++target_compile_definitions(dnsmasq PRIVATE VERSION=\"${DNSMASQ_VERSION}\" ${DNSMQ_OPTS})
++target_compile_definitions(dnsmasq PRIVATE CONFFILE=\"/tmp/etc/dnsmasq.conf\")
+ target_compile_options(dnsmasq PRIVATE -Wno-maybe-uninitialized)
+ target_include_directories(dnsmasq PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
+ add_dependencies(dnsmasq gen_version)
+--- a/src/lua/CMakeLists.txt
++++ b/src/lua/CMakeLists.txt
+@@ -78,7 +78,7 @@ if(LUA_DL STREQUAL "true")
+     target_compile_definitions(lua PRIVATE LUA_USE_DLOPEN)
+ endif()
+ 
+-if(LIBREADLINE AND LIBHISTORY AND LIBTERMCAP)
++if(USE_READLINE)
+     message(STATUS "Embedded LUA will use readline for history: YES")
+     target_compile_definitions(lua PRIVATE LUA_USE_READLINE)
+ else()
+--- a/src/lua/ftl_lua.c
++++ b/src/lua/ftl_lua.c
+@@ -20,7 +20,9 @@
+ #include "../files.h"
+ // get_web_theme_str
+ #include "../datastructure.h"
++#ifdef LUA_USE_READLINE
+ #include <readline/history.h>
++#endif
+ #include <wordexp.h>
+ #include "scripts/scripts.h"
+ 
+--- a/src/regex_r.h
++++ b/src/regex_r.h
+@@ -12,7 +12,11 @@
+ 
+ // clientsData type
+ #include "datastructure.h"
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ 
+ extern const char *regextype[];
+ 
+--- a/src/vector.h
++++ b/src/vector.h
+@@ -17,7 +17,11 @@
+ // type bool
+ #include <stdbool.h>
+ // type sqlite3_stmt
++#ifdef SYSTEM_SQLITE3
++#include <sqlite3.h>
++#else
+ #include "database/sqlite3.h"
++#endif
+ 
+ #define VEC_ALLOC_STEP 10u
+ 
+--- a/src/webserver/CMakeLists.txt
++++ b/src/webserver/CMakeLists.txt
+@@ -16,9 +16,14 @@ set(sources
+         lua_web.h
+         webserver.c
+         webserver.h
++        )
++
++if(TLS_MBEDTLS)
++    list(APPEND sources
+         x509.c
+         x509.h
+         )
++endif()
+ 
+ add_library(webserver OBJECT ${sources})
+ add_dependencies(webserver gen_version)
+@@ -26,4 +31,6 @@ target_compile_options(webserver PRIVATE
+ target_include_directories(webserver PRIVATE ${PROJECT_SOURCE_DIR}/src)
+ 
+ add_subdirectory(civetweb)
+-add_subdirectory(cJSON)
+\ No newline at end of file
++if(NOT SHARED_CJSON)
++	add_subdirectory(cJSON)
++endif()
+--- a/src/webserver/civetweb/CMakeLists.txt
++++ b/src/webserver/civetweb/CMakeLists.txt
+@@ -26,17 +26,23 @@ target_compile_options(civetweb PRIVATE
+ # USE_LUA: add Lua support
+ # TIMER_RESOLUTION: set timer resolution to 1000ms (default is 10ms) in an attempt to reduce CPU load
+ target_compile_definitions(civetweb PRIVATE NO_CGI
+-                                            NO_DLOPEN
+                                             NO_SSL_DL
+                                             USE_IPV6
+                                             USE_LUA
+                                             TIMER_RESOLUTION=1000)
+ 
+-if(LIBMBEDCRYPTO AND LIBMBEDX509 AND LIBMBEDTLS)
++if(TLS_MBEDTLS AND LIBMBEDCRYPTO AND LIBMBEDX509 AND LIBMBEDTLS)
+     # Enable TLS support in civetweb if mbedTLS is available
+     message(STATUS "Building FTL with TLS support: YES")
+-    target_compile_definitions(civetweb PRIVATE USE_MBEDTLS)
++    target_compile_definitions(civetweb PRIVATE USE_MBEDTLS NO_DLOPEN)
+     target_compile_definitions(webserver PRIVATE HAVE_TLS)
++elseif(TLS_OPENSSL)
++    # Enable TLS support in civetweb using OpenSSL
++    # if NO_SSL_DL removed, no need to link to openssl library
++    # but need openssl_dl.inl and set CRYPTO_LIB="libcrypto.so.3" SSL_LIB="libssl.so.3"
++    message(STATUS "Building FTL with TLS support: OpenSSL")
++    target_compile_definitions(webserver PRIVATE HAVE_TLS)
++    target_compile_definitions(civetweb PRIVATE OPENSSL_API_3_0)
+ else()
+     # Disable TLS support in civetweb if mbedTLS is not available
+     message(STATUS "Building FTL with TLS support: NO")
+--- a/src/webserver/http-common.h
++++ b/src/webserver/http-common.h
+@@ -12,7 +12,11 @@
+ 
+ // External components
+ #include "civetweb/civetweb.h"
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ // enum fifo_logs
+ #include "enums.h"
+ 
+--- a/src/webserver/json_macros.h
++++ b/src/webserver/json_macros.h
+@@ -8,7 +8,11 @@
+ *  This file is copyright under the latest version of the EUPL.
+ *  Please see LICENSE file for your rights under this license. */
+ 
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ // logging routines
+ #include "log.h"
+ 
+--- a/src/webserver/webserver.c
++++ b/src/webserver/webserver.c
+@@ -22,8 +22,10 @@
+ #include <sys/sysinfo.h>
+ // file_readable()
+ #include "files.h"
++#ifdef HAVE_MBEDTLS
+ // generate_certificate()
+ #include "webserver/x509.h"
++#endif
+ // allocate_lua(), free_lua(), init_lua(), request_handler()
+ #include "webserver/lua_web.h"
+ // log_certificate_domain_mismatch()
+@@ -425,6 +427,7 @@ void http_init(void)
+ 	if(config.webserver.tls.cert.v.s != NULL &&
+ 	   strlen(config.webserver.tls.cert.v.s) > 0)
+ 	{
++#ifdef HAVE_MBEDTLS
+ 		// Try to generate certificate if not present
+ 		if(!file_readable(config.webserver.tls.cert.v.s))
+ 		{
+@@ -439,13 +442,16 @@ void http_init(void)
+ 				        config.webserver.tls.cert.v.s);
+ 			}
+ 		}
++#endif
+ 
+ 		if(file_readable(config.webserver.tls.cert.v.s))
+ 		{
++#ifdef HAVE_MBEDTLS
+ 			if(read_certificate(config.webserver.tls.cert.v.s, config.webserver.domain.v.s, false) != CERT_DOMAIN_MATCH)
+ 			{
+ 				log_certificate_domain_mismatch(config.webserver.tls.cert.v.s, config.webserver.domain.v.s);
+ 			}
++#endif
+ 			options[++next_option] = "ssl_certificate";
+ 			options[++next_option] = config.webserver.tls.cert.v.s;
+ 
+--- a/src/zip/teleporter.c
++++ b/src/zip/teleporter.c
+@@ -34,7 +34,11 @@
+ // rotate_file()
+ #include "files.h"
+ // cJSON
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ // set_event()
+ #include "events.h"
+ 
+--- a/src/zip/teleporter.h
++++ b/src/zip/teleporter.h
+@@ -11,7 +11,11 @@
+ #define TELEPORTER_H
+ 
+ #include "zip/miniz/miniz.h"
++#ifdef SYSTEM_CJSON
++#include <cjson/cJSON.h>
++#else
+ #include "webserver/cJSON/cJSON.h"
++#endif
+ 
+ const char *generate_teleporter_zip(mz_zip_archive *zip, char filename[128], void **ptr, size_t *size);
+ bool free_teleporter_zip(mz_zip_archive *zip);

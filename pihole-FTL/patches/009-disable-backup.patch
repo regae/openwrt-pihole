@@ -1,0 +1,68 @@
+--- a/src/config/dnsmasq_config.c
++++ b/src/config/dnsmasq_config.c
+@@ -1094,27 +1094,5 @@ bool write_custom_list(void)
+ 		return false;
+ 	}
+ 
+-	// Check if the new config file is different from the old one
+-	// Skip the first 24 lines as they contain the header
+-	if(files_different(DNSMASQ_CUSTOM_LIST_LEGACY".tmp", DNSMASQ_CUSTOM_LIST, 24))
+-	{
+-		if(rename(DNSMASQ_CUSTOM_LIST_LEGACY".tmp", DNSMASQ_CUSTOM_LIST) != 0)
+-		{
+-			log_err("Cannot install custom.list: %s", strerror(errno));
+-			return false;
+-		}
+-		log_debug(DEBUG_CONFIG, "HOSTS file written to "DNSMASQ_CUSTOM_LIST);
+-	}
+-	else
+-	{
+-		log_debug(DEBUG_CONFIG, "custom.list unchanged");
+-		// Remove temporary config file
+-		if(remove(DNSMASQ_CUSTOM_LIST_LEGACY".tmp") != 0)
+-		{
+-			log_err("Cannot remove temporary custom.list: %s", strerror(errno));
+-			return false;
+-		}
+-	}
+-
+ 	return true;
+ }
+--- a/src/files.c
++++ b/src/files.c
+@@ -317,6 +317,7 @@ static char *trim(char *str)
+ 	return start;
+ }
+ 
++#if 0
+ // Credits: https://stackoverflow.com/a/2180157 (modified) for the fallback solution
+ static int copy_file(const char *source, const char *destination)
+ {
+@@ -501,6 +502,7 @@ void rotate_files(const char *path, char
+ 		free(new_path);
+ 	}
+ }
++#endif
+ 
+ // Credits: https://stackoverflow.com/a/55410469
+ int parse_line(char *line, char **key, char **value)
+--- a/src/files.h
++++ b/src/files.h
+@@ -18,7 +18,7 @@
+ #include <nettle/sha2.h>
+ 
+ #define MAX_ROTATIONS 15
+-#define BACKUP_DIR "/etc/pihole/config_backups"
++//#define BACKUP_DIR "/etc/pihole/config_backups"
+ 
+ bool chmod_file(const char *filename, const mode_t mode);
+ bool file_exists(const char *filename);
+@@ -31,7 +31,7 @@ void ls_dir(const char* path);
+ unsigned int get_path_usage(const char *path, char buffer[64]);
+ struct mntent *get_filesystem_details(const char *path);
+ bool directory_exists(const char *path);
+-void rotate_files(const char *path, char **first_file);
++//void rotate_files(const char *path, char **first_file);
+ bool files_different(const char *pathA, const char* pathB, unsigned int from);
+ bool sha256sum(const char *path, uint8_t checksum[SHA256_DIGEST_SIZE]);
+ 

@@ -1,0 +1,21 @@
+From 24804b7431f6ace109e91876aef859a751bf3147 Mon Sep 17 00:00:00 2001
+From: Simon Kelley <simon@thekelleys.org.uk>
+Date: Sat, 4 Nov 2023 16:58:30 +0000
+Subject: [PATCH] Fix compile warning introduced by
+ a889c554a7df71ff93a8299ef96037fbe05f2f55
+
+---
+ src/dnsmasq/dhcp6.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/src/dnsmasq/dhcp6.c
++++ b/src/dnsmasq/dhcp6.c
+@@ -92,7 +92,7 @@ void dhcp6_packet(time_t now)
+   struct iface_param parm;
+   struct cmsghdr *cmptr;
+   struct msghdr msg;
+-  int if_index = 0;
++  uint32_t if_index = 0;
+   union {
+     struct cmsghdr align; /* this ensures alignment */
+     char control6[CMSG_SPACE(sizeof(struct in6_pktinfo))];

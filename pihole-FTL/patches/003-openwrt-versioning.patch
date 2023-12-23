@@ -1,0 +1,474 @@
+--- a/src/api/info.c
++++ b/src/api/info.c
+@@ -58,8 +58,6 @@
+ // timer_elapsed_msec()
+ #include "timers.h"
+ 
+-#define VERSIONS_FILE "/etc/pihole/versions"
+-
+ int api_info_client(struct ftl_conn *api)
+ {
+ 	cJSON *json = JSON_NEW_OBJECT();
+@@ -710,114 +708,38 @@ int api_info_sensors(struct ftl_conn *ap
+ 
+ int api_info_version(struct ftl_conn *api)
+ {
+-	char *line = NULL;
+-	size_t len = 0;
+-	ssize_t read;
+-	char *key, *value;
+ 	cJSON *core_local = JSON_NEW_OBJECT();
+ 	cJSON *web_local = JSON_NEW_OBJECT();
+ 	cJSON *ftl_local = JSON_NEW_OBJECT();
+-	cJSON *core_remote = JSON_NEW_OBJECT();
+-	cJSON *web_remote = JSON_NEW_OBJECT();
+-	cJSON *ftl_remote = JSON_NEW_OBJECT();
+-	cJSON *docker = JSON_NEW_OBJECT();
+-
+-	FILE *fp = fopen(VERSIONS_FILE, "r");
+-	if(!fp)
+-		return send_json_error(api, 500,
+-		                       "internal_error",
+-		                       "Failed to read " VERSIONS_FILE,
+-		                       NULL);
+-
+-	// Loop over KEY=VALUE parts in the versions file
+-	while((read = getline(&line, &len, fp)) != -1)
+-	{
+-		if (parse_line(line, &key, &value))
+-			continue;
+-
+-		if(strcmp(key, "CORE_BRANCH") == 0)
+-			JSON_COPY_STR_TO_OBJECT(core_local, "branch", value);
+-		else if(strcmp(key, "WEB_BRANCH") == 0)
+-			JSON_COPY_STR_TO_OBJECT(web_local, "branch", value);
+-		// Added below from the running FTL binary itself
+-		//else if(strcmp(key, "FTL_BRANCH") == 0)
+-		//	JSON_COPY_STR_TO_OBJECT(ftl_local, "branch", value);
+-		else if(strcmp(key, "CORE_VERSION") == 0)
+-			JSON_COPY_STR_TO_OBJECT(core_local, "version", value);
+-		else if(strcmp(key, "WEB_VERSION") == 0)
+-			JSON_COPY_STR_TO_OBJECT(web_local, "version", value);
+-		// Added below from the running FTL binary itself
+-		//else if(strcmp(key, "FTL_VERSION") == 0)
+-		//	JSON_COPY_STR_TO_OBJECT(ftl_local, "version", value);
+-		else if(strcmp(key, "GITHUB_CORE_VERSION") == 0)
+-			JSON_COPY_STR_TO_OBJECT(core_remote, "version", value);
+-		else if(strcmp(key, "GITHUB_WEB_VERSION") == 0)
+-			JSON_COPY_STR_TO_OBJECT(web_remote, "version", value);
+-		else if(strcmp(key, "GITHUB_FTL_VERSION") == 0)
+-			JSON_COPY_STR_TO_OBJECT(ftl_remote, "version", value);
+-		else if(strcmp(key, "CORE_HASH") == 0)
+-			JSON_COPY_STR_TO_OBJECT(core_local, "hash", value);
+-		else if(strcmp(key, "WEB_HASH") == 0)
+-			JSON_COPY_STR_TO_OBJECT(web_local, "hash", value);
+-		else if(strcmp(key, "FTL_HASH") == 0)
+-			JSON_COPY_STR_TO_OBJECT(ftl_local, "hash", value);
+-		else if(strcmp(key, "GITHUB_CORE_HASH") == 0)
+-			JSON_COPY_STR_TO_OBJECT(core_remote, "hash", value);
+-		else if(strcmp(key, "GITHUB_WEB_HASH") == 0)
+-			JSON_COPY_STR_TO_OBJECT(web_remote, "hash", value);
+-		else if(strcmp(key, "GITHUB_FTL_HASH") == 0)
+-			JSON_COPY_STR_TO_OBJECT(ftl_remote, "hash", value);
+-		else if(strcmp(key, "DOCKER_VERSION") == 0)
+-			JSON_COPY_STR_TO_OBJECT(docker, "local", value);
+-		else if(strcmp(key, "GITHUB_DOCKER_VERSION") == 0)
+-			JSON_COPY_STR_TO_OBJECT(docker, "remote", value);
+-	}
+-
+-	// Free allocated memory and release file pointer
+-	free(line);
+-	fclose(fp);
+ 
+ 	// Add remaining properties to ftl object
+-	JSON_REF_STR_IN_OBJECT(ftl_local, "branch", GIT_BRANCH);
+-	JSON_REF_STR_IN_OBJECT(ftl_local, "version", get_FTL_version());
+-	JSON_REF_STR_IN_OBJECT(ftl_local, "date", GIT_DATE);
++	JSON_REF_STR_IN_OBJECT(ftl_local, "branch", FTL_BRANCH);
++	JSON_REF_STR_IN_OBJECT(ftl_local, "version", FTL_VERSION);
++	JSON_REF_STR_IN_OBJECT(ftl_local, "date", FTL_DATE);
++	JSON_REF_STR_IN_OBJECT(ftl_local, "hash", FTL_HASH);
++	JSON_REF_STR_IN_OBJECT(web_local, "branch", FTL_BRANCH);
++	JSON_REF_STR_IN_OBJECT(web_local, "version", WEB_VERSION);
++	JSON_REF_STR_IN_OBJECT(web_local, "hash", FTL_HASH);
++	JSON_REF_STR_IN_OBJECT(core_local, "branch", FTL_BRANCH);
++	JSON_REF_STR_IN_OBJECT(core_local, "version", CORE_VERSION);
++	JSON_REF_STR_IN_OBJECT(core_local, "hash", FTL_HASH);
+ 
+ 	cJSON *version = JSON_NEW_OBJECT();
+ 
+-	cJSON *core = JSON_NEW_OBJECT();
+ 	JSON_ADD_NULL_IF_NOT_EXISTS(core_local, "branch");
+ 	JSON_ADD_NULL_IF_NOT_EXISTS(core_local, "version");
+ 	JSON_ADD_NULL_IF_NOT_EXISTS(core_local, "hash");
+-	JSON_ADD_ITEM_TO_OBJECT(core, "local", core_local);
+-	JSON_ADD_NULL_IF_NOT_EXISTS(core_remote, "version");
+-	JSON_ADD_NULL_IF_NOT_EXISTS(core_remote, "hash");
+-	JSON_ADD_ITEM_TO_OBJECT(core, "remote", core_remote);
+-	JSON_ADD_ITEM_TO_OBJECT(version, "core", core);
++	JSON_ADD_ITEM_TO_OBJECT(version, "core", core_local);
+ 
+-	cJSON *web = JSON_NEW_OBJECT();
+ 	JSON_ADD_NULL_IF_NOT_EXISTS(web_local, "branch");
+ 	JSON_ADD_NULL_IF_NOT_EXISTS(web_local, "version");
+ 	JSON_ADD_NULL_IF_NOT_EXISTS(web_local, "hash");
+-	JSON_ADD_ITEM_TO_OBJECT(web, "local", web_local);
+-	JSON_ADD_NULL_IF_NOT_EXISTS(web_remote, "version");
+-	JSON_ADD_NULL_IF_NOT_EXISTS(web_remote, "hash");
+-	JSON_ADD_ITEM_TO_OBJECT(web, "remote", web_remote);
+-	JSON_ADD_ITEM_TO_OBJECT(version, "web", web);
++	JSON_ADD_ITEM_TO_OBJECT(version, "web", web_local);
+ 
+-	cJSON *ftl = JSON_NEW_OBJECT();
+-	JSON_ADD_ITEM_TO_OBJECT(ftl, "local", ftl_local);
+ 	JSON_ADD_NULL_IF_NOT_EXISTS(ftl_local, "branch");
+ 	JSON_ADD_NULL_IF_NOT_EXISTS(ftl_local, "version");
+ 	JSON_ADD_NULL_IF_NOT_EXISTS(ftl_local, "hash");
+-	JSON_ADD_ITEM_TO_OBJECT(ftl, "remote", ftl_remote);
+-	JSON_ADD_NULL_IF_NOT_EXISTS(ftl_remote, "version");
+-	JSON_ADD_NULL_IF_NOT_EXISTS(ftl_remote, "hash");
+-	JSON_ADD_ITEM_TO_OBJECT(version, "ftl", ftl);
+-
+-	// Add nulls to docker if we didn't find any version
+-	JSON_ADD_NULL_IF_NOT_EXISTS(docker, "local");
+-	JSON_ADD_NULL_IF_NOT_EXISTS(docker, "remote");
+-	JSON_ADD_ITEM_TO_OBJECT(version, "docker", docker);
++	JSON_ADD_ITEM_TO_OBJECT(version, "ftl", ftl_local);
+ 
+ 	// Send reply
+ 	cJSON *json = JSON_NEW_OBJECT();
+--- a/src/args.c
++++ b/src/args.c
+@@ -694,7 +694,7 @@ void parse_args(int argc, char* argv[])
+ 		   strcmp(argv[i], "version") == 0 ||
+ 		   strcmp(argv[i], "--version") == 0)
+ 		{
+-			printf("%s\n", get_FTL_version());
++			printf("%s\n", FTL_VERSION);
+ 			exit(EXIT_SUCCESS);
+ 		}
+ 
+@@ -711,9 +711,9 @@ void parse_args(int argc, char* argv[])
+ 			printf("****************************** %s%sFTL%s **********************************\n",
+ 			       yellow, bold, normal);
+ 			printf("Version:         %s%s%s%s\n",
+-			       green, bold, get_FTL_version(), normal);
+-			printf("Branch:          " GIT_BRANCH "\n");
+-			printf("Commit:          " GIT_HASH " (" GIT_DATE ")\n");
++			       green, bold, FTL_VERSION, normal);
++			printf("Branch:          " FTL_BRANCH "\n");
++			printf("Commit:          " FTL_HASH " (" FTL_DATE ")\n");
+ 			printf("Architecture:    " FTL_ARCH "\n");
+ 			printf("Compiler:        " FTL_CC "\n\n");
+ 
+@@ -816,20 +816,20 @@ void parse_args(int argc, char* argv[])
+ 		if(strcmp(argv[i], "-t") == 0 ||
+ 		   strcmp(argv[i], "tag") == 0)
+ 		{
+-			printf("%s\n",GIT_TAG);
++			printf("%s\n",FTL_VERSION);
+ 			exit(EXIT_SUCCESS);
+ 		}
+ 
+ 		if(strcmp(argv[i], "-b") == 0 ||
+ 		   strcmp(argv[i], "branch") == 0)
+ 		{
+-			printf("%s\n",GIT_BRANCH);
++			printf("%s\n",FTL_BRANCH);
+ 			exit(EXIT_SUCCESS);
+ 		}
+ 
+ 		if(strcmp(argv[i], "--hash") == 0)
+ 		{
+-			printf("%s\n",GIT_HASH);
++			printf("%s\n",FTL_HASH);
+ 			exit(EXIT_SUCCESS);
+ 		}
+ 
+@@ -875,7 +875,7 @@ void parse_args(int argc, char* argv[])
+ 			const char *yellow = cli_color(COL_YELLOW);
+ 			const char *purple = cli_color(COL_PURPLE);
+ 
+-			printf("%sThe Pi-hole FTL engine - %s%s\n\n", bold, get_FTL_version(), normal);
++			printf("%sThe Pi-hole FTL engine - %s%s\n\n", bold, FTL_VERSION, normal);
+ 			printf("Typically, pihole-FTL runs as a system service and is controlled\n");
+ 			printf("by %ssudo service pihole-FTL %s<action>%s where %s<action>%s is one out\n", green, purple, normal, purple, normal);
+ 			printf("of %sstart%s, %sstop%s, or %srestart%s.\n\n", green, normal, green, normal, green, normal);
+--- a/src/config/dnsmasq_config.c
++++ b/src/config/dnsmasq_config.c
+@@ -12,6 +12,7 @@
+ #include "dnsmasq_config.h"
+ // logging routines
+ #include "log.h"
++#include "version.h"
+ // get_blocking_mode_str()
+ #include "datastructure.h"
+ // flock(), LOCK_SH
+@@ -215,7 +216,7 @@ static void write_config_header(FILE *fp
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure misc.etc_dnsmasq_d is set to true in /etc/pihole/pihole.toml)");
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "Last updated: %s", timestring);
+-	CONFIG_CENTER(fp, HEADER_WIDTH, "by FTL version %s", get_FTL_version());
++	CONFIG_CENTER(fp, HEADER_WIDTH, "by FTL version %s", FTL_VERSION);
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "################################################################################");
+ }
+--- a/src/config/toml_writer.c
++++ b/src/config/toml_writer.c
+@@ -10,8 +10,9 @@
+ 
+ #include "FTL.h"
+ #include "config.h"
+-// get_timestr(), get_FTL_version())
++// get_timestr()
+ #include "log.h"
++#include "version.h"
+ #include "tomlc99/toml.h"
+ #include "toml_writer.h"
+ #include "toml_helper.h"
+@@ -36,7 +37,7 @@ bool writeFTLtoml(const bool verbose)
+ 	}
+ 
+ 	// Write header
+-	fprintf(fp, "# Pi-hole configuration file (%s)\n", get_FTL_version());
++	fprintf(fp, "# Pi-hole configuration file (%s)\n", FTL_VERSION);
+ #ifdef TOML_UTF8
+ 	fputs("# Encoding: UTF-8\n", fp);
+ #else
+--- a/src/dnsmasq/CMakeLists.txt
++++ b/src/dnsmasq/CMakeLists.txt
+@@ -67,3 +67,4 @@ target_compile_definitions(dnsmasq PRIVA
+ target_compile_definitions(dnsmasq PRIVATE CONFFILE=\"/etc/pihole/dnsmasq.conf\")
+ target_compile_options(dnsmasq PRIVATE -Wno-maybe-uninitialized)
+ target_include_directories(dnsmasq PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
++add_dependencies(dnsmasq gen_version)
+--- a/src/dnsmasq/option.c
++++ b/src/dnsmasq/option.c
+@@ -20,7 +20,7 @@
+ #include <setjmp.h>
+ 
+ /* Pi-hole modification */
+-#include "../log.h"
++#include "../version.h"
+ /************************/
+ 
+ static volatile int mem_recover = 0;
+@@ -5960,7 +5960,7 @@ void read_opts(int argc, char **argv, ch
+ #endif
+       add_txt("servers.bind", NULL, TXT_STAT_SERVERS);
+       /* Pi-hole modification */
+-      add_txt("version.ftl", (char*)get_FTL_version(), 0 );
++      add_txt("version.ftl", FTL_VERSION, 0 );
+       add_txt("api.ftl", NULL, TXT_API_DOMAIN);
+       add_txt("domain.api.ftl", NULL, TXT_API_DOMAIN);
+       add_txt("local.api.ftl", NULL, TXT_API_LOCAL);
+--- a/src/gen_version.cmake
++++ b/src/gen_version.cmake
+@@ -8,7 +8,10 @@
+ # This file is copyright under the latest version of the EUPL.
+ # Please see LICENSE file for your rights under this license.
+ 
+-if(DEFINED ENV{GIT_BRANCH})
++if(DEFINED ENV{FTL_BRANCH})
++    set(FTL_BRANCH "$ENV{FTL_BRANCH}")
++    set(GIT_BRANCH "$ENV{FTL_BRANCH}")
++elseif(DEFINED ENV{GIT_BRANCH})
+     set(GIT_BRANCH "$ENV{GIT_BRANCH}")
+ else()
+     execute_process(
+@@ -20,7 +23,10 @@ else()
+     )
+ endif()
+ 
+-if(DEFINED ENV{GIT_HASH})
++if(DEFINED ENV{FTL_HASH})
++    set(FTL_HASH "$ENV{FTL_HASH}")
++    set(GIT_HASH "$ENV{FTL_HASH}")
++elseif(DEFINED ENV{GIT_HASH})
+     set(GIT_HASH "$ENV{GIT_HASH}")
+ else()
+     execute_process(
+@@ -32,7 +38,22 @@ else()
+     )
+ endif()
+ 
+-if(DEFINED ENV{GIT_VERSION})
++if(DEFINED ENV{CORE_VERSION})
++    set(CORE_VERSION "$ENV{CORE_VERSION}")
++else()
++    set(CORE_VERSION "Unknown")
++endif()
++
++if(DEFINED ENV{WEB_VERSION})
++    set(WEB_VERSION "$ENV{WEB_VERSION}")
++else()
++    set(WEB_VERSION "Unknown")
++endif()
++
++if(DEFINED ENV{FTL_VERSION})
++    set(FTL_VERSION "$ENV{FTL_VERSION}")
++    set(GIT_VERSION "$ENV{FTL_VERSION}")
++elseif(DEFINED ENV{GIT_VERSION})
+     set(GIT_VERSION "$ENV{GIT_VERSION}")
+ else()
+     execute_process(
+@@ -44,7 +65,10 @@ else()
+     )
+ endif()
+ 
+-if(DEFINED ENV{GIT_DATE})
++if(DEFINED ENV{FTL_DATE})
++    set(FTL_DATE "$ENV{FTL_DATE}")
++    set(GIT_DATE "$ENV{FTL_DATE}")
++elseif(DEFINED ENV{GIT_DATE})
+     set(GIT_DATE "$ENV{GIT_DATE}")
+ else()
+     execute_process(
+@@ -71,6 +95,8 @@ endif()
+ # If CI_ARCH is unset (local compilation), ask uname -m and add locally compiled comment
+ if(DEFINED ENV{CI_ARCH})
+     set(FTL_ARCH "$ENV{CI_ARCH} (compiled on CI)")
++elseif(DEFINED ENV{FTL_ARCH})
++    set(FTL_ARCH "$ENV{FTL_ARCH}")
+ else()
+     execute_process(
+             COMMAND           uname -m
+--- a/src/log.c
++++ b/src/log.c
+@@ -487,10 +487,10 @@ void log_counter_info(void)
+ 
+ void log_FTL_version(const bool crashreport)
+ {
+-	log_info("FTL branch: %s", GIT_BRANCH);
+-	log_info("FTL version: %s", get_FTL_version());
+-	log_info("FTL commit: %s", GIT_HASH);
+-	log_info("FTL date: %s", GIT_DATE);
++	log_info("FTL branch: %s", FTL_BRANCH);
++	log_info("FTL version: %s", FTL_VERSION);
++	log_info("FTL commit: %s", FTL_HASH);
++	log_info("FTL date: %s", FTL_DATE);
+ 	if(crashreport)
+ 	{
+ 		char *username_now = getUserName();
+@@ -502,38 +502,6 @@ void log_FTL_version(const bool crashrep
+ 	log_info("Compiled for %s using %s", FTL_ARCH, FTL_CC);
+ }
+ 
+-static char *FTLversion = NULL;
+-const char __attribute__ ((malloc)) *get_FTL_version(void)
+-{
+-	// Obtain FTL version if not already determined
+-	if(FTLversion == NULL)
+-	{
+-		if(strlen(GIT_TAG) > 1 )
+-		{
+-			if (strlen(GIT_VERSION) > 1)
+-			{
+-				// Copy version string if this is a tagged release
+-				FTLversion = strdup(GIT_VERSION);
+-			}
+-
+-		}
+-		else if(strlen(GIT_HASH) > 0)
+-		{
+-			// Build special version string when there is a hash
+-			FTLversion = calloc(13, sizeof(char));
+-			// Build version by appending 7 characters of the hash to "vDev-"
+-			snprintf(FTLversion, 13, "vDev-%.7s", GIT_HASH);
+-		}
+-		else
+-		{
+-			// Fallback for tarball build, etc. without any GIT subsystem
+-			FTLversion = strdup("UNKNOWN (not a GIT build)");
+-		}
+-	}
+-
+-	return FTLversion;
+-}
+-
+ const char __attribute__ ((const)) *get_ordinal_suffix(unsigned int number)
+ {
+ 	if((number % 100) > 9 && (number % 100) < 20)
+@@ -673,7 +641,7 @@ const char * __attribute__ ((pure)) shor
+ 
+ void print_FTL_version(void)
+ {
+-    printf("Pi-hole FTL %s\n", get_FTL_version());
++    printf("Pi-hole FTL %s\n", FTL_VERSION);
+ }
+ 
+ // Skip leading string if found
+--- a/src/log.h
++++ b/src/log.h
+@@ -47,7 +47,6 @@ void format_memory_size(char prefix[2],
+                         double * const formatted);
+ void format_time(char buffer[42], unsigned long seconds, double milliseconds);
+ unsigned int get_year(const time_t timein);
+-const char *get_FTL_version(void);
+ void log_FTL_version(bool crashreport);
+ double double_time(void);
+ void get_timestr(char timestring[TIMESTR_SIZE], const time_t timein, const bool millis, const bool uri_compatible);
+--- a/src/lua/CMakeLists.txt
++++ b/src/lua/CMakeLists.txt
+@@ -86,3 +86,4 @@ else()
+ endif()
+ 
+ target_include_directories(lua PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
++add_dependencies(lua gen_version)
+--- a/src/lua/ftl_lua.c
++++ b/src/lua/ftl_lua.c
+@@ -12,8 +12,8 @@
+ #include "ftl_lua.h"
+ // struct luaL_Reg
+ #include "lauxlib.h"
+-// get_FTL_version()
+ #include "../log.h"
++#include "../version.h"
+ // config struct
+ #include "../config/config.h"
+ // file_exists
+@@ -29,7 +29,7 @@
+ int run_lua_interpreter(const int argc, char **argv, bool dnsmasq_debug)
+ {
+ 	if(argc == 1) // No arguments after this one
+-		printf("Pi-hole FTL %s\n", get_FTL_version());
++		printf("Pi-hole FTL %s\n", FTL_VERSION);
+ #if defined(LUA_USE_READLINE)
+ 	wordexp_t word;
+ 	wordexp(LUA_HISTORY_FILE, &word, WRDE_NOCMD);
+@@ -86,13 +86,13 @@ int run_lua_interpreter(const int argc,
+ int run_luac(const int argc, char **argv)
+ {
+ 	if(argc == 1) // No arguments after this one
+-		printf("Pi-hole FTL %s\n", get_FTL_version());
++		printf("Pi-hole FTL %s\n", FTL_VERSION);
+ 	return luac_main(argc, argv);
+ }
+ 
+ // pihole.ftl_version()
+ static int pihole_ftl_version(lua_State *L) {
+-	lua_pushstring(L, get_FTL_version());
++	lua_pushstring(L, FTL_VERSION);
+ 	return 1; // number of results
+ }
+ 
+--- a/src/version.h.in
++++ b/src/version.h.in
+@@ -1,11 +1,12 @@
+ #ifndef VERSION_H
+ #define VERSION_H
+ 
+-#define GIT_VERSION "@GIT_VERSION@"
+-#define GIT_DATE "@GIT_DATE@"
+-#define GIT_BRANCH "@GIT_BRANCH@"
+-#define GIT_TAG "@GIT_TAG@"
+-#define GIT_HASH "@GIT_HASH@"
++#define WEB_VERSION "@WEB_VERSION@"
++#define CORE_VERSION "@CORE_VERSION@"
++#define FTL_VERSION "@FTL_VERSION@"
++#define FTL_DATE "@FTL_DATE@"
++#define FTL_BRANCH "@FTL_BRANCH@"
++#define FTL_HASH "@FTL_HASH@"
+ #define FTL_ARCH "@FTL_ARCH@"
+ #define FTL_CC "@FTL_CC@"
+ 

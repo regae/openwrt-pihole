@@ -1,0 +1,69 @@
+--- a/src/args.c
++++ b/src/args.c
+@@ -67,6 +67,8 @@
+ 
+ // defined in dnsmasq.c
+ extern void print_dnsmasq_version(const char *yellow, const char *green, const char *bold, const char *normal);
++extern void do_version(void);
++extern void do_usage(void);
+ 
+ // defined in database/shell.c
+ extern int sqlite3_shell_main(int argc, char **argv);
+@@ -613,6 +615,25 @@ void parse_args(int argc, char* argv[])
+ 			if(argv_dnsmasq != NULL)
+ 				free(argv_dnsmasq);
+ 
++			if(strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0)
++			{
++				do_version();
++				exit(EXIT_SUCCESS);
++			}
++			else if(strcmp(argv[i], "-w") == 0 || strcmp(argv[i], "--help") == 0)
++			{
++				if(strcmp(argv[argc-1], "dhcp") == 0)
++					display_opts();
++#ifdef HAVE_DHCP6
++				else if(strcmp(argv[argc-1], "dhcp6") == 0)
++					display_opts6();
++#endif
++				else
++					do_usage();
++
++				exit(EXIT_SUCCESS);
++			}
++
+ 			argc_dnsmasq = argc - i + 3;
+ 			argv_dnsmasq = calloc(argc_dnsmasq, sizeof(const char*));
+ 			argv_dnsmasq[0] = "";
+--- a/src/dnsmasq/dnsmasq.c
++++ b/src/dnsmasq/dnsmasq.c
+@@ -2224,7 +2224,16 @@ void print_dnsmasq_version(const char *y
+ {
+   printf("****************************** %s%sdnsmasq%s ******************************\n",
+          bold, yellow, normal);
+-  printf(_("Version:         %s%s%s%s\n"), bold, green, VERSION, normal);
+-  printf(_("Features:        %s\n\n"), compile_opts);
++  printf(_("Version:               %s%s%s%s\n"), bold, green, VERSION, normal);
++  printf(_("Compile time options:  %s\n\n"), compile_opts);
++}
++
++void do_version(void)
++{
++  printf(_("Dnsmasq version %s  %s\n"), VERSION, COPYRIGHT);
++  printf(_("Compile time options: %s\n\n"), compile_opts);
++  printf("This software comes with ABSOLUTELY NO WARRANTY.\n");
++  printf("Dnsmasq is free software, and you are welcome to redistribute it\n");
++  printf("under the terms of the GNU General Public License, version 2 or 3.\n");
+ }
+ /**************************************************************************************/
+--- a/src/dnsmasq/option.c
++++ b/src/dnsmasq/option.c
+@@ -801,7 +801,7 @@ static void add_txt(char *name, char *tx
+ }
+ #endif
+ 
+-static void do_usage(void)
++void do_usage(void)
+ {
+   char buff[100];
+   int i, j;
