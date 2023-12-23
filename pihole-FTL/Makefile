@@ -76,10 +76,17 @@ define Package/pihole-FTL
 	+pihole_FTL_conntrack:libnetfilter-conntrack \
 	+pihole_FTL_readline:libreadline \
 	+pihole_FTL_nftset:nftables-json \
+<<<<<<< HEAD
 	+pihole_FTL_shared_cjson:+cJSON \
 	+pihole_FTL_shared_sqlite:+libsqlite3 +sqlite3-cli \
 	+pihole_FTL_tls_mbedtls:libmbedtls \
 	+pihole_FTL_tls_openssl:libopenssl
+=======
+	+pihole_FTL_shared_lua:+liblua5.3 +lua5.3 +luac5.3 \
+	+pihole_FTL_shared_sqlite:+libsqlite3 +sqlite3-cli \
+	+pihole_FTL_idn2:libidn2 \
+	+!pihole_FTL_idn2:libidn
+>>>>>>> e178876cd363c51946e0b821aba2be2344439299
   CONFLICTS:=dnsmasq
   USERID:=pihole=454:pihole=454
 endef
