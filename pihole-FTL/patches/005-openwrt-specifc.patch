@@ -1,6 +1,6 @@
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -59,7 +59,7 @@ endif()
+@@ -65,7 +65,7 @@ endif()
  # -Wl,-z,now: Disable lazy binding
  # -Wl,-z,relro: Read-only segments after relocation
  # -fno-common: Emit globals without explicit initializer from `.bss` to `.data`. This causes GCC to reject multiple definitions of global variables. This is the new default from GCC-10 on.
@@ -9,7 +9,7 @@
  set(DEBUG_FLAGS "-rdynamic -fno-omit-frame-pointer")
  
  # -Wall: This enables all the warnings about constructions that some users consider questionable, and that are easy to avoid (or modify to prevent the warning), even in conjunction with macros. This also enables some language-specific warnings described in C++ Dialect Options and Objective-C and Objective-C++ Dialect Options.
-@@ -243,8 +243,6 @@ set(sources
+@@ -249,8 +249,6 @@ set(sources
          shmem.h
          signals.c
          signals.h
@@ -31,7 +31,7 @@
  int api_action_restartDNS(struct ftl_conn *api)
 --- a/src/api/docs/content/specs/config.yaml
 +++ b/src/api/docs/content/specs/config.yaml
-@@ -677,7 +677,7 @@ components:
+@@ -675,7 +675,7 @@ components:
                rev_proxy: false
                cert: "/etc/pihole/tls.pem"
              paths:
@@ -40,7 +40,7 @@
                webhome: "/admin/"
              interface:
                boxed: true
-@@ -699,7 +699,7 @@ components:
+@@ -698,7 +698,7 @@ components:
                  limit: 60.0
                  unit: "C"
            files:
@@ -51,7 +51,7 @@
              gravity_tmp: "/tmp"
 --- a/src/config/cli.c
 +++ b/src/config/cli.c
-@@ -145,8 +145,13 @@
+@@ -156,8 +156,13 @@
  		{
  			if(conf_item->t == CONF_STRING_ALLOCATED)
  					free(conf_item->v.s);
@@ -69,42 +69,42 @@
  		case CONF_PASSWORD:
 --- a/src/config/config.c
 +++ b/src/config/config.c
-@@ -875,7 +875,7 @@ void initConfig(struct config *conf)
+@@ -936,7 +936,7 @@ void initConfig(struct config *conf)
  	conf->webserver.paths.webroot.a = cJSON_CreateStringReference("<valid path>");
  	conf->webserver.paths.webroot.t = CONF_STRING;
  	conf->webserver.paths.webroot.f = FLAG_ADVANCED_SETTING | FLAG_RESTART_FTL;
 -	conf->webserver.paths.webroot.d.s = (char*)"/var/www/html";
 +	conf->webserver.paths.webroot.d.s = (char*)"/usr/lib/pihole";
+ 	conf->webserver.paths.webroot.c = validate_filepath;
  
  	conf->webserver.paths.webhome.k = "webserver.paths.webhome";
- 	conf->webserver.paths.webhome.h = "Sub-directory of the root containing the web interface";
-@@ -1004,7 +1004,7 @@ void initConfig(struct config *conf)
+@@ -1088,7 +1088,7 @@ void initConfig(struct config *conf)
  	conf->files.pid.a = cJSON_CreateStringReference("<any writable file>");
  	conf->files.pid.t = CONF_STRING;
  	conf->files.pid.f = FLAG_ADVANCED_SETTING | FLAG_RESTART_FTL;
 -	conf->files.pid.d.s = (char*)"/run/pihole-FTL.pid";
 +	conf->files.pid.d.s = (char*)"/tmp/run/pihole-FTL.pid";
+ 	conf->files.pid.c = validate_filepath;
  
  	conf->files.database.k = "files.database";
- 	conf->files.database.h = "The location of FTL's long-term database";
-@@ -1063,7 +1063,7 @@
+@@ -1155,7 +1155,7 @@
  	conf->files.log.dnsmasq.a = cJSON_CreateStringReference("<any writable file>");
  	conf->files.log.dnsmasq.t = CONF_STRING;
  	conf->files.log.dnsmasq.f = FLAG_ADVANCED_SETTING | FLAG_RESTART_FTL;
 -	conf->files.log.dnsmasq.d.s = (char*)"/var/log/pihole/pihole.log";
 +	conf->files.log.dnsmasq.d.s = (char*)"/var/log/pihole/pihole.log";
+ 	conf->files.log.dnsmasq.c = validate_filepath_dash;
  
  
- 	// struct misc
-@@ -1485,7 +1485,7 @@
+@@ -1636,7 +1636,7 @@
  	config.files.log.ftl.a = cJSON_CreateStringReference("<any writable file>");
  	config.files.log.ftl.t = CONF_STRING;
  	config.files.log.ftl.f = FLAG_ADVANCED_SETTING;
 -	config.files.log.ftl.d.s = (char*)"/var/log/pihole/FTL.log";
 +	config.files.log.ftl.d.s = (char*)"/var/log/pihole/FTL.log";
  	config.files.log.ftl.v.s = config.files.log.ftl.d.s;
+ 	config.files.log.ftl.c = validate_filepath;
  
- 	// Check if the config file contains a different path
 --- a/src/config/config.h
 +++ b/src/config/config.h
 @@ -32,7 +32,7 @@
@@ -127,7 +127,7 @@
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure misc.etc_dnsmasq_d is set to true in /etc/pihole/pihole.toml)");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "Last updated: %s", timestring);
-@@ -606,12 +606,12 @@ bool __attribute__((const)) write_dnsmas
+@@ -633,12 +633,12 @@ bool __attribute__((const)) write_dnsmas
  	fputs("server=/onion/\n", pihole_conf);
  	fputs("\n", pihole_conf);
  
@@ -145,7 +145,7 @@
  
 --- a/src/dnsmasq/config.h
 +++ b/src/dnsmasq/config.h
-@@ -28,8 +28,8 @@
+@@ -31,8 +31,8 @@
  #define FORWARD_TEST 1000 /* try all servers every 1000 queries */
  #define FORWARD_TIME 600 /* or 10 minutes */
  #define UDP_TEST_TIME 60 /* How often to reset our idea of max packet size. */
@@ -156,7 +156,7 @@
  #define LEASE_RETRY 60 /* on error, retry writing leasefile after LEASE_RETRY seconds */
  #define CACHESIZ 150 /* default cache size */
  #define TTL_FLOOR_LIMIT 3600 /* don't allow --min-cache-ttl to raise TTL above this under any circumstances */
-@@ -232,7 +232,7 @@ RESOLVFILE
+@@ -235,7 +235,7 @@ RESOLVFILE
  #   if defined(__FreeBSD__)
  #      define CONFFILE "/usr/local/etc/dnsmasq.conf"
  #   else
@@ -167,7 +167,7 @@
  
 --- a/src/dnsmasq_interface.c
 +++ b/src/dnsmasq_interface.c
-@@ -2878,10 +2878,10 @@ void FTL_fork_and_bind_sockets(struct pas
+@@ -2936,10 +2936,10 @@ void FTL_fork_and_bind_sockets(struct pas
  		{
  			log_info("FTL is going to drop from root to user %s (UID %u)",
  			     ent_pw->pw_name, ent_pw->pw_uid);
@@ -182,7 +182,7 @@
  			chown_all_shmem(ent_pw);
 --- a/src/gc.c
 +++ b/src/gc.c
-@@ -470,18 +470,6 @@ void runGC(const time_t now, time_t *las
+@@ -469,18 +469,6 @@ void runGC(const time_t now, time_t *las
  	DBdeleteoldqueries = true;
  }
  
@@ -201,7 +201,7 @@
  void *GC_thread(void *val)
  {
  	// Set thread name
-@@ -499,9 +487,6 @@ void *GC_thread(void *val)
+@@ -498,9 +486,6 @@ void *GC_thread(void *val)
  	unsigned int LastLogStorageUsage = 0;
  	unsigned int LastDBStorageUsage = 0;
  
@@ -211,7 +211,7 @@
  	// Create inotify watcher for pihole.toml config file
  	watch_config(true);
  
-@@ -537,11 +522,12 @@ void *GC_thread(void *val)
+@@ -536,11 +521,12 @@ void *GC_thread(void *val)
  			check_load();
  
  			// Check disk space of database file

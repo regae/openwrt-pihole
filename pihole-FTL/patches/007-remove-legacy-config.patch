@@ -1,13 +1,15 @@
 --- a/src/config/CMakeLists.txt
 +++ b/src/config/CMakeLists.txt
-@@ -18,12 +18,8 @@ set(sources
-         dnsmasq_config.h
+@@ -21,14 +21,10 @@ set(sources
+         env.h
          inotify.c
          inotify.h
 -        legacy_reader.c
 -        legacy_reader.h
          password.c
          password.h
+         suggest.c
+         suggest.h
 -        setupVars.c
 -        setupVars.h
          toml_writer.c
@@ -71,7 +73,7 @@
  // file_exists()
  #include "files.h"
  // write_dnsmasq_config()
-@@ -37,6 +34,21 @@ struct config config = { 0 };
+@@ -41,6 +38,21 @@ struct config config = { 0 };
  static bool config_initialized = false;
  uint8_t last_checksum[SHA256_DIGEST_SIZE] = { 0 };
  
@@ -93,9 +95,9 @@
  // Set debug flags from config struct to global debug_flags array
  // This is called whenever the config is reloaded and debug flags may have
  // changed
-@@ -991,13 +1003,6 @@ void initConfig(struct config *conf)
- 	conf->files.macvendor.f = FLAG_ADVANCED_SETTING;
+@@ -1074,14 +1086,6 @@ void initConfig(struct config *conf)
  	conf->files.macvendor.d.s = (char*)"/etc/pihole/macvendor.db";
+ 	conf->files.macvendor.c = validate_filepath;
  
 -	conf->files.setupVars.k = "files.setupVars";
 -	conf->files.setupVars.h = "The old config file of Pi-hole used before v6.0";
@@ -103,11 +105,12 @@
 -	conf->files.setupVars.t = CONF_STRING;
 -	conf->files.setupVars.f = FLAG_ADVANCED_SETTING;
 -	conf->files.setupVars.d.s = (char*)"/etc/pihole/setupVars.conf";
+-	conf->files.setupVars.c = validate_filepath;
 -
  	conf->files.pcap.k = "files.pcap";
  	conf->files.pcap.h = "An optional file containing a pcap capture of the network traffic. This file is used for debugging purposes only. If you don't know what this is, you don't need it.\n Setting this to an empty string disables pcap recording. The file must be writable by the user running FTL (typically pihole). Failure to write to this file will prevent the DNS resolver from starting. The file is appended to if it already exists.";
  	conf->files.pcap.a = cJSON_CreateStringReference("<any writable pcap file>");
-@@ -1372,26 +1377,6 @@ bool readFTLconf(struct config *conf, co
+@@ -1500,26 +1504,6 @@ bool readFTLconf(struct config *conf, co
  
  	log_info("No config file nor backup available, using defaults");
  
@@ -134,7 +137,7 @@
  
  	// When we reach this point but the FTL TOML config file exists, it may
  	// contain errors such as syntax errors, etc. We move it into a
-@@ -1438,7 +1423,7 @@ bool getLogFilePath(void)
+@@ -1562,7 +1546,7 @@ bool getLogFilePath(void)
  
  	// Check if the config file contains a different path
  	if(!getLogFilePathTOML())
@@ -145,7 +148,7 @@
  }
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -253,7 +253,6 @@ struct config {
+@@ -259,7 +259,6 @@ struct config {
  		struct conf_item gravity;
  		struct conf_item gravity_tmp;
  		struct conf_item macvendor;
@@ -155,7 +158,7 @@
  			struct conf_item ftl;
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -27,8 +27,6 @@
+@@ -28,8 +28,6 @@
  #endif
  // directory_exists()
  #include "files.h"
@@ -164,7 +167,7 @@
  // run_dnsmasq_main()
  #include "args.h"
  // optind
-@@ -1029,195 +1027,6 @@ bool write_hosts_file(void)
+@@ -1082,195 +1080,6 @@ bool write_hosts_file(void)
  	return true;
  }
  
@@ -363,7 +366,7 @@
 --- a/src/config/dnsmasq_config.h
 +++ b/src/config/dnsmasq_config.h
 @@ -17,16 +17,11 @@
- bool write_dnsmasq_config(struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE]);
+ bool write_dnsmasq_config(struct uci_context *ctx, struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE]);
  int get_lineno_from_string(const char *string);
  char *get_dnsmasq_line(const unsigned int lineno);
 -bool read_legacy_dhcp_static_config(void);
@@ -418,4 +421,4 @@
 -#include "config/setupVars.h"
  #include "args.h"
  #include "config/config.h"
- #include "database/common.h"
+ #include "config/config_uci.h"

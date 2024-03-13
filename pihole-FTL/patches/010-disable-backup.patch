@@ -1,6 +1,6 @@
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -1094,27 +1094,5 @@ bool write_custom_list(void)
+@@ -1147,27 +1147,5 @@ bool write_custom_list(void)
  		return false;
  	}
  

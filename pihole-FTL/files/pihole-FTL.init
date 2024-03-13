@@ -16,6 +16,8 @@ DHCPSCRIPT_DEPENDS="/usr/share/libubox/jshn.sh /usr/bin/jshn /bin/ubus"
 USER="pihole"
 GROUP="pihole"
 
+extra_command "parse_arp_cache" "Parsing neighbour cache and reload cache"
+
 linux_cap()
 {
 	[ ! -x /usr/sbin/getcap ] && [ ! -x /usr/sbin/setcap ] && return 1
@@ -99,6 +101,36 @@ ftl_start()
 			cat /etc/uhttpd.key >> "${tls_cert}"
 	}
 
+	# private use
+	local f host_id host_name
+	local prefix_v6="$(ifstatus wan6 | jsonfilter -e "@['ipv6-prefix'][*]['address']")"
+	if [ -n "$prefix_v6" ]; then
+		echo "# private use" > /tmp/hosts/host_static_v6
+		for f in $(uci show dhcp | grep "hostid=" | awk -F '[][]' '{print $2}')
+		do
+			host_id=$(uci -q get dhcp.@host[${f}].hostid)
+			host_name=$(uci -q get dhcp.@host[${f}].name)
+			[ -n "$host_name" ] || continue
+			echo "${prefix_v6}${host_id} $host_name" >> /tmp/hosts/host_static_v6
+		done
+	fi
+
+	[ -d /tmp/dnsmasq.d ] || mkdir -p /tmp/dnsmasq.d
+	echo "# private use" > /tmp/dnsmasq.d/private.conf
+	for f in $(uci show dhcp | grep "ip='192.168.13" | awk -F '[][]' '{print $2}'); do
+		host_name=$(uci -q get dhcp.@host[${f}].name)
+		[ -n "$host_name" ] || continue
+		echo "dns-rr=${host_name}.lan,65,000000" >> /tmp/dnsmasq.d/private.conf
+	done
+	for f in $(uci show dhcp | grep "ip='192.168.9" | awk -F '[][]' '{print $2}'); do
+		host_name=$(uci -q get dhcp.@host[${f}].name)
+		[ -n "$host_name" ] || continue
+		echo "dns-rr=${host_name}.home,65,000000" >> /tmp/dnsmasq.d/private.conf
+	done
+	echo "dns-rr=_8443._https.r1-lts.lan.home,65,000000" >> /tmp/dnsmasq.d/private.conf
+	echo "dns-rr=_8443._https.r1-lts.lan,65,000000" >> /tmp/dnsmasq.d/private.conf
+	# end of private use
+
 	procd_open_instance "$INSTANCE_NAME"
 	procd_set_param stdout 1
 	procd_set_param stderr 1
@@ -156,7 +188,8 @@ add_interface_trigger()
 	config_get interface "$1" interface
 	config_get_bool ignore "$1" ignore 0
 
-	[ -n "$interface" ] && [ $ignore -eq 0 ] && procd_add_interface_trigger "interface.*" "$interface" /etc/init.d/pihole-FTL reload
+	[ -n "$interface" ] && [ $ignore -eq 0 ] && procd_add_reload_interface_trigger "$interface"
+#	[ -n "$interface" ] && [ $ignore -eq 0 ] && procd_add_interface_trigger "interface.*" "$interface" /etc/init.d/pihole-FTL reload
 }
 
 service_triggers()
@@ -165,6 +198,7 @@ service_triggers()
 
 	config_load dhcp
 	config_foreach add_interface_trigger dhcp
+	procd_add_interface_trigger "interface.*up" "wan" /etc/init.d/pihole-FTL parse_arp_cache
 }
 
 boot()
@@ -191,3 +225,9 @@ stop_service() {
 	config_load dhcp
 	ftl_stop dnsmasq
 }
+
+parse_arp_cache() {
+	procd_send_signal pihole-FTL "$INSTANCE_NAME" 39
+	procd_send_signal pihole-FTL "$INSTANCE_NAME"
+}
+

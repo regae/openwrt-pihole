@@ -17,18 +17,18 @@
  # SQLITE_OMIT_LOAD_EXTENSION: This option omits the entire extension loading mechanism from SQLite, including sqlite3_enable_load_extension() and sqlite3_load_extension() interfaces. (needs -ldl linking option, otherwise)
  # SQLITE_DEFAULT_MEMSTATUS=0: This setting causes the sqlite3_status() interfaces that track memory usage to be disabled. This helps the sqlite3_malloc() routines run much faster, and since SQLite uses sqlite3_malloc() internally, this helps to make the entire library faster.
  # SQLITE_OMIT_DEPRECATED: Omitting deprecated interfaces and features will not help SQLite to run any faster. It will reduce the library footprint, however. And it is the right thing to do.
-@@ -31,7 +41,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PRO
- # SQLITE_USE_URI=1: The advantage of using a URI filename is that query parameters on the URI can be used to control details of the newly created database connection.
- # HAVE_READLINE: Enable readline support to allow easy editing, history and auto-completion
- # SQLITE_DEFAULT_CACHE_SIZE=-16384: Allow up to 16 MiB of cache to be used by SQLite3 (default is 2000 kiB)
--set(SQLITE_DEFINES "-DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_PROGRESS_CALLBACK -DSQLITE_DEFAULT_FOREIGN_KEYS=1 -DSQLITE_DQS=0 -DSQLITE_ENABLE_DBPAGE_VTAB -DSQLITE_TEMP_STORE=2 -DSQLITE_USE_URI=1 -DHAVE_READLINE -DSQLITE_DEFAULT_CACHE_SIZE=16384")
+@@ -37,7 +47,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PRO
+ # HAVE_FDATASYNC: This option causes SQLite to try to use the fdatasync() system call to sync the database file to disk when committing a transaction. Syncing using fdatasync() is faster than syncing using fsync() as fdatasync() does not wait for the file metadata to be written to disk.
+ # SQLITE_DEFAULT_WORKER_THREADS=4: This option sets the default number of worker threads to use when doing parallel sorting and indexing. The default is 0 which means to use a single thread. The default for SQLITE_MAX_WORKER_THREADS is 8.
+ # SQLITE_MAX_PREPARE_RETRY=200: This option sets the maximum number of automatic re-preparation attempts that can occur after encountering a schema change. This can be caused by running ANALYZE which is done periodically by FTL.
+-set(SQLITE_DEFINES "-DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_PROGRESS_CALLBACK -DSQLITE_OMIT_SHARED_CACHE -DSQLITE_DEFAULT_FOREIGN_KEYS=1 -DSQLITE_DQS=0 -DSQLITE_ENABLE_DBPAGE_VTAB -DSQLITE_TEMP_STORE=2 -DHAVE_READLINE -DSQLITE_DEFAULT_CACHE_SIZE=16384 -DSQLITE_DEFAULT_SYNCHRONOUS=1 -DSQLITE_LIKE_DOESNT_MATCH_BLOBS -DHAVE_MALLOC_USABLE_SIZE -DHAVE_FDATASYNC -DSQLITE_DEFAULT_WORKER_THREADS=4 -DSQLITE_MAX_PREPARE_RETRY=200")
 +if(NOT SHARED_SQLITE)
-+    set(SQLITE_DEFINES "-DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_PROGRESS_CALLBACK -DSQLITE_DEFAULT_FOREIGN_KEYS=1 -DSQLITE_DQS=0 -DSQLITE_ENABLE_DBPAGE_VTAB -DSQLITE_TEMP_STORE=2 -DSQLITE_USE_URI=1 -DSQLITE_DEFAULT_CACHE_SIZE=16384")
++    set(SQLITE_DEFINES "-DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_PROGRESS_CALLBACK -DSQLITE_OMIT_SHARED_CACHE -DSQLITE_DEFAULT_FOREIGN_KEYS=1 -DSQLITE_DQS=0 -DSQLITE_ENABLE_DBPAGE_VTAB -DSQLITE_TEMP_STORE=2 -DSQLITE_DEFAULT_CACHE_SIZE=16384 -DSQLITE_DEFAULT_SYNCHRONOUS=1 -DSQLITE_LIKE_DOESNT_MATCH_BLOBS -DHAVE_MALLOC_USABLE_SIZE -DHAVE_FDATASYNC -DSQLITE_DEFAULT_WORKER_THREADS=4 -DSQLITE_MAX_PREPARE_RETRY=200")
 +endif()
  
  # Code hardening and debugging improvements
  # -fstack-protector-strong: The program will be resistant to having its stack overflowed
-@@ -184,6 +196,9 @@ set(HARDENING_FLAGS "${HARDENING_FLAGS}
+@@ -190,6 +202,9 @@ set(HARDENING_FLAGS "${HARDENING_FLAGS}
  # -FILE_OFFSET_BITS=64: used by stat(). Avoids problems with files > 2 GB on 32bit machines
  # We define HAVE_POLL_H as this is needed for the musl builds to succeed
  set(CMAKE_C_FLAGS "-pipe ${WARN_FLAGS} -D_FILE_OFFSET_BITS=64 ${HARDENING_FLAGS} ${DEBUG_FLAGS} ${CMAKE_C_FLAGS} -DHAVE_POLL_H ${SQLITE_DEFINES}")
@@ -38,7 +38,7 @@
  
  set(CMAKE_C_FLAGS_DEBUG "-O0 -g3")
  set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
-@@ -251,18 +266,15 @@ target_include_directories(FTL PRIVATE $
+@@ -257,18 +272,15 @@ target_include_directories(FTL PRIVATE $
  add_dependencies(FTL gen_version)
  
  
@@ -58,7 +58,7 @@
          $<TARGET_OBJECTS:lua>
          $<TARGET_OBJECTS:tre-regex>
          $<TARGET_OBJECTS:syscalls>
-@@ -270,6 +282,17 @@ add_executable(pihole-FTL
+@@ -276,6 +288,17 @@ add_executable(pihole-FTL
          $<TARGET_OBJECTS:config>
          $<TARGET_OBJECTS:tools>
          )
@@ -76,7 +76,7 @@
  if(STATIC)
      set_target_properties(pihole-FTL PROPERTIES LINK_SEARCH_START_STATIC ON)
      set_target_properties(pihole-FTL PROPERTIES LINK_SEARCH_END_STATIC ON)
-@@ -283,29 +306,58 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+@@ -289,29 +312,58 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
  find_package(Threads REQUIRED)
  
  # for DNSSEC we need the nettle (+ hogweed) crypto and the gmp math libraries
@@ -90,7 +90,7 @@
 +find_library(LIBUBUS ubus)
  
  # for IDN2 we need the idn2 library which in turn depends on the unistring library
--find_library(LIBIDN2 NAMES libidn2${CMAKE_STATIC_LIBRARY_SUFFIX} idn)
+-find_library(LIBIDN2 NAMES libidn2${CMAKE_STATIC_LIBRARY_SUFFIX} idn2)
 +find_library(LIBIDN2 idn2)
 +if(STATIC)
  find_library(LIBUNISTRING NAMES libunistring${CMAKE_STATIC_LIBRARY_SUFFIX} unistring)
@@ -145,7 +145,7 @@
  else()
      message(STATUS "Building FTL with readline support: NO")
  endif()
-@@ -332,6 +384,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_D
+@@ -338,6 +390,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_D
      set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "..." FORCE)
  endif()
  
@@ -153,7 +153,7 @@
  find_library(LIBMBEDCRYPTO NAMES lmbedcrypto${CMAKE_STATIC_LIBRARY_SUFFIX} mbedcrypto)
  find_library(LIBMBEDX509 NAMES lmbedx509${CMAKE_STATIC_LIBRARY_SUFFIX} mbedx509)
  find_library(LIBMBEDTLS NAMES lmbedtls${CMAKE_STATIC_LIBRARY_SUFFIX} mbedtls)
-@@ -340,12 +393,15 @@ if(LIBMBEDCRYPTO AND LIBMBEDX509 AND LIB
+@@ -346,12 +399,15 @@ if(LIBMBEDCRYPTO AND LIBMBEDX509 AND LIB
      target_compile_definitions(FTL PRIVATE HAVE_MBEDTLS)
      target_link_libraries(pihole-FTL ${LIBMBEDTLS} ${LIBMBEDX509} ${LIBMBEDCRYPTO})
  endif()
@@ -183,12 +183,12 @@
 +endif()
 --- a/src/api/api.c
 +++ b/src/api/api.c
-@@ -97,7 +97,9 @@ static struct {
- 	{ "/api/action/restartdns",                 "",                           api_action_restartDNS,                 { false, true,  0               }, true,  HTTP_POST },
- 	{ "/api/action/flush/logs",                 "",                           api_action_flush_logs,                 { false, true,  0               }, true,  HTTP_POST },
- 	{ "/api/action/flush/arp",                  "",                           api_action_flush_arp,                  { false, true,  0               }, true,  HTTP_POST },
+@@ -101,7 +101,9 @@ static struct {
+ 	{ "/api/action/restartdns",                 "",                           api_action_restartDNS,                 { API_PARSE_JSON, 0                         }, true,  HTTP_POST },
+ 	{ "/api/action/flush/logs",                 "",                           api_action_flush_logs,                 { API_PARSE_JSON, 0                         }, true,  HTTP_POST },
+ 	{ "/api/action/flush/arp",                  "",                           api_action_flush_arp,                  { API_PARSE_JSON, 0                         }, true,  HTTP_POST },
 +#ifdef API_DOC
- 	{ "/api/docs",                              "",                           api_docs,                              { false, true,  0               }, false, HTTP_GET },
+ 	{ "/api/docs",                              "",                           api_docs,                              { API_PARSE_JSON, 0                         }, false, HTTP_GET },
 +#endif
  };
  
@@ -205,9 +205,9 @@
  #include "webserver/cJSON/cJSON.h"
 +#endif
  #include "webserver/http-common.h"
- 
- // Common definitions
-@@ -103,7 +107,9 @@ int printTOTP(void);
+ // regex_t
+ #include "regex_r.h"
+@@ -107,7 +111,9 @@ int printTOTP(void);
  int generateAppPw(struct ftl_conn *api);
  
  // Documentation methods
@@ -253,7 +253,7 @@
  // run_dhcp_discover()
  #include "tools/dhcp-discover.h"
  // run_arp_scan()
-@@ -70,8 +76,10 @@ extern void print_dnsmasq_version(const
+@@ -72,8 +78,10 @@ extern void print_dnsmasq_version(const
  extern void do_version(void);
  extern void do_usage(void);
  
@@ -264,7 +264,7 @@
  
  bool dnsmasq_debug = false;
  bool daemonmode = true, cli_mode = false;
-@@ -169,6 +177,18 @@ static inline bool strEndsWith(const cha
+@@ -171,6 +179,18 @@ static inline bool strEndsWith(const cha
  	return strcmp(input + strlen(input) - strlen(end), end) == 0;
  }
  
@@ -283,7 +283,7 @@
  void parse_args(int argc, char* argv[])
  {
  	bool quiet = false;
-@@ -316,6 +336,7 @@ void parse_args(int argc, char* argv[])
+@@ -318,6 +338,7 @@ void parse_args(int argc, char* argv[])
  	}
  
  	// Generate X.509 certificate
@@ -291,7 +291,7 @@
  	if(argc > 1 && strcmp(argv[1], "--gen-x509") == 0)
  	{
  		if(argc < 3 || argc > 5)
-@@ -382,6 +403,7 @@ void parse_args(int argc, char* argv[])
+@@ -384,6 +405,7 @@ void parse_args(int argc, char* argv[])
  			exit(EXIT_FAILURE);
  		}
  	}
@@ -299,7 +299,7 @@
  
  	// If the first argument is "gravity" (e.g., /usr/bin/pihole-FTL gravity),
  	// we offer some specialized gravity tools
-@@ -737,7 +759,7 @@ void parse_args(int argc, char* argv[])
+@@ -758,7 +780,7 @@ void parse_args(int argc, char* argv[])
  			printf("\n\n");
  			printf("******************************** %s%sLUA%s ********************************\n",
  			       yellow, bold, normal);
@@ -308,7 +308,7 @@
  			       green, bold, normal);
  			printf("Libraries:       ");
  			print_embedded_scripts();
-@@ -970,6 +992,7 @@ void parse_args(int argc, char* argv[])
+@@ -991,6 +1013,7 @@ void parse_args(int argc, char* argv[])
  			printf("\t                    current directory and print its name\n");
  			printf("\t%s--teleporter%s file%s   Import the Teleporter archive %sfile%s\n\n", green, cyan, normal, cyan, normal);
  
@@ -316,7 +316,7 @@
  			printf("%sTLS X.509 certificate generator:%s\n", yellow, normal);
  			printf("    Generate a self-signed certificate suitable for SSL/TLS\n");
  			printf("    and store it in %soutfile%s.\n\n", cyan, normal);
-@@ -987,6 +1010,7 @@ void parse_args(int argc, char* argv[])
+@@ -1008,6 +1031,7 @@ void parse_args(int argc, char* argv[])
  			printf("    about the private key are printed as well.\n\n");
  			printf("    Usage: %spihole-FTL --read-x509 %s[certfile] %s[domain]%s\n", green, cyan, purple, normal);
  			printf("    Usage: %spihole-FTL --read-x509-key %s[certfile] %s[domain]%s\n\n", green, cyan, purple, normal);
@@ -697,7 +697,7 @@
  // allocate_lua(), free_lua(), init_lua(), request_handler()
  #include "webserver/lua_web.h"
  // log_certificate_domain_mismatch()
-@@ -425,6 +427,7 @@ void http_init(void)
+@@ -424,6 +426,7 @@ void http_init(void)
  	if(config.webserver.tls.cert.v.s != NULL &&
  	   strlen(config.webserver.tls.cert.v.s) > 0)
  	{
@@ -705,7 +705,7 @@
  		// Try to generate certificate if not present
  		if(!file_readable(config.webserver.tls.cert.v.s))
  		{
-@@ -439,13 +442,16 @@ void http_init(void)
+@@ -438,13 +441,16 @@ void http_init(void)
  				        config.webserver.tls.cert.v.s);
  			}
  		}

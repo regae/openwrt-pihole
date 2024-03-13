@@ -9,7 +9,7 @@
  int api_info_client(struct ftl_conn *api)
  {
  	cJSON *json = JSON_NEW_OBJECT();
-@@ -710,114 +708,38 @@ int api_info_sensors(struct ftl_conn *ap
+@@ -715,129 +713,37 @@ int api_info_sensors(struct ftl_conn *ap
  
  int api_info_version(struct ftl_conn *api)
  {
@@ -53,11 +53,26 @@
 -		//else if(strcmp(key, "FTL_VERSION") == 0)
 -		//	JSON_COPY_STR_TO_OBJECT(ftl_local, "version", value);
 -		else if(strcmp(key, "GITHUB_CORE_VERSION") == 0)
--			JSON_COPY_STR_TO_OBJECT(core_remote, "version", value);
+-		{
+-			if(strcmp(value, "null") == 0)
+-				JSON_ADD_NULL_TO_OBJECT(core_remote, "version");
+-			else
+-				JSON_COPY_STR_TO_OBJECT(core_remote, "version", value);
+-		}
 -		else if(strcmp(key, "GITHUB_WEB_VERSION") == 0)
--			JSON_COPY_STR_TO_OBJECT(web_remote, "version", value);
+-		{
+-			if(strcmp(value, "null") == 0)
+-				JSON_ADD_NULL_TO_OBJECT(web_remote, "version");
+-			else
+-				JSON_COPY_STR_TO_OBJECT(web_remote, "version", value);
+-		}
 -		else if(strcmp(key, "GITHUB_FTL_VERSION") == 0)
--			JSON_COPY_STR_TO_OBJECT(ftl_remote, "version", value);
+-		{
+-			if(strcmp(value, "null") == 0)
+-				JSON_ADD_NULL_TO_OBJECT(ftl_remote, "version");
+-			else
+-				JSON_COPY_STR_TO_OBJECT(ftl_remote, "version", value);
+-		}
 -		else if(strcmp(key, "CORE_HASH") == 0)
 -			JSON_COPY_STR_TO_OBJECT(core_local, "hash", value);
 -		else if(strcmp(key, "WEB_HASH") == 0)
@@ -79,11 +94,12 @@
 -	// Free allocated memory and release file pointer
 -	free(line);
 -	fclose(fp);
- 
- 	// Add remaining properties to ftl object
+-
+-	// Add remaining properties to ftl object
 -	JSON_REF_STR_IN_OBJECT(ftl_local, "branch", GIT_BRANCH);
 -	JSON_REF_STR_IN_OBJECT(ftl_local, "version", get_FTL_version());
 -	JSON_REF_STR_IN_OBJECT(ftl_local, "date", GIT_DATE);
++
 +	JSON_REF_STR_IN_OBJECT(ftl_local, "branch", FTL_BRANCH);
 +	JSON_REF_STR_IN_OBJECT(ftl_local, "version", FTL_VERSION);
 +	JSON_REF_STR_IN_OBJECT(ftl_local, "date", FTL_DATE);
@@ -106,9 +122,10 @@
 -	JSON_ADD_NULL_IF_NOT_EXISTS(core_remote, "hash");
 -	JSON_ADD_ITEM_TO_OBJECT(core, "remote", core_remote);
 -	JSON_ADD_ITEM_TO_OBJECT(version, "core", core);
-+	JSON_ADD_ITEM_TO_OBJECT(version, "core", core_local);
- 
+-
 -	cJSON *web = JSON_NEW_OBJECT();
++	JSON_ADD_ITEM_TO_OBJECT(version, "core", core_local);
++
  	JSON_ADD_NULL_IF_NOT_EXISTS(web_local, "branch");
  	JSON_ADD_NULL_IF_NOT_EXISTS(web_local, "version");
  	JSON_ADD_NULL_IF_NOT_EXISTS(web_local, "hash");
@@ -117,10 +134,11 @@
 -	JSON_ADD_NULL_IF_NOT_EXISTS(web_remote, "hash");
 -	JSON_ADD_ITEM_TO_OBJECT(web, "remote", web_remote);
 -	JSON_ADD_ITEM_TO_OBJECT(version, "web", web);
-+	JSON_ADD_ITEM_TO_OBJECT(version, "web", web_local);
- 
+-
 -	cJSON *ftl = JSON_NEW_OBJECT();
 -	JSON_ADD_ITEM_TO_OBJECT(ftl, "local", ftl_local);
++	JSON_ADD_ITEM_TO_OBJECT(version, "web", web_local);
++
  	JSON_ADD_NULL_IF_NOT_EXISTS(ftl_local, "branch");
  	JSON_ADD_NULL_IF_NOT_EXISTS(ftl_local, "version");
  	JSON_ADD_NULL_IF_NOT_EXISTS(ftl_local, "hash");
@@ -139,7 +157,7 @@
  	cJSON *json = JSON_NEW_OBJECT();
 --- a/src/args.c
 +++ b/src/args.c
-@@ -694,7 +694,7 @@ void parse_args(int argc, char* argv[])
+@@ -715,7 +715,7 @@ void parse_args(int argc, char* argv[])
  		   strcmp(argv[i], "version") == 0 ||
  		   strcmp(argv[i], "--version") == 0)
  		{
@@ -148,7 +166,7 @@
  			exit(EXIT_SUCCESS);
  		}
  
-@@ -711,9 +711,9 @@ void parse_args(int argc, char* argv[])
+@@ -732,9 +732,9 @@ void parse_args(int argc, char* argv[])
  			printf("****************************** %s%sFTL%s **********************************\n",
  			       yellow, bold, normal);
  			printf("Version:         %s%s%s%s\n",
@@ -161,7 +179,7 @@
  			printf("Architecture:    " FTL_ARCH "\n");
  			printf("Compiler:        " FTL_CC "\n\n");
  
-@@ -816,20 +816,20 @@ void parse_args(int argc, char* argv[])
+@@ -837,20 +837,20 @@ void parse_args(int argc, char* argv[])
  		if(strcmp(argv[i], "-t") == 0 ||
  		   strcmp(argv[i], "tag") == 0)
  		{
@@ -185,7 +203,7 @@
  			exit(EXIT_SUCCESS);
  		}
  
-@@ -875,7 +875,7 @@ void parse_args(int argc, char* argv[])
+@@ -896,7 +896,7 @@ void parse_args(int argc, char* argv[])
  			const char *yellow = cli_color(COL_YELLOW);
  			const char *purple = cli_color(COL_PURPLE);
  
@@ -253,7 +271,7 @@
  /************************/
  
  static volatile int mem_recover = 0;
-@@ -5960,7 +5960,7 @@ void read_opts(int argc, char **argv, ch
+@@ -6015,7 +6015,7 @@ void read_opts(int argc, char **argv, ch
  #endif
        add_txt("servers.bind", NULL, TXT_STAT_SERVERS);
        /* Pi-hole modification */
@@ -335,7 +353,7 @@
              COMMAND           uname -m
 --- a/src/log.c
 +++ b/src/log.c
-@@ -487,10 +487,10 @@ void log_counter_info(void)
+@@ -488,10 +488,10 @@ void log_counter_info(void)
  
  void log_FTL_version(const bool crashreport)
  {
@@ -350,7 +368,7 @@
  	if(crashreport)
  	{
  		char *username_now = getUserName();
-@@ -502,38 +502,6 @@ void log_FTL_version(const bool crashrep
+@@ -503,38 +503,6 @@ void log_FTL_version(const bool crashrep
  	log_info("Compiled for %s using %s", FTL_ARCH, FTL_CC);
  }
  
@@ -389,7 +407,7 @@
  const char __attribute__ ((const)) *get_ordinal_suffix(unsigned int number)
  {
  	if((number % 100) > 9 && (number % 100) < 20)
-@@ -673,7 +641,7 @@ const char * __attribute__ ((pure)) shor
+@@ -674,7 +642,7 @@ const char * __attribute__ ((pure)) shor
  
  void print_FTL_version(void)
  {

@@ -1,6 +1,6 @@
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -276,7 +276,6 @@ set(ObjList
+@@ -282,7 +282,6 @@ set(ObjList
          $<TARGET_OBJECTS:lua>
          $<TARGET_OBJECTS:tre-regex>
          $<TARGET_OBJECTS:syscalls>
@@ -10,7 +10,7 @@
          )
 --- a/src/api/config.c
 +++ b/src/api/config.c
-@@ -18,8 +18,6 @@
+@@ -19,8 +19,6 @@
  #include "datastructure.h"
  // INT_MIN, INT_MAX, ...
  #include <limits.h>
@@ -19,7 +19,7 @@
  // write_dnsmasq_config()
  #include "config/dnsmasq_config.h"
  // shm_lock()
-@@ -814,9 +812,6 @@ static int api_config_patch(struct ftl_c
+@@ -826,9 +824,6 @@ static int api_config_patch(struct ftl_c
  		// Reload debug levels
  		set_debug_flags(&config);
  
@@ -29,7 +29,7 @@
  		// Rewrite HOSTS file if required
  		if(rewrite_hosts)
  			write_custom_list();
-@@ -1007,9 +1002,6 @@ static int api_config_put_delete(struct
+@@ -1036,9 +1031,6 @@ static int api_config_put_delete(struct
  	// Reload debug levels
  	set_debug_flags(&config);
  
@@ -41,16 +41,18 @@
  		write_custom_list();
 --- a/src/config/CMakeLists.txt
 +++ b/src/config/CMakeLists.txt
-@@ -20,16 +20,9 @@ set(sources
-         inotify.h
-         password.c
+@@ -25,18 +25,11 @@ set(sources
          password.h
+         suggest.c
+         suggest.h
 -        toml_writer.c
 -        toml_writer.h
 -        toml_reader.c
 -        toml_reader.h
 -        toml_helper.c
 -        toml_helper.h
+         validator.c
+         validator.h
          )
  
  add_library(config OBJECT ${sources})
@@ -60,16 +62,16 @@
 -add_subdirectory(tomlc99)
 --- a/src/config/cli.c
 +++ b/src/config/cli.c
-@@ -11,8 +11,6 @@
- #include "FTL.h"
+@@ -12,8 +12,6 @@
  #include "config/cli.h"
  #include "config/config.h"
+ #include "config/config_uci.h"
 -#include "config/toml_helper.h"
 -#include "config/toml_writer.h"
  #include "config/dnsmasq_config.h"
  #include "log.h"
  #include "datastructure.h"
-@@ -368,6 +366,102 @@ bool readStringValue(struct conf_item *c
+@@ -381,6 +379,102 @@ bool readStringValue(struct conf_item *c
  	return true;
  }
  
@@ -169,10 +171,10 @@
 +	}
 +}
 +
- int set_config_from_CLI(const char *key, const char *value)
+ int set_config_from_CLI(struct uci_context *ctx, const char *key, const char *value)
  {
  	// Check if we are either
-@@ -474,7 +568,7 @@ int set_config_from_CLI(const char *key,
+@@ -504,7 +598,7 @@ int set_config_from_CLI(const char *key,
  		replace_config(&newconf);
  
  		// Print value
@@ -181,7 +183,7 @@
  	}
  	else
  	{
-@@ -483,11 +577,10 @@ int set_config_from_CLI(const char *key,
+@@ -513,11 +607,10 @@ int set_config_from_CLI(const char *key,
  		free_config(&newconf);
  
  		// Print value
@@ -192,9 +194,9 @@
  	putchar('\n');
 -	writeFTLtoml(false);
  	clean_all();
- 	return EXIT_SUCCESS;
+ 	return OKAY;
  }
-@@ -541,7 +634,7 @@ int get_config_from_CLI(const char *key,
+@@ -571,7 +664,7 @@ int get_config_from_CLI(const char *key,
  		if(conf_item-> f & FLAG_WRITE_ONLY)
  			puts("<write-only property>");
  		else
@@ -214,11 +216,11 @@
  #include "log.h"
  #include "log.h"
  // file_exists()
-@@ -1348,50 +1346,8 @@ bool readFTLconf(struct config *conf, co
+@@ -1480,45 +1478,8 @@ bool readFTLconf(struct config *conf, co
  	// read uci value
- 	uci_get_config_value(conf);
+ 	uci_get_config_value(ctx, conf);
  
--	// First try to read TOML config file
+-	// Try to read TOML config file
 -	// If we cannot parse /etc/pihole.toml (due to missing or invalid syntax),
 -	// we try to read the rotated files in /etc/pihole/config_backup starting at
 -	// the most recent one and going back in time until we find a valid config
@@ -232,14 +234,9 @@
 -			if(rewrite)
 -			{
 -				writeFTLtoml(true);
--				write_dnsmasq_config(conf, false, NULL);
+-				write_dnsmasq_config(ctx, conf, false, NULL);
 -				write_custom_list();
 -				write_hosts_file();
--			}
--			else if (uci_ctx)
--			{
--				uci_free_context(uci_ctx);
--				uci_ctx = NULL;
 -			}
 -			return true;
 -		}
@@ -264,10 +261,19 @@
 -	writeFTLtoml(true);
  	if(rewrite)
  	{
- 	write_dnsmasq_config(conf, false, NULL);
-@@ -1421,10 +1377,6 @@ bool getLogFilePath(void)
- 	config.files.log.ftl.d.s = (char*)"/var/log/pihole/FTL.log";
+ 		write_dnsmasq_config(ctx, conf, false, NULL);
+@@ -1526,7 +1487,7 @@ bool readFTLconf(struct config *conf, co
+ 		write_hosts_file();
+ 	}
+ 
+-	return false;
++	return true;
+ }
+ 
+ bool getLogFilePath(void)
+@@ -1544,10 +1505,6 @@ bool getLogFilePath(void)
  	config.files.log.ftl.v.s = config.files.log.ftl.d.s;
+ 	config.files.log.ftl.c = validate_filepath;
  
 -	// Check if the config file contains a different path
 -	if(!getLogFilePathTOML())
@@ -276,7 +282,7 @@
  	return true;
  }
  
-@@ -1443,8 +1395,11 @@ void set_blockingstatus(bool enabled)
+@@ -1566,8 +1523,11 @@ void set_blockingstatus(bool enabled)
  		return;
  
  	config.dns.blocking.active.v.b = enabled;
@@ -290,7 +296,7 @@
  }
  
  const char * __attribute__ ((const)) get_conf_type_str(const enum conf_type type)
-@@ -1516,61 +1471,20 @@ void reread_config(void)
+@@ -1639,61 +1599,20 @@ void reread_config(void)
  
  	// Create checksum of config file
  	uint8_t checksum[SHA256_DIGEST_SIZE];
@@ -356,9 +362,9 @@
  	// We do not write the dnsmasq config file here as this is done on every
  	// restart and changes would have no effect here
  
-@@ -1587,13 +1501,4 @@ void reread_config(void)
+@@ -1710,13 +1629,4 @@ void reread_config(void)
  
- 	uci_get_config_value(&config);
+ 	uci_get_config_value(uci_ctx, &config);
  	write_hosts_file();
 -
 -	// If we need to restart FTL, we do so now
@@ -372,9 +378,9 @@
  }
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -32,7 +32,7 @@
- // enum web_theme
+@@ -33,7 +33,7 @@
  #include "api/theme.h"
+ #include <uci.h>
  
 -#define GLOBALTOMLPATH "/tmp/etc/pihole.toml"
 +#define GLOBALUCIPATH "/etc/config/pihole"
@@ -393,7 +399,7 @@
  // crypto library
  #include <nettle/sha2.h>
  #include <nettle/base64.h>
-@@ -410,7 +407,6 @@ enum password_result verify_password(con
+@@ -411,7 +408,6 @@ enum password_result verify_password(con
  					free(config.webserver.api.pwhash.v.s);
  				config.webserver.api.pwhash.v.s = new_hash;
  				config.webserver.api.pwhash.t = CONF_STRING_ALLOCATED;
@@ -403,10 +409,10 @@
  
 --- a/src/main.c
 +++ b/src/main.c
-@@ -85,7 +85,7 @@ int main (int argc, char *argv[])
+@@ -83,7 +83,7 @@ int main (int argc, char *argv[])
  	// The file is rewritten after parsing to ensure that all
  	// settings are present and have a valid value
- 	if(readFTLconf(&config, true))
+ 	if(readFTLconf(&config, true, uci_ctx))
 -		log_info("Parsed config file "GLOBALTOMLPATH" successfully");
 +		log_info("Parsed config file "GLOBALUCIPATH" successfully");
  
