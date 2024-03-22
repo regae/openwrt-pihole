@@ -10,7 +10,7 @@
          )
 --- a/src/api/config.c
 +++ b/src/api/config.c
-@@ -19,8 +19,6 @@
+@@ -18,8 +18,6 @@
  #include "datastructure.h"
  // INT_MIN, INT_MAX, ...
  #include <limits.h>
@@ -19,7 +19,7 @@
  // write_dnsmasq_config()
  #include "config/dnsmasq_config.h"
  // shm_lock()
-@@ -826,9 +824,6 @@ static int api_config_patch(struct ftl_c
+@@ -825,9 +823,6 @@ static int api_config_patch(struct ftl_conn *api)
  		// Reload debug levels
  		set_debug_flags(&config);
  
@@ -29,19 +29,32 @@
  		// Rewrite HOSTS file if required
  		if(rewrite_hosts)
  			write_custom_list();
-@@ -1036,9 +1031,6 @@ static int api_config_put_delete(struct
+@@ -1036,9 +1031,6 @@ static int api_config_put_delete(struct ftl_conn *api)
+ 
  	// Reload debug levels
  	set_debug_flags(&config);
- 
+-
 -	// Store changed configuration to disk
 -	writeFTLtoml(true);
--
+ 
  	// Rewrite HOSTS file if required
  	if(rewrite_hosts)
- 		write_custom_list();
+--- a/src/api/teleporter.c
++++ b/src/api/teleporter.c
+@@ -679,10 +679,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+ 		}
+ 	}
+ 
+-	// Remove pihole.toml to prevent it from being imported on restart
+-	if(remove(GLOBALTOMLPATH) != 0)
+-		log_err("Unable to remove file \"%s\": %s", GLOBALTOMLPATH, strerror(errno));
+-
+ 	// Free allocated memory
+ 	free_upload_data(data);
+ 
 --- a/src/config/CMakeLists.txt
 +++ b/src/config/CMakeLists.txt
-@@ -25,18 +25,11 @@ set(sources
+@@ -25,12 +25,6 @@ set(sources
          password.h
          suggest.c
          suggest.h
@@ -54,24 +67,23 @@
          validator.c
          validator.h
          )
- 
- add_library(config OBJECT ${sources})
+@@ -39,4 +33,3 @@ target_include_directories(config PRIVATE ${PROJECT_SO
  
  target_compile_options(config PRIVATE ${EXTRAWARN})
  target_include_directories(config PRIVATE ${PROJECT_SOURCE_DIR}/src)
 -add_subdirectory(tomlc99)
 --- a/src/config/cli.c
 +++ b/src/config/cli.c
-@@ -12,8 +12,6 @@
+@@ -11,8 +11,6 @@
+ #include "FTL.h"
  #include "config/cli.h"
  #include "config/config.h"
- #include "config/config_uci.h"
 -#include "config/toml_helper.h"
 -#include "config/toml_writer.h"
  #include "config/dnsmasq_config.h"
  #include "log.h"
  #include "datastructure.h"
-@@ -381,6 +379,102 @@ bool readStringValue(struct conf_item *c
+@@ -375,6 +373,102 @@ bool readStringValue(struct conf_item *conf_item, cons
  	return true;
  }
  
@@ -171,11 +183,11 @@
 +	}
 +}
 +
- int set_config_from_CLI(struct uci_context *ctx, const char *key, const char *value)
+ int set_config_from_CLI(const char *key, const char *value)
  {
  	// Check if we are either
-@@ -504,7 +598,7 @@ int set_config_from_CLI(const char *key,
- 		replace_config(&newconf);
+@@ -494,7 +588,7 @@ int set_config_from_CLI(const char *key, const char *v
+ 			log_err("Failed to save new config for: %s=%s", new_item->k, value);
  
  		// Print value
 -		writeTOMLvalue(stdout, -1, new_item->t, &new_item->v);
@@ -183,7 +195,7 @@
  	}
  	else
  	{
-@@ -513,11 +607,10 @@ int set_config_from_CLI(const char *key,
+@@ -503,11 +597,10 @@ int set_config_from_CLI(const char *key, const char *v
  		free_config(&newconf);
  
  		// Print value
@@ -193,10 +205,10 @@
  
  	putchar('\n');
 -	writeFTLtoml(false);
- 	clean_all();
  	return OKAY;
  }
-@@ -571,7 +664,7 @@ int get_config_from_CLI(const char *key,
+ 
+@@ -560,7 +653,7 @@ int get_config_from_CLI(const char *key, const bool qu
  		if(conf_item-> f & FLAG_WRITE_ONLY)
  			puts("<write-only property>");
  		else
@@ -216,64 +228,64 @@
  #include "log.h"
  #include "log.h"
  // file_exists()
-@@ -1480,45 +1478,8 @@ bool readFTLconf(struct config *conf, co
- 	// read uci value
- 	uci_get_config_value(ctx, conf);
+@@ -35,7 +33,6 @@ static bool config_initialized = false;
+ 
+ struct config config = { 0 };
+ static bool config_initialized = false;
+-uint8_t last_checksum_toml[SHA256_DIGEST_SIZE] = { 0 };
+ uint8_t last_checksum_dhcp[SHA256_DIGEST_SIZE] = { 0 };
+ uint8_t last_checksum_pihole[SHA256_DIGEST_SIZE] = { 0 };
+ 
+@@ -1478,7 +1475,7 @@ void reset_config(struct conf_item *conf_item)
+ 	}
+ }
+ 
+-bool readFTLconf(struct config *conf, const bool rewrite)
++void readFTLconf(struct config *conf, const bool rewrite)
+ {
+ 	// Initialize config with default values
+ 	initConfig(conf);
+@@ -1486,37 +1483,14 @@ bool readFTLconf(struct config *conf, const bool rewri
+ 	// First, read the environment
+ 	getEnvVars();
  
 -	// Try to read TOML config file
--	// If we cannot parse /etc/pihole.toml (due to missing or invalid syntax),
--	// we try to read the rotated files in /etc/pihole/config_backup starting at
--	// the most recent one and going back in time until we find a valid config
--	for(unsigned int i = 0; i < MAX_ROTATIONS; i++)
+-	if(readFTLtoml(NULL, conf, NULL, rewrite, NULL))
 -	{
--		if(readFTLtoml(NULL, conf, NULL, rewrite, NULL, i))
+-		// read uci value
+-		uci_get_config_values(conf);
+-
+-		// If successful, we write the config file back to disk
+-		// to ensure that all options are present and comments
+-		// about options deviating from the default are present
+-		if(rewrite)
 -		{
--			// If successful, we write the config file back to disk
--			// to ensure that all options are present and comments
--			// about options deviating from the default are present
--			if(rewrite)
--			{
--				writeFTLtoml(true);
--				write_dnsmasq_config(ctx, conf, false, NULL);
--				write_custom_list();
--				write_hosts_file();
--			}
--			return true;
+-			writeFTLtoml(true);
+-			write_dnsmasq_config(conf, false, NULL);
+-			write_custom_list();
+-			write_static_hosts(conf->uci_ctx);
 -		}
+-		return true;
 -	}
 -
--	log_info("No config file nor backup available, using defaults");
--
--
--	// When we reach this point but the FTL TOML config file exists, it may
--	// contain errors such as syntax errors, etc. We move it into a
--	// ".broken" location so it can be revisited later
--	if(file_exists(GLOBALTOMLPATH))
--	{
--		const char new_name[] = GLOBALTOMLPATH ".broken";
--		rotate_files(new_name, NULL);
--		rename(GLOBALTOMLPATH, new_name);
--	}
--
+ 	// read uci value
+ 	uci_get_config_values(conf);
+ 
  	log_info("Initialised webserver ports at %s", conf->webserver.port.v.s);
  
 -	// Initialize the TOML config file
 -	writeFTLtoml(true);
- 	if(rewrite)
- 	{
- 		write_dnsmasq_config(ctx, conf, false, NULL);
-@@ -1526,7 +1487,7 @@ bool readFTLconf(struct config *conf, co
- 		write_hosts_file();
- 	}
- 
+ 	write_dnsmasq_config(conf, false, NULL);
+ 	write_custom_list();
+ 	write_static_hosts(conf->uci_ctx);
+-
 -	return false;
-+	return true;
  }
  
  bool getLogFilePath(void)
-@@ -1544,10 +1505,6 @@ bool getLogFilePath(void)
- 	config.files.log.ftl.v.s = config.files.log.ftl.d.s;
- 	config.files.log.ftl.c = validate_filepath;
+@@ -1540,10 +1514,6 @@ bool getLogFilePath(void)
+ 	if(uci_get_value(config.uci_ctx, &config.files.log.ftl, "pihole", "logfile"))
+ 		config.files.log.ftl.v.s = config.files.log.ftl.d.s;
  
 -	// Check if the config file contains a different path
 -	if(!getLogFilePathTOML())
@@ -282,37 +294,39 @@
  	return true;
  }
  
-@@ -1566,8 +1523,11 @@ void set_blockingstatus(bool enabled)
- 		return;
- 
+@@ -1564,9 +1534,6 @@ void set_blockingstatus(bool enabled)
  	config.dns.blocking.active.v.b = enabled;
+ 	if(uci_set_value(config.uci_ctx, &config.dns.blocking.active, enabled ? "1" : "0") != 0)
+ 		log_err("failed to set uci config blocking_active");
+-
 -	writeFTLtoml(true);
 -	raise(SIGHUP);
-+	if(uci_config_set(uci_pihole, "@pihole[0]", "blocking_active", enabled ? "1" : "0", false) != 0)
-+		log_err("failed to set uci config blocking_active");
-+
-+	// no need to reload
-+	// raise(SIGHUP);
  }
  
  const char * __attribute__ ((const)) get_conf_type_str(const enum conf_type type)
-@@ -1639,61 +1599,20 @@ void reread_config(void)
+@@ -1640,11 +1607,9 @@ void reread_config(void)
+ {
  
  	// Create checksum of config file
- 	uint8_t checksum[SHA256_DIGEST_SIZE];
--	if(!sha256sum(GLOBALTOMLPATH, checksum))
-+	if(!sha256sum(GLOBALUCIPATH, checksum))
+-	uint8_t checksum_toml[SHA256_DIGEST_SIZE];
+ 	uint8_t checksum_dhcp[SHA256_DIGEST_SIZE];
+ 	uint8_t checksum_pihole[SHA256_DIGEST_SIZE];
+-	if(!sha256sum(GLOBALTOMLPATH, checksum_toml) ||
+-	   !sha256sum(UCI_CONFIG_PIHOLE, checksum_pihole) ||
++	if(!sha256sum(UCI_CONFIG_PIHOLE, checksum_pihole) ||
+ 	   !sha256sum(UCI_CONFIG_DHCP, checksum_pihole))
  	{
--		log_err("Unable to create checksum of %s, not re-reading config file", GLOBALTOMLPATH);
-+		log_err("Unable to create checksum of %s, not re-reading config file", GLOBALUCIPATH);
- 		return;
+ 		log_err("Unable to create checksum of config files, not re-reading configuration");
+@@ -1652,65 +1617,20 @@ void reread_config(void)
  	}
  
  	// Compare checksums
- 	if(memcmp(checksum, last_checksum, SHA256_DIGEST_SIZE) == 0)
+-	if(memcmp(checksum_toml, last_checksum_toml, SHA256_DIGEST_SIZE) == 0 &&
+-	   memcmp(checksum_dhcp, last_checksum_dhcp, SHA256_DIGEST_SIZE) == 0 &&
++	if(memcmp(checksum_dhcp, last_checksum_dhcp, SHA256_DIGEST_SIZE) == 0 &&
+ 	   memcmp(checksum_pihole, last_checksum_pihole, SHA256_DIGEST_SIZE) == 0)
  	{
--		log_debug(DEBUG_CONFIG, "Checksum of %s has not changed, not re-reading config file", GLOBALTOMLPATH);
-+		log_debug(DEBUG_CONFIG, "Checksum of %s has not changed, not re-reading config file", GLOBALUCIPATH);
+ 		log_debug(DEBUG_CONFIG, "Checksum of config files has not changed, not re-reading configuration");
  		return;
  	}
  
@@ -322,7 +336,7 @@
 -
 -	// Read TOML config file
 -	bool restart = false;
--	if(readFTLtoml(&config, &conf_copy, NULL, true, &restart, 0))
+-	if(readFTLtoml(&config, &conf_copy, NULL, true, &restart))
 -	{
 -		// Install new configuration
 -		log_debug(DEBUG_CONFIG, "Loaded configuration is valid, installing it");
@@ -354,19 +368,27 @@
 -		free_config(&conf_copy);
 -	}
 -
+ 	// reload uci config
+ 	if(!uci_load_package(config.uci_ctx, true))
+-	{
+-		log_err("failed to reload uci config");
+ 		return;
+-	}
+ 
++	log_info("Reloading config due to /etc/config/ changes");
+ 	uci_get_config_values(&config);
+ 
 -	// Write the config file back to disk to ensure that all options and
 -	// comments about options deviating from the default are present
 -	writeFTLtoml(true);
 -
-+	log_info("Reloading config due to "GLOBALUCIPATH" change");
  	// We do not write the dnsmasq config file here as this is done on every
  	// restart and changes would have no effect here
  
-@@ -1710,13 +1629,4 @@ void reread_config(void)
+@@ -1719,12 +1639,6 @@ void reread_config(void)
+ 	write_custom_list();
+ 	write_static_hosts(config.uci_ctx);
  
- 	uci_get_config_value(uci_ctx, &config);
- 	write_hosts_file();
--
 -	// If we need to restart FTL, we do so now
 -	if(restart)
 -	{
@@ -375,18 +397,19 @@
 -		// Send SIGTERM to FTL
 -		kill(main_pid(), SIGTERM);
 -	}
++	// by removing toml function we lost
++	// the ability to restart pihole-FTL if privacelevel changes
  }
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -33,7 +33,7 @@
+@@ -33,7 +33,6 @@
  #include "api/theme.h"
- #include <uci.h>
+ #include "config_uci.h"
  
 -#define GLOBALTOMLPATH "/tmp/etc/pihole.toml"
-+#define GLOBALUCIPATH "/etc/config/pihole"
+ #define UCI_CONFIG_PIHOLE "/etc/config/pihole"
+ #define UCI_CONFIG_DHCP "/etc/config/dhcp"
  
- // This static string represents an unchanged password
- #define PASSWORD_VALUE "********"
 --- a/src/config/password.c
 +++ b/src/config/password.c
 @@ -22,9 +22,6 @@
@@ -399,7 +422,7 @@
  // crypto library
  #include <nettle/sha2.h>
  #include <nettle/base64.h>
-@@ -411,7 +408,6 @@ enum password_result verify_password(con
+@@ -411,7 +408,6 @@ enum password_result verify_password(const char *passw
  					free(config.webserver.api.pwhash.v.s);
  				config.webserver.api.pwhash.v.s = new_hash;
  				config.webserver.api.pwhash.t = CONF_STRING_ALLOCATED;
@@ -409,18 +432,22 @@
  
 --- a/src/main.c
 +++ b/src/main.c
-@@ -83,7 +83,7 @@ int main (int argc, char *argv[])
- 	// The file is rewritten after parsing to ensure that all
- 	// settings are present and have a valid value
- 	if(readFTLconf(&config, true, uci_ctx))
+@@ -76,11 +76,7 @@ int main (int argc, char *argv[])
+ 	// We configure real-time signals later (after dnsmasq has forked)
+ 	handle_signals();
+ 
+-	// Process pihole.toml configuration file
+-	// The file is rewritten after parsing to ensure that all
+-	// settings are present and have a valid value
+-	if(readFTLconf(&config, true))
 -		log_info("Parsed config file "GLOBALTOMLPATH" successfully");
-+		log_info("Parsed config file "GLOBALUCIPATH" successfully");
++	readFTLconf(&config, true);
  
  	// Set process priority
  	set_nice();
 --- a/src/zip/teleporter.c
 +++ b/src/zip/teleporter.c
-@@ -21,18 +21,10 @@
+@@ -21,12 +21,6 @@
  #include <dirent.h>
  // sqlite3
  #include "database/sqlite3.h"
@@ -433,22 +460,24 @@
  // write_dnsmasq_config()
  #include "config/dnsmasq_config.h"
  // lock_shm(), unlock_shm()
- #include "shmem.h"
--// rotate_file()
--#include "files.h"
- // cJSON
- #ifdef SYSTEM_CJSON
- #include <cjson/cJSON.h>
-@@ -65,8 +57,6 @@ static const char *ftl_tables[] = {
+@@ -65,7 +59,6 @@ static const char *extract_files[] = {
  
  // List of files to process from a Teleporter ZIP archive
  static const char *extract_files[] = {
 -	"etc/pihole/pihole.toml",
--	"etc/pihole/dhcp.leases",
+ 	"etc/pihole/dhcp.leases",
  	"etc/pihole/gravity.db"
  };
+@@ -153,6 +146,8 @@ const char *generate_teleporter_zip(mz_zip_archive *zi
+ {
+ 	// Initialize ZIP archive
+ 	memset(zip, 0, sizeof(*zip));
++	const char *file_comment;
++	const char *file_path;
  
-@@ -161,14 +151,8 @@ const char *generate_teleporter_zip(mz_z
+ 	// Start with 64KB allocation size (pihole.TOML is slightly larger than 32KB
+ 	// at the time of writing thjs)
+@@ -161,15 +156,6 @@ const char *generate_teleporter_zip(mz_zip_archive *zi
  		return "Failed creating heap ZIP archive";
  	}
  
@@ -460,12 +489,11 @@
 -		mz_zip_writer_end(zip);
 -		return "Failed to add "GLOBALTOMLPATH" to heap ZIP archive!";
 -	}
-+	const char *file_comment;
-+	const char *file_path;
- 
+-
  	// Add /etc/hosts to the ZIP archive
  	file_comment = "System's HOSTS file";
-@@ -181,7 +165,7 @@ const char *generate_teleporter_zip(mz_z
+ 	file_path = "/etc/hosts";
+@@ -181,7 +167,7 @@ const char *generate_teleporter_zip(mz_zip_archive *zi
  
  	// Add /etc/pihole/dhcp.lease to the ZIP archive if it exists
  	file_comment = "DHCP leases file";
@@ -474,26 +502,67 @@
  	if(file_exists(file_path) && !mz_zip_writer_add_file(zip, file_path+1, file_path, file_comment, (uint16_t)strlen(file_comment), MZ_BEST_COMPRESSION))
  	{
  		mz_zip_writer_end(zip);
-@@ -289,6 +273,7 @@ const char *generate_teleporter_zip(mz_z
+@@ -289,55 +275,6 @@ const char *generate_teleporter_zip(mz_zip_archive *zi
  	return NULL;
  }
  
-+#if 0
- static const char *test_and_import_pihole_toml(void *ptr, size_t size, char * const hint)
+-static const char *test_and_import_pihole_toml(void *ptr, size_t size, char * const hint)
+-{
+-	// Check if the file is empty
+-	if(size == 0)
+-		return "File etc/pihole/pihole.toml in ZIP archive is empty";
+-
+-	// Create a memory copy that is null-terminated
+-	char *buffer = calloc(size+1, sizeof(char));
+-	if(buffer == NULL)
+-		return "Failed to allocate memory for null-terminated copy of etc/pihole/pihole.toml in ZIP archive";
+-	memcpy(buffer, ptr, size);
+-	buffer[size] = '\0';
+-
+-	// Check if the file is a valid TOML file
+-	toml_table_t *toml = toml_parse(buffer, hint, ERRBUF_SIZE);
+-	if(toml == NULL)
+-	{
+-		free(buffer);
+-		return "File etc/pihole/pihole.toml in ZIP archive is not a valid TOML file";
+-	}
+-	free(buffer);
+-
+-	// Check if the file contains a valid configuration for Pi-hole by parsing it into
+-	// a temporary config struct (teleporter_config)
+-	struct config teleporter_config = { 0 };
+-	duplicate_config(&teleporter_config, &config);
+-	if(!readFTLtoml(NULL, &teleporter_config, toml, true, NULL))
+-		return "File etc/pihole/pihole.toml in ZIP archive contains invalid TOML configuration";
+-
+-	// Test dnsmasq config in the imported configuration
+-	// The dnsmasq configuration will be overwritten if the test succeeds
+-	if(!write_dnsmasq_config(&teleporter_config, true, hint))
+-		return "File etc/pihole/pihole.toml in ZIP archive contains invalid dnsmasq configuration";
+-
+-	// When we reach this point, we know that the file is a valid TOML file and contains
+-	// a valid configuration for Pi-hole. We can now safely overwrite the current
+-	// configuration with the one from the ZIP archive
+-
+-	// Install new configuration
+-	replace_config(&teleporter_config);
+-
+-	// Write new pihole.toml to disk, the dnsmaq config was already written above
+-	// Also write the custom list to disk
+-	writeFTLtoml(true);
+-	write_custom_list();
+-
+-	return NULL;
+-}
+-
+ static const char *import_dhcp_leases(void *ptr, size_t size, char * const hint)
  {
- 	// Check if the file is empty
-@@ -367,6 +352,7 @@ static const char *import_dhcp_leases(vo
- 
- 	return NULL;
- }
-+#endif
- 
- static const char *test_and_import_database(void *ptr, size_t size, const char *destination,
-                                             const char **tables, const unsigned int num_tables,
-@@ -589,32 +575,7 @@ const char *read_teleporter_zip(char *bu
+ 	// We do not check if the file is empty here, as an empty dhcp.leases file is valid
+@@ -584,21 +521,8 @@ const char *read_teleporter_zip(uint8_t *buffer, const
+ 		          file_stat.m_comment, (unsigned long)file_stat.m_time);
  
  		// Process file
- 		// Is this "etc/pihole/pihole.toml" ?
+-		// Is this "etc/pihole/pihole.toml" ?
 -		if(strcmp(file_stat.m_filename, "etc/pihole/pihole.toml") == 0)
 -		{
 -			// Import Pi-hole configuration
@@ -506,21 +575,9 @@
 -			}
 -			log_debug(DEBUG_CONFIG, "Imported Pi-hole configuration: %s", file_stat.m_filename);
 -		}
--		// Is this "etc/pihole/dhcp.leases"?
+ 		// Is this "etc/pihole/dhcp.leases"?
 -		else if(strcmp(file_stat.m_filename, "etc/pihole/dhcp.leases") == 0)
--		{
--			// Import DHCP leases
--			memset(hint, 0, ERRBUF_SIZE);
--			const char *err = import_dhcp_leases(ptr, file_stat.m_uncomp_size, hint);
--			if(err != NULL)
--			{
--				free(ptr);
--				return err;
--			}
--			log_debug(DEBUG_CONFIG, "Imported DHCP leases: %s", file_stat.m_filename);
--		}
--		else if(strcmp(file_stat.m_filename, "etc/pihole/gravity.db") == 0)
-+		if(strcmp(file_stat.m_filename, "etc/pihole/gravity.db") == 0)
++		if(strcmp(file_stat.m_filename, "etc/pihole/dhcp.leases") == 0)
  		{
- 			// Import gravity database
+ 			// Import DHCP leases
  			memset(hint, 0, ERRBUF_SIZE);

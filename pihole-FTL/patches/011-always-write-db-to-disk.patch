@@ -1,6 +1,6 @@
 --- a/src/main.c
 +++ b/src/main.c
-@@ -154,12 +154,12 @@ int main (int argc, char *argv[])
+@@ -147,12 +147,12 @@ int main (int argc, char *argv[])
  	// be terminating immediately
  	sleepms(250);
  
@@ -11,7 +11,7 @@
 -		log_info("Finished final database update");
 -	}
 +	// Always save database to disk despite DBExport is true and not in /tmp
-+	if(strncmp(config.files.database.v.s, "/tmp", 4))
++	if(exit_code != RESTART_FTL_CODE && strncmp(config.files.database.v.s, "/tmp", 4))
 +	{
 +		if(export_queries_to_disk(true))
 +			log_info("Finished writing database to disk");

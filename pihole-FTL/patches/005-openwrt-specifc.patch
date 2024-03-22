@@ -31,7 +31,7 @@
  int api_action_restartDNS(struct ftl_conn *api)
 --- a/src/api/docs/content/specs/config.yaml
 +++ b/src/api/docs/content/specs/config.yaml
-@@ -675,7 +675,7 @@ components:
+@@ -677,7 +677,7 @@ components:
                rev_proxy: false
                cert: "/etc/pihole/tls.pem"
              paths:
@@ -40,7 +40,7 @@
                webhome: "/admin/"
              interface:
                boxed: true
-@@ -698,7 +698,7 @@ components:
+@@ -701,7 +701,7 @@ components:
                  limit: 60.0
                  unit: "C"
            files:
@@ -49,24 +49,15 @@
              database: "/etc/pihole/pihole-FTL.db"
              gravity: "/etc/pihole/gravity.db"
              gravity_tmp: "/tmp"
---- a/src/config/cli.c
-+++ b/src/config/cli.c
-@@ -156,8 +156,13 @@
- 		{
- 			if(conf_item->t == CONF_STRING_ALLOCATED)
- 					free(conf_item->v.s);
--			conf_item->v.s = strdup(value);
--			conf_item->t = CONF_STRING_ALLOCATED;
-+
-+			if (strcmp(value, "NULL") == 0)
-+				conf_item->v.s = NULL;
-+			else {
-+				conf_item->v.s = strdup(value);
-+				conf_item->t = CONF_STRING_ALLOCATED;
-+			}
- 			break;
- 		}
- 		case CONF_PASSWORD:
+--- a/src/api/docs/content/specs/teleporter.yaml
++++ b/src/api/docs/content/specs/teleporter.yaml
+@@ -105,5 +105,5 @@ components:
+     teleporter:
+       value:
+         processed:
+-          - etc/pihole/pihole.toml
++          - tmp/etc/pihole.toml
+           - etc/pihole/gravity.db
 --- a/src/config/config.c
 +++ b/src/config/config.c
 @@ -936,7 +936,7 @@ void initConfig(struct config *conf)
@@ -78,7 +69,7 @@
  	conf->webserver.paths.webroot.c = validate_filepath;
  
  	conf->webserver.paths.webhome.k = "webserver.paths.webhome";
-@@ -1088,7 +1088,7 @@ void initConfig(struct config *conf)
+@@ -1094,7 +1094,7 @@ void initConfig(struct config *conf)
  	conf->files.pid.a = cJSON_CreateStringReference("<any writable file>");
  	conf->files.pid.t = CONF_STRING;
  	conf->files.pid.f = FLAG_ADVANCED_SETTING | FLAG_RESTART_FTL;
@@ -87,7 +78,7 @@
  	conf->files.pid.c = validate_filepath;
  
  	conf->files.database.k = "files.database";
-@@ -1155,7 +1155,7 @@
+@@ -1161,7 +1161,7 @@
  	conf->files.log.dnsmasq.a = cJSON_CreateStringReference("<any writable file>");
  	conf->files.log.dnsmasq.t = CONF_STRING;
  	conf->files.log.dnsmasq.f = FLAG_ADVANCED_SETTING | FLAG_RESTART_FTL;
@@ -96,7 +87,7 @@
  	conf->files.log.dnsmasq.c = validate_filepath_dash;
  
  
-@@ -1636,7 +1636,7 @@
+@@ -1642,7 +1642,7 @@
  	config.files.log.ftl.a = cJSON_CreateStringReference("<any writable file>");
  	config.files.log.ftl.t = CONF_STRING;
  	config.files.log.ftl.f = FLAG_ADVANCED_SETTING;
@@ -118,15 +109,22 @@
  #define PASSWORD_VALUE "********"
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -216,7 +216,7 @@ static void write_config_header(FILE *fp
+@@ -212,12 +212,12 @@ static void write_config_header(FILE *fp
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "ANY CHANGES MADE TO THIS FILE WILL BE LOST WHEN THE CONFIGURATION CHANGES");
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "IF YOU WISH TO CHANGE ANY OF THESE VALUES, CHANGE THEM IN");
+-	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "/etc/pihole/pihole.toml");
++	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "/tmp/etc/pihole.toml");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "and restart pihole-FTL");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "ANY OTHER CHANGES SHOULD BE MADE IN A SEPARATE CONFIG FILE");
 -	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "WITHIN /etc/dnsmasq.d/yourname.conf");
+-	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure misc.etc_dnsmasq_d is set to true in /etc/pihole/pihole.toml)");
 +	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "WITHIN /tmp/dnsmasq.d/yourname.conf");
- 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure misc.etc_dnsmasq_d is set to true in /etc/pihole/pihole.toml)");
++	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure misc.etc_dnsmasq_d is set to true in pihole.toml)");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "Last updated: %s", timestring);
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "by FTL version %s", FTL_VERSION);
 @@ -633,12 +633,12 @@ bool __attribute__((const)) write_dnsmas
  	fputs("server=/onion/\n", pihole_conf);
  	fputs("\n", pihole_conf);
@@ -143,6 +141,26 @@
  		fputs("\n", pihole_conf);
  	}
  
+--- a/src/config/dnsmasq_config.h
++++ b/src/config/dnsmasq_config.h
+@@ -22,13 +22,13 @@
+ bool read_legacy_custom_hosts_config(void);
+ bool write_custom_list(void);
+ 
+-#define DNSMASQ_PH_CONFIG "/etc/pihole/dnsmasq.conf"
+-#define DNSMASQ_TEMP_CONF "/etc/pihole/dnsmasq.conf.temp"
++#define DNSMASQ_PH_CONFIG "/tmp/etc/dnsmasq.conf"
++#define DNSMASQ_TEMP_CONF "/tmp/etc/dnsmasq.conf.temp"
+ #define DNSMASQ_STATIC_LEASES "/etc/pihole/04-pihole-static-dhcp.conf"
+ #define DNSMASQ_CNAMES "/etc/pihole/05-pihole-custom-cname.conf"
+-#define DNSMASQ_HOSTSDIR "/etc/pihole/hosts"
++#define DNSMASQ_HOSTSDIR "/tmp/hosts"
+ #define DNSMASQ_CUSTOM_LIST DNSMASQ_HOSTSDIR"/custom.list"
+ #define DNSMASQ_CUSTOM_LIST_LEGACY "/etc/pihole/custom.list"
+-#define DHCPLEASESFILE "/etc/pihole/dhcp.leases"
++#define DHCPLEASESFILE "/tmp/dhcp.leases"
+ 
+ #endif //DNSMASQ_CONFIG_H
 --- a/src/dnsmasq/config.h
 +++ b/src/dnsmasq/config.h
 @@ -31,8 +31,8 @@
@@ -167,7 +185,7 @@
  
 --- a/src/dnsmasq_interface.c
 +++ b/src/dnsmasq_interface.c
-@@ -2936,10 +2936,10 @@ void FTL_fork_and_bind_sockets(struct pas
+@@ -2933,10 +2933,10 @@ void FTL_fork_and_bind_sockets(struct pas
  		{
  			log_info("FTL is going to drop from root to user %s (UID %u)",
  			     ent_pw->pw_name, ent_pw->pw_uid);
@@ -182,7 +200,7 @@
  			chown_all_shmem(ent_pw);
 --- a/src/gc.c
 +++ b/src/gc.c
-@@ -469,18 +469,6 @@ void runGC(const time_t now, time_t *las
+@@ -466,18 +466,6 @@ void runGC(const time_t now, time_t *las
  	DBdeleteoldqueries = true;
  }
  
@@ -201,7 +219,7 @@
  void *GC_thread(void *val)
  {
  	// Set thread name
-@@ -498,9 +486,6 @@ void *GC_thread(void *val)
+@@ -495,9 +483,6 @@ void *GC_thread(void *val)
  	unsigned int LastLogStorageUsage = 0;
  	unsigned int LastDBStorageUsage = 0;
  
@@ -211,7 +229,7 @@
  	// Create inotify watcher for pihole.toml config file
  	watch_config(true);
  
-@@ -536,11 +521,12 @@ void *GC_thread(void *val)
+@@ -533,11 +518,12 @@ void *GC_thread(void *val)
  			check_load();
  
  			// Check disk space of database file
@@ -247,6 +265,17 @@
  target_include_directories(lua_scripts PRIVATE ${PROJECT_SOURCE_DIR}/src)
 +# Fix for ninja
 +set_target_properties(lua_scripts PROPERTIES LINKER_LANGUAGE C)
+--- a/src/procps.c
++++ b/src/procps.c
+@@ -214,7 +214,7 @@ bool check_running_FTL(void)
+ 		log_debug(DEBUG_SHMEM, "PID: %d -> name: %s%s", pid, name, pid == ourselves ? " (us)" : "");
+ 
+ 		// Skip our own process
+-		if(pid == ourselves)
++		if(pid == ourselves || pid - ourselves == 1)
+ 			continue;
+ 
+ 		// Only process this is this is our own process
 --- a/src/zip/miniz/CMakeLists.txt
 +++ b/src/zip/miniz/CMakeLists.txt
 @@ -15,4 +15,5 @@ set(sources
