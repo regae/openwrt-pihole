@@ -1,0 +1,390 @@
+--- a/src/api/auth.c
++++ b/src/api/auth.c
+@@ -15,8 +15,6 @@
+ #include "api/api.h"
+ #include "log.h"
+ #include "config/config.h"
+-// get_password_hash()
+-#include "config/setupVars.h"
+ // (un)lock_shm()
+ #include "shmem.h"
+ // getrandom()
+--- a/src/api/dns.c
++++ b/src/api/dns.c
+@@ -12,8 +12,6 @@
+ #include "webserver/http-common.h"
+ #include "webserver/json_macros.h"
+ #include "api.h"
+-// {s,g}et_blockingstatus()
+-#include "config/setupVars.h"
+ // set_blockingmode_timer()
+ #include "timers.h"
+ #include "shmem.h"
+--- a/src/api/history.c
++++ b/src/api/history.c
+@@ -18,8 +18,6 @@
+ #include "overTime.h"
+ // config struct
+ #include "config/config.h"
+-// read_setupVarsconf()
+-#include "config/setupVars.h"
+ // get_aliasclient_list()
+ #include "database/aliasclients.h"
+ 
+--- a/src/api/info.c
++++ b/src/api/info.c
+@@ -14,8 +14,6 @@
+ #include "api/api.h"
+ // sysinfo()
+ #include <sys/sysinfo.h>
+-// get_blockingstatus()
+-#include "config/setupVars.h"
+ // counters
+ #include "shmem.h"
+ // get_FTL_db_filesize()
+--- a/src/api/teleporter.c
++++ b/src/api/teleporter.c
+@@ -651,9 +651,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+ 		},{
+ 			.archive_name = "pihole-FTL.conf",
+ 			.destination = GLOBALCONFFILE_LEGACY
+-		},{
+-			.archive_name = "setupVars.conf",
+-			.destination = config.files.setupVars.v.s
+ 		}
+ 	};
+ 	for(size_t i = 0; i < sizeof(extract_files) / sizeof(*extract_files); i++)
+@@ -680,16 +677,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+ 			fclose(fp);
+ 			JSON_COPY_STR_TO_ARRAY(imported_files, extract_files[i].destination);
+ 		}
+-	}
+-
+-	// Append WEB_PORTS to setupVars.conf
+-	FILE *fp = fopen(config.files.setupVars.v.s, "a");
+-	if(fp == NULL)
+-		log_err("Unable to open file \"%s\" for appending: %s", config.files.setupVars.v.s, strerror(errno));
+-	else
+-	{
+-		fprintf(fp, "WEB_PORTS=%s\n", config.webserver.port.v.s);
+-		fclose(fp);
+ 	}
+ 
+ 	// Remove pihole.toml to prevent it from being imported on restart
+--- a/src/config/CMakeLists.txt
++++ b/src/config/CMakeLists.txt
+@@ -21,14 +21,10 @@ set(sources
+         env.h
+         inotify.c
+         inotify.h
+-        legacy_reader.c
+-        legacy_reader.h
+         password.c
+         password.h
+         suggest.c
+         suggest.h
+-        setupVars.c
+-        setupVars.h
+         toml_writer.c
+         toml_writer.h
+         toml_reader.c
+--- a/src/config/config.c
++++ b/src/config/config.c
+@@ -12,11 +12,8 @@
+ #include "config/config.h"
+ #include "config/toml_reader.h"
+ #include "config/toml_writer.h"
+-#include "config/setupVars.h"
+ #include "log.h"
+ #include "log.h"
+-// readFTLlegacy()
+-#include "legacy_reader.h"
+ // file_exists()
+ #include "files.h"
+ // write_dnsmasq_config()
+@@ -42,6 +39,21 @@ uint8_t last_checksum[SHA256_DIGEST_SIZE] = { 0 };
+ uint8_t last_checksum_dhcp[SHA256_DIGEST_SIZE] = { 0 };
+ uint8_t last_checksum_pihole[SHA256_DIGEST_SIZE] = { 0 };
+ 
++static pthread_mutex_t lock;
++
++void init_config_mutex(void)
++{
++	// Initialize the lock attributes
++	pthread_mutexattr_t lock_attr = {};
++	pthread_mutexattr_init(&lock_attr);
++
++	// Initialize the lock
++	pthread_mutex_init(&lock, &lock_attr);
++
++	// Destroy the lock attributes since we're done with it
++	pthread_mutexattr_destroy(&lock_attr);
++}
++
+ // Set debug flags from config struct to global debug_flags array
+ // This is called whenever the config is reloaded and debug flags may have
+ // changed
+@@ -1250,16 +1262,6 @@ void initConfig(struct config *conf)
+ 	conf->files.macvendor.uci.opt = "macvendor";
+ 	conf->files.macvendor.uci.sec = "database";
+ 
+-	conf->files.setupVars.k = "files.setupVars";
+-	conf->files.setupVars.h = "The old config file of Pi-hole used before v6.0";
+-	conf->files.setupVars.a = cJSON_CreateStringReference("<any Pi-hole setupVars file>");
+-	conf->files.setupVars.t = CONF_STRING;
+-	conf->files.setupVars.f = FLAG_ADVANCED_SETTING;
+-	conf->files.setupVars.d.s = (char*)"/etc/pihole/setupVars.conf";
+-	conf->files.setupVars.c = validate_filepath;
+-	conf->files.setupVars.uci.opt = "setupVars";
+-	conf->files.setupVars.uci.sec = "pihole";
+-
+ 	conf->files.pcap.k = "files.pcap";
+ 	conf->files.pcap.h = "An optional file containing a pcap capture of the network traffic. This file is used for debugging purposes only. If you don't know what this is, you don't need it.\n Setting this to an empty string disables pcap recording. The file must be writable by the user running FTL (typically pihole). Failure to write to this file will prevent the DNS resolver from starting. The file is appended to if it already exists.";
+ 	conf->files.pcap.a = cJSON_CreateStringReference("<any writable pcap file>");
+@@ -1752,27 +1754,6 @@ bool readFTLconf(struct config *conf, const bool rewri
+ 
+ 	// read uci value
+ 	uci_get_config_values(conf, false);
+-
+-	log_info("No config file nor backup available, using defaults");
+-
+-	// If no previous config file could be read, we are likely either running
+-	// for the first time or we are upgrading from a version prior to v6.0
+-	// In this case, we try to read the legacy config files
+-	const char *path = "";
+-	if((path = readFTLlegacy(conf)) != NULL)
+-	{
+-		const char *target = "/etc/pihole/pihole-FTL.conf.bck";
+-		log_info("Moving %s to %s", path, target);
+-		if(rename(path, target) != 0)
+-			log_warn("Unable to move %s to %s: %s", path, target, strerror(errno));
+-	}
+-	// Import bits and pieces from legacy config files
+-	// setupVars.conf
+-	importsetupVarsConf();
+-	// 04-pihole-static-dhcp.conf
+-	read_legacy_dhcp_static_config();
+-	// 05-pihole-custom-cname.conf
+-	read_legacy_cnames_config();
+ 
+ 	log_info("Initialised webserver ports at %s", conf->webserver.port.v.s);
+ 
+@@ -1808,7 +1789,7 @@ bool getLogFilePath(void)
+ 
+ 	// Check if the config file contains a different path
+ 	if(!getLogFilePathTOML())
+-		return getLogFilePathLegacy(&config, NULL);
++		return false;
+ 
+ 	return true;
+ }
+--- a/src/config/config.h
++++ b/src/config/config.h
+@@ -263,7 +2623,6 @@ struct config {
+ 		struct conf_item gravity;
+ 		struct conf_item gravity_tmp;
+ 		struct conf_item macvendor;
+-		struct conf_item setupVars;
+ 		struct conf_item pcap;
+ 		struct {
+ 			struct conf_item ftl;
+--- a/src/config/dnsmasq_config.c
++++ b/src/config/dnsmasq_config.c
+@@ -27,8 +27,6 @@
+ #endif
+ // directory_exists()
+ #include "files.h"
+-// trim_whitespace()
+-#include "config/setupVars.h"
+ // run_dnsmasq_main()
+ #include "args.h"
+ // optind
+@@ -1104,131 +1102,6 @@ void write_static_hosts(struct uci_context *ctx)
+ 	return true;
+ }
+ 
+-bool read_legacy_dhcp_static_config(void)
+-{
+-	// Check if file exists, if not, there is nothing to do
+-	const char *path = DNSMASQ_STATIC_LEASES;
+-	const char *target = DNSMASQ_STATIC_LEASES".bck";
+-	if(!file_exists(path))
+-		return true;
+-
+-	FILE *fp = fopen(path, "r");
+-	if(!fp)
+-	{
+-		log_err("Cannot read %s for reading, unable to import static leases: %s",
+-		        path, strerror(errno));
+-		return false;
+-	}
+-
+-	char *linebuffer = NULL;
+-	size_t size = 0u;
+-	errno = 0;
+-	unsigned int j = 0;
+-	while(getline(&linebuffer, &size, fp) != -1)
+-	{
+-		// Check if memory allocation failed
+-		if(linebuffer == NULL)
+-			break;
+-
+-		// Skip lines with other keys
+-		if((strstr(linebuffer, "dhcp-host=")) == NULL)
+-			continue;
+-
+-		// Note: value is still a pointer into the linebuffer
+-		char *value = find_equals(linebuffer) + 1;
+-		// Trim whitespace at beginning and end, this function
+-		// modifies the string inplace
+-		trim_whitespace(value);
+-
+-		// Add entry to config.dhcp.hosts
+-		cJSON *item = cJSON_CreateString(value);
+-		cJSON_AddItemToArray(config.dhcp.hosts.v.json, item);
+-
+-		log_debug(DEBUG_CONFIG, DNSMASQ_STATIC_LEASES": Setting %s[%u] = %s\n",
+-		          config.dhcp.hosts.k, j++, item->valuestring);
+-	}
+-
+-	// Free allocated memory
+-	free(linebuffer);
+-
+-	// Close file
+-	if(fclose(fp) != 0)
+-	{
+-		log_err("Cannot close %s: %s", path, strerror(errno));
+-		return false;
+-	}
+-
+-	// Move file to backup location
+-	log_info("Moving %s to %s", path, target);
+-	if(rename(path, target) != 0)
+-		log_warn("Unable to move %s to %s: %s", path, target, strerror(errno));
+-
+-	return true;
+-}
+-
+-
+-bool read_legacy_cnames_config(void)
+-{
+-	// Check if file exists, if not, there is nothing to do
+-	const char *path = DNSMASQ_CNAMES;
+-	const char *target = DNSMASQ_CNAMES".bck";
+-	if(!file_exists(path))
+-		return true;
+-
+-	FILE *fp = fopen(path, "r");
+-	if(!fp)
+-	{
+-		log_err("Cannot read %s for reading, unable to import list of custom cnames: %s",
+-		        path, strerror(errno));
+-		return false;
+-	}
+-
+-	char *linebuffer = NULL;
+-	size_t size = 0u;
+-	errno = 0;
+-	unsigned int j = 0;
+-	while(getline(&linebuffer, &size, fp) != -1)
+-	{
+-		// Check if memory allocation failed
+-		if(linebuffer == NULL)
+-			break;
+-
+-		// Skip lines with other keys
+-		if((strstr(linebuffer, "cname=")) == NULL)
+-			continue;
+-
+-		// Note: value is still a pointer into the linebuffer
+-		char *value = find_equals(linebuffer) + 1;
+-		// Trim whitespace at beginning and end, this function
+-		// modifies the string inplace
+-		trim_whitespace(value);
+-
+-		// Add entry to config.dns.cnameRecords
+-		cJSON *item = cJSON_CreateString(value);
+-		cJSON_AddItemToArray(config.dns.cnameRecords.v.json, item);
+-
+-		log_debug(DEBUG_CONFIG, DNSMASQ_CNAMES": Setting %s[%u] = %s\n",
+-		          config.dns.cnameRecords.k, j++, item->valuestring);
+-	}
+-
+-	// Free allocated memory
+-	free(linebuffer);
+-
+-	// Close file
+-	if(fclose(fp) != 0)
+-	{
+-		log_err("Cannot close %s: %s", path, strerror(errno));
+-		return false;
+-	}
+-
+-	// Move file to backup location
+-	log_info("Moving %s to %s", path, target);
+-	if(rename(path, target) != 0)
+-		log_warn("Unable to move %s to %s: %s", path, target, strerror(errno));
+-
+-	return true;
+-}
+-
+ bool write_custom_list(void)
+ {
+ 	// Ensure that the directory exists
+--- a/src/config/dnsmasq_config.h
++++ b/src/config/dnsmasq_config.h
+@@ -17,14 +17,10 @@ char *get_dnsmasq_line(const unsigned int lineno);
+ bool write_dnsmasq_config(struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE]);
+ int get_lineno_from_string(const char *string);
+ char *get_dnsmasq_line(const unsigned int lineno);
+-bool read_legacy_dhcp_static_config(void);
+-bool read_legacy_cnames_config(void);
+ bool write_custom_list(void);
+ 
+ #define DNSMASQ_PH_CONFIG "/tmp/etc/dnsmasq.conf"
+ #define DNSMASQ_TEMP_CONF "/tmp/etc/dnsmasq.conf.temp"
+-#define DNSMASQ_STATIC_LEASES "/etc/pihole/04-pihole-static-dhcp.conf"
+-#define DNSMASQ_CNAMES "/etc/pihole/05-pihole-custom-cname.conf"
+ #define DNSMASQ_HOSTSDIR "/tmp/hosts"
+ #define DNSMASQ_CUSTOM_LIST DNSMASQ_HOSTSDIR"/host_custom"
+ #define DNSMASQ_STATIC_LIST DNSMASQ_HOSTSDIR"/host_static"
+--- a/src/config/toml_reader.c
++++ b/src/config/toml_reader.c
+@@ -10,7 +10,6 @@
+ 
+ #include "FTL.h"
+ #include "toml_reader.h"
+-#include "config/setupVars.h"
+ #include "log.h"
+ // getprio(), setprio()
+ #include <sys/resource.h>
+--- a/src/dnsmasq_interface.c
++++ b/src/dnsmasq_interface.c
+@@ -20,7 +20,6 @@
+ #include "database/database-thread.h"
+ #include "datastructure.h"
+ #include "database/gravity-db.h"
+-#include "config/setupVars.h"
+ #include "daemon.h"
+ #include "timers.h"
+ #include "gc.h"
+--- a/src/files.c
++++ b/src/files.c
+@@ -11,7 +11,6 @@
+ #include "FTL.h"
+ #include "files.h"
+ #include "config/config.h"
+-#include "config/setupVars.h"
+ #include "log.h"
+ 
+ // opendir(), readdir()
+--- a/src/main.c
++++ b/src/main.c
+@@ -11,7 +11,6 @@
+ #include "FTL.h"
+ #include "daemon.h"
+ #include "log.h"
+-#include "config/setupVars.h"
+ #include "args.h"
+ #include "config/config.h"
+ #include "main.h"
