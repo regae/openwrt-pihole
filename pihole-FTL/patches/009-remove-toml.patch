@@ -19,7 +19,7 @@
  // write_dnsmasq_config()
  #include "config/dnsmasq_config.h"
  // shm_lock()
-@@ -831,9 +829,6 @@ static int api_config_patch(struct ftl_c
+@@ -837,9 +835,6 @@ static int api_config_patch(struct ftl_c
  		// Reload debug levels
  		set_debug_flags(&config);
  
@@ -29,7 +29,7 @@
  		// Rewrite HOSTS file if required
  		if(rewrite_hosts)
  			write_custom_list();
-@@ -1048,9 +1043,6 @@ static int api_config_put_delete(struct
+@@ -1060,9 +1055,6 @@ static int api_config_put_delete(struct
  	// Reload debug levels
  	set_debug_flags(&config);
  
@@ -391,7 +391,7 @@
 +++ b/src/config/config.h
 @@ -33,7 +33,6 @@
  #include "api/theme.h"
- #include "config_uci.h"
+ #include "config/config_uci.h"
  
 -#define GLOBALTOMLPATH "/tmp/etc/pihole.toml"
  #define UCI_CONFIG_PIHOLE "/etc/config/pihole"

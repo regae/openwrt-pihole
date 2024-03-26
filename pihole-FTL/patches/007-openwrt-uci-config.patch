@@ -24,7 +24,7 @@
  	struct config newconf;
  	duplicate_config(&newconf, &config);
  	for(unsigned int i = 0; i < CONFIG_ELEMENTS; i++)
-@@ -777,6 +779,14 @@ static int api_config_patch(struct ftl_conn *api)
+@@ -777,6 +779,20 @@ static int api_config_patch(struct ftl_conn *api)
  			                       errbuf);
  		}
  
@@ -33,13 +33,19 @@
 +			commit_uci = true;
 +			pkg_commit = new_item->uci.package;
 +		}
-+		else
++		else {
 +			log_err("Failed to save new config for: %s", new_item->k);
++			free_config(&newconf);
++			return send_json_error(api, 500,
++			                       "internal_error",
++			                       "failed to set uci value",
++			                       NULL);
++		}
 +
  		// Check if this item requires a config-rewrite + restart of dnsmasq
  		if(conf_item->f & FLAG_RESTART_FTL)
  			dnsmasq_changed = true;
-@@ -827,6 +837,12 @@ static int api_config_patch(struct ftl_conn *api)
+@@ -827,6 +843,12 @@ static int api_config_patch(struct ftl_conn *api)
  		// Rewrite HOSTS file if required
  		if(rewrite_hosts)
  			write_custom_list();
@@ -52,20 +58,26 @@
  	}
  	else
  	{
-@@ -951,6 +967,7 @@ static int api_config_put_delete(struct ftl_conn *api)
+@@ -951,6 +973,10 @@ static int api_config_put_delete(struct ftl_conn *api)
  				// Remove item from array
  				found = true;
  				cJSON_DeleteItemFromArray(new_item->v.json, idx);
-+				uci_del_sec_foreach(config.uci_ctx, new_item->uci.package, new_item_str);
++				// delete uci value
++				if(uci_foreach_section(config.uci_ctx, new_item, new_item_str, true))
++					return send_json_error(api, 500, "internal_error",
++					                       "failed to delete section", NULL);
  			}
  			else
  			{
-@@ -973,6 +990,8 @@ static int api_config_put_delete(struct ftl_conn *api)
+@@ -973,6 +999,11 @@ static int api_config_put_delete(struct ftl_conn *api)
  				                       "Invalid value",
  				                       errbuf);
  			}
 +
-+			uci_add_sec_foreach(config.uci_ctx, new_item->uci.package, new_item->k, new_item_str);
++			// set uci value
++			if(uci_foreach_section(config.uci_ctx, new_item, new_item_str, false))
++				return send_json_error(api, 500, "internal_error",
++				                       "failed to create section", NULL);
  		}
  
  		// Check if this item requires a config-rewrite + restart of dnsmasq
@@ -1699,7 +1711,7 @@
  #endif
  // enum web_theme
  #include "api/theme.h"
-+#include "config_uci.h"
++#include "config/config_uci.h"
  
  #define GLOBALTOMLPATH "/tmp/etc/pihole.toml"
 +#define UCI_CONFIG_PIHOLE "/etc/config/pihole"
@@ -1770,17 +1782,10 @@
  };
  
  extern struct config config;
-@@ -348,6 +349,16 @@ void reread_config(void);
+@@ -348,6 +349,9 @@ void reread_config(void);
  const char *get_conf_type_str(const enum conf_type type) __attribute__ ((const));
  void replace_config(struct config *newconf);
  void reread_config(void);
-+
-+// Defined in config_uci.c
-+int uci_set_value(struct uci_context *ctx, struct conf_item *item, const char *value, bool commit);
-+int uci_get_value(struct uci_context *ctx, struct conf_item *conf_item, bool reload);
-+int check_uci_section_type(struct uci_context *ctx, struct uci_ptr *ptr,
-+						   struct conf_item *conf_item, bool reload, bool create_new);
-+void uci_get_config_values(struct config *conf, bool reload);
 +
 +// Defined in cli.c
 +bool readStringValue(struct conf_item *conf_item, const char *value, struct config *newconf);
