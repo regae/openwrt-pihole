@@ -1,0 +1,61 @@
+--- a/src/api/stats.c
++++ b/src/api/stats.c
+@@ -25,8 +25,6 @@
+ // sqrt()
+ #include <math.h>
+ 
+-static const char* log_show = NULL;
+-
+ /* qsort comparison function (count field), sort ASC
+ static int __attribute__((pure)) cmpasc(const void *a, const void *b)
+ {
+@@ -197,17 +195,14 @@ int api_stats_top_domains(struct ftl_conn *api)
+ 	qsort(temparray, added_domains, sizeof(int[2]), cmpdesc);
+ 
+ 	// Get filter
+-	if(log_show == NULL)
+-		log_show = uci_get_option_string(config.uci_ctx, "pihole", "pihole", "api_query_log_show");
+-
+ 	bool showpermitted = true, showblocked = true;
+-	if(log_show != NULL)
++	if(config.webserver.api.query_log_show.v.s != NULL)
+ 	{
+-		if((strcmp(log_show, "permittedonly")) == 0)
++		if((strcmp(config.webserver.api.query_log_show.v.s, "permittedonly")) == 0)
+ 			showblocked = false;
+-		else if((strcmp(log_show, "blockedonly")) == 0)
++		else if((strcmp(config.webserver.api.query_log_show.v.s, "blockedonly")) == 0)
+ 			showpermitted = false;
+-		else if((strcmp(log_show, "nothing")) == 0)
++		else if((strcmp(config.webserver.api.query_log_show.v.s, "nothing")) == 0)
+ 		{
+ 			showpermitted = false;
+ 			showblocked = false;
+--- a/src/config/config.c
++++ b/src/config/config.c
+@@ -1182,6 +1182,15 @@ void initConfig(struct config *conf)
+ 	conf->webserver.api.allow_destructive.uci.opt = "allow_destructive";
+ 	conf->webserver.api.allow_destructive.uci.sec = "api";
+ 
++	conf->webserver.api.query_log_show.k = "webserver.api.query_log_show";
++	conf->webserver.api.query_log_show.h = "Web GUI top domain permission.";
++	conf->webserver.api.query_log_show.t = CONF_STRING;
++	conf->webserver.api.query_log_show.f = FLAG_INVALIDATE_SESSIONS;
++	conf->webserver.api.query_log_show.d.s = (char*)"all";
++	conf->webserver.api.query_log_show.c = validate_stub; // Only type-based checking
++	conf->webserver.api.query_log_show.uci.opt = "query_log_show";
++	conf->webserver.api.query_log_show.uci.sec = "api";
++
+ 	// sub-struct webserver.api.temp
+ 	conf->webserver.api.temp.limit.k = "webserver.api.temp.limit";
+ 	conf->webserver.api.temp.limit.h = "Which upper temperature limit should be used by Pi-hole? Temperatures above this limit will be shown as \"hot\". The number specified here is in the unit defined below";
+--- a/src/config/config.h
++++ b/src/config/config.h
+@@ -249,6 +249,7 @@ struct config {
+ 			struct conf_item maxClients;
+ 			struct conf_item client_history_global_max;
+ 			struct conf_item allow_destructive;
++			struct conf_item query_log_show;
+ 			struct {
+ 				struct conf_item limit;
+ 				struct conf_item unit;

@@ -47,7 +47,7 @@
 +		if(commit_uci && pkg_commit != NULL) {
 +			struct uci_package *p = uci_lookup_package(config.uci_ctx, pkg_commit);
 +			if (p && uci_commit(config.uci_ctx, &p, false))
-+				syslog(LOG_WARNING, "Failed to commit package: %s", pkg_commit ? pkg_commit : "NULL");
++				log_warn("Failed to commit package: %s", pkg_commit ? pkg_commit : "NULL");
 +		}
  	}
  	else
@@ -1319,16 +1319,25 @@
  
  	conf->debug.api.k = "debug.api";
  	conf->debug.api.h = "Print extra debugging information concerning API calls. This includes the request, the request parameters, and the internal details about how the algorithms decide which data to present and in what form. This very verbose output should only be used when debugging specific API issues and can be helpful, e.g., when a client cannot connect due to an obscure API error. Furthermore, this setting enables logging of all API requests (auth log) and details about user authentication attempts.";
-@@ -1314,6 +1472,8 @@ void initConfig(struct config *conf)
+@@ -1314,13 +1472,26 @@ void initConfig(struct config *conf)
  	conf->debug.api.f = FLAG_ADVANCED_SETTING;
  	conf->debug.api.d.b = false;
  	conf->debug.api.c = validate_stub; // Only type-based checking
 +	conf->debug.api.uci.opt = "api";
 +	conf->debug.api.uci.sec = "debug";
  
++	conf->debug.uci.k = "debug.uci";
++	conf->debug.uci.h = "Print information concerning UCI calls.";
++	conf->debug.uci.t = CONF_BOOL;
++	conf->debug.uci.f = FLAG_ADVANCED_SETTING;
++	conf->debug.uci.d.b = false;
++	conf->debug.uci.c = validate_stub; // Only type-based checking
++	conf->debug.uci.uci.opt = "uci";
++	conf->debug.uci.uci.sec = "debug";
++
  	conf->debug.tls.k = "debug.tls";
  	conf->debug.tls.h = "Print extra debugging information about TLS connections. This includes the TLS version, the cipher suite, the certificate chain and much more. This very verbose output should only be used when debugging specific TLS issues and can be helpful, e.g., when a client cannot connect due to an obscure TLS error as modern browsers do not provide much information about the underlying TLS connection and most often give only very generic error messages without much/any underlying technical information.";
-@@ -1321,6 +1481,8 @@ void initConfig(struct config *conf)
+ 	conf->debug.tls.t = CONF_BOOL;
  	conf->debug.tls.f = FLAG_ADVANCED_SETTING;
  	conf->debug.tls.d.b = false;
  	conf->debug.tls.c = validate_stub; // Only type-based checking
@@ -1337,7 +1346,7 @@
  
  	conf->debug.overtime.k = "debug.overtime";
  	conf->debug.overtime.h = "Print information about overTime memory operations, such as initializing or moving overTime slots.";
-@@ -1328,6 +1490,8 @@ void initConfig(struct config *conf)
+@@ -1328,6 +1499,8 @@ void initConfig(struct config *conf)
  	conf->debug.overtime.f = FLAG_ADVANCED_SETTING;
  	conf->debug.overtime.d.b = false;
  	conf->debug.overtime.c = validate_stub; // Only type-based checking
@@ -1346,7 +1355,7 @@
  
  	conf->debug.status.k = "debug.status";
  	conf->debug.status.h = "Print information about status changes for individual queries. This can be useful to identify unexpected unknown queries.";
-@@ -1335,6 +1499,8 @@ void initConfig(struct config *conf)
+@@ -1335,6 +1508,8 @@ void initConfig(struct config *conf)
  	conf->debug.status.f = FLAG_ADVANCED_SETTING;
  	conf->debug.status.d.b = false;
  	conf->debug.status.c = validate_stub; // Only type-based checking
@@ -1355,7 +1364,7 @@
  
  	conf->debug.caps.k = "debug.caps";
  	conf->debug.caps.h = "Print information about capabilities granted to the pihole-FTL process. The current capabilities are printed on receipt of SIGHUP, i.e., the current set of capabilities can be queried without restarting pihole-FTL (by setting DEBUG_CAPS=true and thereafter sending killall -HUP pihole-FTL).";
-@@ -1342,6 +1508,8 @@ void initConfig(struct config *conf)
+@@ -1342,6 +1517,8 @@ void initConfig(struct config *conf)
  	conf->debug.caps.f = FLAG_ADVANCED_SETTING;
  	conf->debug.caps.d.b = false;
  	conf->debug.caps.c = validate_stub; // Only type-based checking
@@ -1364,7 +1373,7 @@
  
  	conf->debug.dnssec.k = "debug.dnssec";
  	conf->debug.dnssec.h = "Print information about DNSSEC activity";
-@@ -1349,6 +1517,8 @@ void initConfig(struct config *conf)
+@@ -1349,6 +1526,8 @@ void initConfig(struct config *conf)
  	conf->debug.dnssec.f = FLAG_ADVANCED_SETTING;
  	conf->debug.dnssec.d.b = false;
  	conf->debug.dnssec.c = validate_stub; // Only type-based checking
@@ -1373,7 +1382,7 @@
  
  	conf->debug.vectors.k = "debug.vectors";
  	conf->debug.vectors.h = "FTL uses dynamically allocated vectors for various tasks. This config option enables extensive debugging information such as information about allocation, referencing, deletion, and appending.";
-@@ -1356,6 +1526,8 @@ void initConfig(struct config *conf)
+@@ -1356,6 +1535,8 @@ void initConfig(struct config *conf)
  	conf->debug.vectors.f = FLAG_ADVANCED_SETTING;
  	conf->debug.vectors.d.b = false;
  	conf->debug.vectors.c = validate_stub; // Only type-based checking
@@ -1382,7 +1391,7 @@
  
  	conf->debug.resolver.k = "debug.resolver";
  	conf->debug.resolver.h = "Extensive information about hostname resolution like which DNS servers are used in the first and second hostname resolving tries (only affecting internally generated PTR queries).";
-@@ -1363,6 +1535,8 @@ void initConfig(struct config *conf)
+@@ -1363,6 +1544,8 @@ void initConfig(struct config *conf)
  	conf->debug.resolver.f = FLAG_ADVANCED_SETTING;
  	conf->debug.resolver.d.b = false;
  	conf->debug.resolver.c = validate_stub; // Only type-based checking
@@ -1391,7 +1400,7 @@
  
  	conf->debug.edns0.k = "debug.edns0";
  	conf->debug.edns0.h = "Print debugging information about received EDNS(0) data.";
-@@ -1370,6 +1544,8 @@ void initConfig(struct config *conf)
+@@ -1370,6 +1553,8 @@ void initConfig(struct config *conf)
  	conf->debug.edns0.f = FLAG_ADVANCED_SETTING;
  	conf->debug.edns0.d.b = false;
  	conf->debug.edns0.c = validate_stub; // Only type-based checking
@@ -1400,7 +1409,7 @@
  
  	conf->debug.clients.k = "debug.clients";
  	conf->debug.clients.h = "Log various important client events such as change of interface (e.g., client switching from WiFi to wired or VPN connection), as well as extensive reporting about how clients were assigned to its groups.";
-@@ -1377,6 +1553,8 @@ void initConfig(struct config *conf)
+@@ -1377,6 +1562,8 @@ void initConfig(struct config *conf)
  	conf->debug.clients.f = FLAG_ADVANCED_SETTING;
  	conf->debug.clients.d.b = false;
  	conf->debug.clients.c = validate_stub; // Only type-based checking
@@ -1409,7 +1418,7 @@
  
  	conf->debug.aliasclients.k = "debug.aliasclients";
  	conf->debug.aliasclients.h = "Log information related to alias-client processing.";
-@@ -1384,6 +1562,8 @@ void initConfig(struct config *conf)
+@@ -1384,6 +1571,8 @@ void initConfig(struct config *conf)
  	conf->debug.aliasclients.f = FLAG_ADVANCED_SETTING;
  	conf->debug.aliasclients.d.b = false;
  	conf->debug.aliasclients.c = validate_stub; // Only type-based checking
@@ -1418,7 +1427,7 @@
  
  	conf->debug.events.k = "debug.events";
  	conf->debug.events.h = "Log information regarding FTL's embedded event handling queue.";
-@@ -1391,6 +1571,8 @@ void initConfig(struct config *conf)
+@@ -1391,6 +1580,8 @@ void initConfig(struct config *conf)
  	conf->debug.events.f = FLAG_ADVANCED_SETTING;
  	conf->debug.events.d.b = false;
  	conf->debug.events.c = validate_stub; // Only type-based checking
@@ -1427,7 +1436,7 @@
  
  	conf->debug.helper.k = "debug.helper";
  	conf->debug.helper.h = "Log information about script helpers, e.g., due to dhcp-script.";
-@@ -1398,6 +1580,8 @@ void initConfig(struct config *conf)
+@@ -1398,6 +1589,8 @@ void initConfig(struct config *conf)
  	conf->debug.helper.f = FLAG_ADVANCED_SETTING;
  	conf->debug.helper.d.b = false;
  	conf->debug.helper.c = validate_stub; // Only type-based checking
@@ -1436,7 +1445,7 @@
  
  	conf->debug.config.k = "debug.config";
  	conf->debug.config.h = "Print config parsing details";
-@@ -1405,6 +1589,8 @@ void initConfig(struct config *conf)
+@@ -1405,6 +1598,8 @@ void initConfig(struct config *conf)
  	conf->debug.config.f = FLAG_ADVANCED_SETTING;
  	conf->debug.config.d.b = false;
  	conf->debug.config.c = validate_stub; // Only type-based checking
@@ -1445,7 +1454,7 @@
  
  	conf->debug.inotify.k = "debug.inotify";
  	conf->debug.inotify.h = "Debug monitoring of /etc/pihole filesystem events";
-@@ -1412,6 +1598,8 @@ void initConfig(struct config *conf)
+@@ -1412,6 +1607,8 @@ void initConfig(struct config *conf)
  	conf->debug.inotify.f = FLAG_ADVANCED_SETTING;
  	conf->debug.inotify.d.b = false;
  	conf->debug.inotify.c = validate_stub; // Only type-based checking
@@ -1454,7 +1463,7 @@
  
  	conf->debug.webserver.k = "debug.webserver";
  	conf->debug.webserver.h = "Debug monitoring of the webserver (CivetWeb) events";
-@@ -1419,6 +1607,8 @@ void initConfig(struct config *conf)
+@@ -1419,6 +1616,8 @@ void initConfig(struct config *conf)
  	conf->debug.webserver.f = FLAG_ADVANCED_SETTING;
  	conf->debug.webserver.d.b = false;
  	conf->debug.webserver.c = validate_stub; // Only type-based checking
@@ -1463,7 +1472,7 @@
  
  	conf->debug.extra.k = "debug.extra";
  	conf->debug.extra.h = "Temporary flag that may print additional information. This debug flag is meant to be used whenever needed for temporary investigations. The logged content may change without further notice at any time.";
-@@ -1426,6 +1616,8 @@ void initConfig(struct config *conf)
+@@ -1426,6 +1625,8 @@ void initConfig(struct config *conf)
  	conf->debug.extra.f = FLAG_ADVANCED_SETTING;
  	conf->debug.extra.d.b = false;
  	conf->debug.extra.c = validate_stub; // Only type-based checking
@@ -1472,7 +1481,7 @@
  
  	conf->debug.reserved.k = "debug.reserved";
  	conf->debug.reserved.h = "Reserved debug flag";
-@@ -1433,6 +1625,8 @@ void initConfig(struct config *conf)
+@@ -1433,6 +1634,8 @@ void initConfig(struct config *conf)
  	conf->debug.reserved.f = FLAG_ADVANCED_SETTING;
  	conf->debug.reserved.d.b = false;
  	conf->debug.reserved.c = validate_stub; // Only type-based checking
@@ -1481,7 +1490,7 @@
  
  	conf->debug.all.k = "debug.all";
  	conf->debug.all.h = "Set all debug flags at once. This is a convenience option to enable all debug flags at once. Note that this option is not persistent, setting it to true will enable all *remaining* debug flags but unsetting it will disable *all* debug flags.";
-@@ -1440,6 +1634,8 @@ void initConfig(struct config *conf)
+@@ -1440,6 +1643,8 @@ void initConfig(struct config *conf)
  	conf->debug.all.f = FLAG_ADVANCED_SETTING;
  	conf->debug.all.d.b = false;
  	conf->debug.all.c = validate_stub; // Only type-based checking
@@ -1490,7 +1499,7 @@
  
  	// Post-processing:
  	// Initialize and verify config data
-@@ -1538,6 +1734,9 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1538,6 +1743,9 @@ bool readFTLconf(struct config *conf, const bool rewri
  	// Try to read TOML config file
  	if(readFTLtoml(NULL, conf, NULL, rewrite, NULL))
  	{
@@ -1500,7 +1509,7 @@
  		// If successful, we write the config file back to disk
  		// to ensure that all options are present and comments
  		// about options deviating from the default are present
-@@ -1546,10 +1745,14 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1546,10 +1754,14 @@ bool readFTLconf(struct config *conf, const bool rewri
  			writeFTLtoml(true);
  			write_dnsmasq_config(conf, false, NULL);
  			write_custom_list();
@@ -1515,7 +1524,7 @@
  	log_info("No config file nor backup available, using defaults");
  
  	// If no previous config file could be read, we are likely either running
-@@ -1570,43 +1773,9 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1570,43 +1782,9 @@ bool readFTLconf(struct config *conf, const bool rewri
  	read_legacy_dhcp_static_config();
  	// 05-pihole-custom-cname.conf
  	read_legacy_cnames_config();
@@ -1560,7 +1569,7 @@
  	// Initialize the TOML config file
  	writeFTLtoml(true);
  	write_dnsmasq_config(conf, false, NULL);
-@@ -1620,6 +1789,8 @@ bool getLogFilePath(void)
+@@ -1620,6 +1798,8 @@ bool getLogFilePath(void)
  	// Initialize memory
  	memset(&config, 0, sizeof(config));
  
@@ -1569,7 +1578,7 @@
  	// Initialize the config file path
  	config.files.log.ftl.k = "files.log.ftl";
  	config.files.log.ftl.h = "The location of FTL's log file";
-@@ -1627,9 +1798,14 @@ bool getLogFilePath(void)
+@@ -1627,9 +1807,14 @@ bool getLogFilePath(void)
  	config.files.log.ftl.t = CONF_STRING;
  	config.files.log.ftl.f = FLAG_ADVANCED_SETTING;
  	config.files.log.ftl.d.s = (char*)"/var/log/pihole/FTL.log";
@@ -1585,7 +1594,7 @@
  	// Check if the config file contains a different path
  	if(!getLogFilePathTOML())
  		return getLogFilePathLegacy(&config, NULL);
-@@ -1652,6 +1828,9 @@ void set_blockingstatus(bool enabled)
+@@ -1652,6 +1837,9 @@ void set_blockingstatus(bool enabled)
  		return;
  
  	config.dns.blocking.active.v.b = enabled;
@@ -1595,7 +1604,7 @@
  	writeFTLtoml(true);
  	raise(SIGHUP);
  }
-@@ -1716,6 +1895,8 @@ void replace_config(struct config *newconf)
+@@ -1716,6 +1904,8 @@ void replace_config(struct config *newconf)
  	// Free old backup struct
  	free_config(&old_conf);
  
@@ -1604,7 +1613,7 @@
  	// Unlock shared memory
  	unlock_shm();
  }
-@@ -1724,17 +1905,23 @@ void reread_config(void)
+@@ -1724,17 +1914,23 @@ void reread_config(void)
  {
  
  	// Create checksum of config file
@@ -1633,7 +1642,7 @@
  		return;
  	}
  
-@@ -1776,6 +1963,8 @@ void reread_config(void)
+@@ -1776,6 +1972,8 @@ void reread_config(void)
  		free_config(&conf_copy);
  	}
  
@@ -1642,7 +1651,7 @@
  	// Write the config file back to disk to ensure that all options and
  	// comments about options deviating from the default are present
  	writeFTLtoml(true);
-@@ -1790,40 +1979,9 @@ void reread_config(void)
+@@ -1790,40 +1988,9 @@ void reread_config(void)
  	// If we need to restart FTL, we do so now
  	if(restart)
  	{
@@ -1744,7 +1753,15 @@
  		struct conf_item dnsmasq_lines;
  		struct conf_item extraLogging;
  		struct {
-@@ -322,6 +320,8 @@ struct config {
+@@ -302,6 +300,7 @@ struct config {
+ 		struct conf_item arp;
+ 		struct conf_item regex;
+ 		struct conf_item api;
++		struct conf_item uci;
+ 		struct conf_item tls;
+ 		struct conf_item overtime;
+ 		struct conf_item status;
+@@ -322,6 +321,8 @@ struct config {
  		// all must be the last item in this struct
  		struct conf_item all;
  	} debug;
@@ -1753,7 +1770,7 @@
  };
  
  extern struct config config;
-@@ -348,6 +348,16 @@ void reread_config(void);
+@@ -348,6 +349,16 @@ void reread_config(void);
  const char *get_conf_type_str(const enum conf_type type) __attribute__ ((const));
  void replace_config(struct config *newconf);
  void reread_config(void);
@@ -1772,33 +1789,23 @@
  bool readDebugSettings(void);
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -35,9 +35,13 @@
- #include <unistd.h>
- // wait
- #include <sys/wait.h>
-+ 
-+extern const char *hostname(void);
+@@ -38,6 +38,9 @@
  
  #define HEADER_WIDTH 80
  
-+static struct uci_package *uci_network;
++extern const char *hostname(void);
++static void write_config_header(FILE *fp, const char *description);
 +
  static bool test_dnsmasq_config(char errbuf[ERRBUF_SIZE])
  {
  	// Create a pipe for communication with our child
-@@ -193,6 +197,161 @@ char *get_dnsmasq_line(const unsigned int lineno)
+@@ -193,6 +196,238 @@ char *get_dnsmasq_line(const unsigned int lineno)
  	return NULL;
  }
  
-+static void write_config_dhcp(FILE *fp, struct uci_context *ctx, struct uci_section *section, struct uci_package *pkg)
++static void write_config_dhcp(FILE *fp, struct uci_context *ctx, struct uci_section *section,
++							  struct uci_package *dhcp_pkg, struct uci_package *network_pkg)
 +{
-+	if(!config.dhcp.active.v.b)
-+		return;
-+
-+	uci_network = uci_lookup_package(ctx, "network");
-+	if (!uci_network)
-+		uci_load(ctx, "network", &uci_network);
-+
 +	if(uci_read_bool(ctx, section, "quietdhcp", false))
 +		fputs("quiet-dhcp\n", fp);
 +
@@ -1812,7 +1819,7 @@
 +		fputs("dhcp-sequential-ip\n", fp);
 +
 +	struct uci_element *ep;
-+	uci_foreach_element(&pkg->sections, ep)
++	uci_foreach_element(&dhcp_pkg->sections, ep)
 +	{
 +		struct uci_section *network_section = NULL;
 +		struct uci_section *s = uci_to_section(ep);
@@ -1820,7 +1827,7 @@
 +			continue;
 +
 +		if(strcmp(ep->name, "wan") == 0) {
-+			network_section = uci_lookup_section(ctx, uci_network, "wan");
++			network_section = uci_lookup_section(ctx, network_pkg, "wan");
 +			const char *proto = NULL;
 +			if(network_section)
 +				proto = uci_lookup_option_string(ctx, network_section, "proto");
@@ -1899,7 +1906,7 @@
 +
 +		const char *ipaddr = NULL;
 +		const char *netmask = NULL;
-+		network_section = uci_lookup_section(ctx, uci_network, iface);
++		network_section = uci_lookup_section(ctx, network_pkg, iface);
 +
 +		if(network_section) {
 +			ipaddr = uci_lookup_option_string(ctx, network_section, "ipaddr");
@@ -1945,25 +1952,12 @@
 +	}
 +}
 +
- static void write_config_header(FILE *fp, const char *description)
- {
- 	const time_t now = time(NULL);
-@@ -225,75 +384,116 @@ static void write_config_header(FILE *fp, const char *
- 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "################################################################################");
- }
- 
--bool __attribute__((const)) write_dnsmasq_config(struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE])
-+static void write_static_hosts(struct uci_context *ctx, struct uci_package *pkg)
- {
--	// Early config checks
--	if(conf->dhcp.active.v.b)
++static void write_static_hosts(struct uci_context *ctx, struct uci_package *dhcp_pkg,
++							   struct uci_package *network_pkg)
++{
 +	FILE *hostfile = fopen(DNSMASQ_STATIC_LIST, "w");
 +	if(!hostfile)
- 	{
--		// Check if the addresses are valid
--		// The addresses should neither be 0.0.0.0 nor 255.255.255.255
--		if((ntohl(conf->dhcp.start.v.in_addr.s_addr) == 0) ||
--		   (ntohl(conf->dhcp.start.v.in_addr.s_addr) == 0xFFFFFFFF))
++	{
 +		log_err("Cannot open %s for writing, unable to update host_static: %s", DNSMASQ_STATIC_LIST, strerror(errno));
 +		return;
 +	}
@@ -1981,7 +1975,7 @@
 +	int i = 0;
 +	struct uci_element *e;
 +	struct uci_section *s;
-+	uci_foreach_element(&pkg->sections, e)
++	uci_foreach_element(&dhcp_pkg->sections, e)
 +	{
 +		s = uci_to_section(e);
 +		if (strcmp(s->type, "host") != 0)
@@ -1997,13 +1991,69 @@
 +		const char *ip = uci_lookup_option_string(ctx, s, "ip");
 +		const char *name = uci_lookup_option_string(ctx, s, "name");
 +		if(name != NULL && ip != NULL)
- 		{
++		{
++			fprintf(hostfile, "%s %s\n", ip, name);
++			i++;
++		}
++	}
++
++	e = NULL;
++	s = NULL;
++	uci_foreach_element(&network_pkg->sections, e)
++	{
++		s = uci_to_section(e);
++		if (strcmp(s->type, "interface") != 0)
++			continue;
++
++		const char *proto = uci_lookup_option_string(ctx, s, "proto");
++		if(!proto || strcmp(proto, "static") != 0)
++			continue;
++
++		const char *domain_iface = NULL;
++		const char *ipaddr = uci_lookup_option_string(ctx, s, "ipaddr");
++		struct uci_section *dhcp_section = uci_lookup_section(ctx, dhcp_pkg, e->name);
++
++		if(dhcp_section)
++			domain_iface = uci_lookup_option_string(ctx, dhcp_section, "domain_iface");
++
++		if(ipaddr != NULL && strcmp(ipaddr, "127.0.0.1") != 0)
++		{
++			if(domain_iface != NULL)
++				fprintf(hostfile, "%s %s.%s\n", ipaddr, hostname(), domain_iface);
++			else
++				fprintf(hostfile, "%s %s\n", ipaddr, hostname());
++
++			i++;
++		}
++	}
++
++	fprintf(hostfile, "\n# %d entrie(s) in this file\n", i);
++
++	if(flock(fileno(hostfile), LOCK_UN) != 0)
++		log_err("Cannot release lock on host_static: %s", strerror(errno));
++
++	fclose(hostfile);
++}
++
+ static void write_config_header(FILE *fp, const char *description)
+ {
+ 	const time_t now = time(NULL);
+@@ -227,73 +462,37 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+ 
+ bool __attribute__((const)) write_dnsmasq_config(struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE])
+ {
+-	// Early config checks
+-	if(conf->dhcp.active.v.b)
+-	{
+-		// Check if the addresses are valid
+-		// The addresses should neither be 0.0.0.0 nor 255.255.255.255
+-		if((ntohl(conf->dhcp.start.v.in_addr.s_addr) == 0) ||
+-		   (ntohl(conf->dhcp.start.v.in_addr.s_addr) == 0xFFFFFFFF))
+-		{
 -			strncpy(errbuf, "DHCP start address is not valid", ERRBUF_SIZE);
 -			log_err("Unable to update dnsmasq configuration: %s", errbuf);
 -			return false;
-+			fprintf(hostfile, "%s %s\n", ip, name);
-+			i++;
- 		}
+-		}
 -		if((ntohl(conf->dhcp.end.v.in_addr.s_addr) == 0) ||
 -		   (ntohl(conf->dhcp.end.v.in_addr.s_addr) == 0xFFFFFFFF))
 -		{
@@ -2040,45 +2090,21 @@
 -			log_err("Unable to update dnsmasq configuration: %s", errbuf);
 -			return false;
 -		}
-+	}
++	struct uci_package *dhcp_pkg = uci_lookup_package(conf->uci_ctx, "dhcp");
++	struct uci_package *network_pkg = uci_lookup_package(conf->uci_ctx, "network");
++	struct uci_section *dhcp_section = NULL;
++	struct uci_element *e;
  
 -		// Check if the DHCP range is valid (start needs to be smaller than end)
 -		if(ntohl(conf->dhcp.start.v.in_addr.s_addr) >= ntohl(conf->dhcp.end.v.in_addr.s_addr))
-+	uci_network = uci_lookup_package(ctx, "network");
-+	if (!uci_network)
-+		uci_load(ctx, "network", &uci_network);
-+
-+	e = NULL;
-+	s = NULL;
-+	uci_foreach_element(&uci_network->sections, e)
-+	{
-+		s = uci_to_section(e);
-+		if (strcmp(s->type, "interface") != 0)
-+			continue;
-+
-+		const char *proto = uci_lookup_option_string(ctx, s, "proto");
-+		if(!proto || strcmp(proto, "static") != 0)
-+			continue;
-+
-+		const char *domain_iface = NULL;
-+		const char *ipaddr = uci_lookup_option_string(ctx, s, "ipaddr");
-+		struct uci_section *dhcp_section = uci_lookup_section(ctx, pkg, e->name);
-+
-+		if(dhcp_section)
-+			domain_iface = uci_lookup_option_string(ctx, dhcp_section, "domain_iface");
-+
-+		if(ipaddr != NULL && strcmp(ipaddr, "127.0.0.1") != 0)
- 		{
+-		{
 -			strncpy(errbuf, "DHCP range start address is larger than or equal to the end address", ERRBUF_SIZE);
 -			log_err("Unable to update dnsmasq configuration: %s", errbuf);
 -			return false;
-+			if(domain_iface != NULL)
-+				fprintf(hostfile, "%s %s.%s\n", ipaddr, hostname(), domain_iface);
-+			else
-+				fprintf(hostfile, "%s %s\n", ipaddr, hostname());
-+
-+			i++;
- 		}
+-		}
++	if(!dhcp_pkg) {
++		log_err("dhcp package is not found in the current context");
++		return false;
 +	}
  
 -		// Check if the router address is within the DHCP range
@@ -2088,42 +2114,32 @@
 -			strncpy(errbuf, "DHCP router address should not be within DHCP range", ERRBUF_SIZE);
 -			log_err("Unable to update dnsmasq configuration: %s", errbuf);
 -			return false;
-+	fprintf(hostfile, "\n# %d entrie(s) in this file\n", i);
+-		}
++	network_pkg = uci_lookup_package(conf->uci_ctx, "network");
++	if (!network_pkg)
++		uci_load(conf->uci_ctx, "network", &network_pkg);
 +
-+	if(flock(fileno(hostfile), LOCK_UN) != 0)
-+		log_err("Cannot release lock on host_static: %s", strerror(errno));
-+
-+	fclose(hostfile);
-+}
-+
-+bool __attribute__((const)) write_dnsmasq_config(struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE])
-+{
-+	struct uci_package *dhcp_pkg = uci_lookup_package(conf->uci_ctx, "dhcp");
-+	struct uci_section *dhcp_section = NULL;
-+	struct uci_element *e;
-+
-+	if(!dhcp_pkg) {
-+		syslog(LOG_ERR, "dhcp package is not found in the current context");
++	if (config.dhcp.active.v.b && !network_pkg) {
++		log_err("network package is not found in the current context");
 +		return false;
-+	}
-+
+ 	}
+ 
 +	uci_foreach_element(&dhcp_pkg->sections, e)
 +	{
 +		struct uci_section *s = uci_to_section(e);
-+		if (strcmp(s->type, "dnsmasq") == 0) {
++		if (strcmp(s->type, "dnsmasq") == 0)
 +			dhcp_section = s;
- 		}
- 	}
- 
++	}
++
 +	if(!dhcp_section) {
-+		syslog(LOG_ERR, "dnsmasq section is not found");
++		log_err("write_dnsmasq_config: dnsmasq section is not found");
 +		return false;
 +	}
 +
  	log_debug(DEBUG_CONFIG, "Opening "DNSMASQ_TEMP_CONF" for writing");
  	FILE *pihole_conf = fopen(DNSMASQ_TEMP_CONF, "w");
  	// Return early if opening failed
-@@ -364,7 +564,7 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -364,7 +563,7 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  		fputs("\n", pihole_conf);
  	}
  
@@ -2132,7 +2148,7 @@
  	{
  		fputs("# Specify the log file to use\n", pihole_conf);
  		fputs("# We set this even if logging is disabled to store warnings\n", pihole_conf);
-@@ -423,11 +623,18 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -423,11 +622,18 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  		fputs("\n", pihole_conf);
  	}
  
@@ -2155,7 +2171,7 @@
  	switch(conf->dns.listeningMode.v.listeningMode)
  	{
  		case LISTEN_LOCAL:
-@@ -441,12 +648,15 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -441,12 +647,15 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  			break;
  		case LISTEN_SINGLE:
  			fputs("# Listen on one interface\n", pihole_conf);
@@ -2174,7 +2190,7 @@
  			break;
  		case LISTEN_NONE:
  			fputs("# No interface configuration applied, make sure to cover this yourself\n", pihole_conf);
-@@ -454,6 +664,11 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -454,6 +663,11 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  	}
  	fputs("\n", pihole_conf);
  
@@ -2186,7 +2202,7 @@
  	const unsigned int revServers = cJSON_GetArraySize(conf->dns.revServers.v.json);
  	for(unsigned int i = 0; i < revServers; i++)
  	{
-@@ -506,13 +721,18 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -506,13 +720,18 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  	// ticked, we add `local=/domain/` to signal that this domain is purely
  	// local and FTL may answer queries from /etc/hosts or DHCP but should
  	// never forward queries on that domain to any upstream servers
@@ -2208,7 +2224,7 @@
  		else
  			fputs("\n", pihole_conf);
  	}
-@@ -525,31 +745,169 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -525,31 +744,169 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  		fprintf(pihole_conf, "domain=%s\n\n", conf->dns.domain.v.s);
  	}
  
@@ -2393,12 +2409,12 @@
 +		fputs("dhcp-name-match=set:dhcp_bogus_hostname,localhost\n", pihole_conf);
 +		fputs("dhcp-name-match=set:dhcp_bogus_hostname,wpad\n", pihole_conf);
  
-+		write_config_dhcp(pihole_conf, conf->uci_ctx, dhcp_section, dhcp_pkg);
++		write_config_dhcp(pihole_conf, conf->uci_ctx, dhcp_section, dhcp_pkg, network_pkg);
 +
  		if(conf->dhcp.rapidCommit.v.b)
  			fputs("dhcp-rapid-commit\n", pihole_conf);
  
-@@ -568,16 +926,6 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -568,16 +925,6 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  			fputs("dhcp-option=option:dns-server,0.0.0.0,0.0.0.0,0.0.0.0\n", pihole_conf);
  		}
  
@@ -2415,7 +2431,7 @@
  		fputs("\n", pihole_conf);
  		if(cJSON_GetArraySize(conf->dhcp.hosts.v.json) > 0)
  		{
-@@ -633,7 +981,7 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -633,7 +980,7 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  	fputs("server=/onion/\n", pihole_conf);
  	fputs("\n", pihole_conf);
  
@@ -2424,7 +2440,7 @@
  	{
  		// Load additional user scripts from /tmp/dnsmasq.d if the
  		// directory exists (it may not, e.g., in a container)
-@@ -643,9 +991,11 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -643,9 +990,11 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  	}
  
  	// Add option for caching all DNS records
@@ -2439,16 +2455,16 @@
  
  	// Add option for PCAP file recording
  	if(strlen(conf->files.pcap.v.s) > 0)
-@@ -722,6 +1072,8 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -722,6 +1071,8 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  		return false;
  	}
  
-+	write_static_hosts(conf->uci_ctx, dhcp_pkg);
++	write_static_hosts(conf->uci_ctx, dhcp_pkg, network_pkg);
 +
  	// Check if the new config file is different from the old one
  	// Skip the first 24 lines as they contain the header
  	if(files_different(DNSMASQ_TEMP_CONF, DNSMASQ_PH_CONFIG, 24))
-@@ -877,70 +1229,6 @@ bool read_legacy_cnames_config(void)
+@@ -877,70 +1228,6 @@ bool read_legacy_cnames_config(void)
  	return true;
  }
  
@@ -2519,7 +2535,7 @@
  bool write_custom_list(void)
  {
  	// Ensure that the directory exists
-@@ -954,19 +1242,19 @@ bool write_custom_list(void)
+@@ -954,19 +1241,19 @@ bool write_custom_list(void)
  		}
  	}
  
@@ -2543,7 +2559,7 @@
  		fclose(custom_list);
  		return false;
  	}
-@@ -1006,28 +1294,6 @@ bool write_custom_list(void)
+@@ -1006,28 +1293,6 @@ bool write_custom_list(void)
  	{
  		log_err("Cannot close custom.list: %s", strerror(errno));
  		return false;
@@ -2925,6 +2941,27 @@
 +int split_comma(const char *txt, char delim, char ***ptr);
 +
  #endif //DATASTRUCTURE_H
+--- a/src/enums.h
++++ b/src/enums.h
+@@ -144,6 +144,7 @@ enum debug_flag {
+ 	DEBUG_ARP,
+ 	DEBUG_REGEX,
+ 	DEBUG_API,
++	DEBUG_UCI,
+ 	DEBUG_TLS,
+ 	DEBUG_OVERTIME,
+ 	DEBUG_STATUS,
+--- a/src/log.c
++++ b/src/log.c
+@@ -183,6 +183,8 @@ const char *debugstr(const enum debug_flag flag)
+ 			return "DEBUG_REGEX";
+ 		case DEBUG_API:
+ 			return "DEBUG_API";
++		case DEBUG_UCI:
++			return "DEBUG_UCI";
+ 		case DEBUG_TLS:
+ 			return "DEBUG_TLS";
+ 		case DEBUG_OVERTIME:
 --- a/src/main.c
 +++ b/src/main.c
 @@ -59,6 +59,12 @@ int main (int argc, char *argv[])
