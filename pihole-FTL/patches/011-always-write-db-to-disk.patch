@@ -1,6 +1,6 @@
 --- a/src/main.c
 +++ b/src/main.c
-@@ -147,12 +147,12 @@ int main (int argc, char *argv[])
+@@ -149,12 +149,12 @@ int main (int argc, char *argv[])
  	// be terminating immediately
  	sleepms(250);
  

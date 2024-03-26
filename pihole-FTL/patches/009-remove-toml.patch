@@ -19,7 +19,7 @@
  // write_dnsmasq_config()
  #include "config/dnsmasq_config.h"
  // shm_lock()
-@@ -825,9 +823,6 @@ static int api_config_patch(struct ftl_conn *api)
+@@ -831,9 +829,6 @@ static int api_config_patch(struct ftl_c
  		// Reload debug levels
  		set_debug_flags(&config);
  
@@ -29,19 +29,19 @@
  		// Rewrite HOSTS file if required
  		if(rewrite_hosts)
  			write_custom_list();
-@@ -1036,9 +1031,6 @@ static int api_config_put_delete(struct ftl_conn *api)
- 
+@@ -1048,9 +1043,6 @@ static int api_config_put_delete(struct
  	// Reload debug levels
  	set_debug_flags(&config);
--
+ 
 -	// Store changed configuration to disk
 -	writeFTLtoml(true);
- 
+-
  	// Rewrite HOSTS file if required
  	if(rewrite_hosts)
+ 		write_custom_list();
 --- a/src/api/teleporter.c
 +++ b/src/api/teleporter.c
-@@ -679,10 +679,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+@@ -679,10 +679,6 @@ static int process_received_tar_gz(struc
  		}
  	}
  
@@ -67,7 +67,7 @@
          validator.c
          validator.h
          )
-@@ -39,4 +33,3 @@ target_include_directories(config PRIVATE ${PROJECT_SO
+@@ -39,4 +33,3 @@ add_library(config OBJECT ${sources})
  
  target_compile_options(config PRIVATE ${EXTRAWARN})
  target_include_directories(config PRIVATE ${PROJECT_SOURCE_DIR}/src)
@@ -83,7 +83,7 @@
  #include "config/dnsmasq_config.h"
  #include "log.h"
  #include "datastructure.h"
-@@ -375,6 +373,102 @@ bool readStringValue(struct conf_item *conf_item, cons
+@@ -375,6 +373,102 @@ bool readStringValue(struct conf_item *c
  	return true;
  }
  
@@ -186,7 +186,7 @@
  int set_config_from_CLI(const char *key, const char *value)
  {
  	// Check if we are either
-@@ -494,7 +588,7 @@ int set_config_from_CLI(const char *key, const char *v
+@@ -494,7 +588,7 @@ int set_config_from_CLI(const char *key,
  			log_err("Failed to save new config for: %s=%s", new_item->k, value);
  
  		// Print value
@@ -195,7 +195,7 @@
  	}
  	else
  	{
-@@ -503,11 +597,10 @@ int set_config_from_CLI(const char *key, const char *v
+@@ -503,11 +597,10 @@ int set_config_from_CLI(const char *key,
  		free_config(&newconf);
  
  		// Print value
@@ -208,7 +208,7 @@
  	return OKAY;
  }
  
-@@ -560,7 +653,7 @@ int get_config_from_CLI(const char *key, const bool qu
+@@ -560,7 +653,7 @@ int get_config_from_CLI(const char *key,
  		if(conf_item-> f & FLAG_WRITE_ONLY)
  			puts("<write-only property>");
  		else
@@ -228,7 +228,7 @@
  #include "log.h"
  #include "log.h"
  // file_exists()
-@@ -35,7 +33,6 @@ static bool config_initialized = false;
+@@ -35,7 +33,6 @@
  
  struct config config = { 0 };
  static bool config_initialized = false;
@@ -236,16 +236,7 @@
  uint8_t last_checksum_dhcp[SHA256_DIGEST_SIZE] = { 0 };
  uint8_t last_checksum_pihole[SHA256_DIGEST_SIZE] = { 0 };
  
-@@ -1478,7 +1475,7 @@ void reset_config(struct conf_item *conf_item)
- 	}
- }
- 
--bool readFTLconf(struct config *conf, const bool rewrite)
-+void readFTLconf(struct config *conf, const bool rewrite)
- {
- 	// Initialize config with default values
- 	initConfig(conf);
-@@ -1486,37 +1483,14 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1733,32 +1730,11 @@ bool readFTLconf(struct config *conf, co
  	// First, read the environment
  	getEnvVars();
  
@@ -253,7 +244,7 @@
 -	if(readFTLtoml(NULL, conf, NULL, rewrite, NULL))
 -	{
 -		// read uci value
--		uci_get_config_values(conf);
+-		uci_get_config_values(conf, false);
 -
 -		// If successful, we write the config file back to disk
 -		// to ensure that all options are present and comments
@@ -269,7 +260,7 @@
 -	}
 -
  	// read uci value
- 	uci_get_config_values(conf);
+ 	uci_get_config_values(conf, false);
  
  	log_info("Initialised webserver ports at %s", conf->webserver.port.v.s);
  
@@ -277,14 +268,9 @@
 -	writeFTLtoml(true);
  	write_dnsmasq_config(conf, false, NULL);
  	write_custom_list();
- 	write_static_hosts(conf->uci_ctx);
--
--	return false;
- }
  
- bool getLogFilePath(void)
-@@ -1540,10 +1514,6 @@ bool getLogFilePath(void)
- 	if(uci_get_value(config.uci_ctx, &config.files.log.ftl, "pihole", "logfile"))
+@@ -1787,10 +1763,6 @@ bool getLogFilePath(void)
+ 	if(uci_get_value(config.uci_ctx, &config.files.log.ftl, false))
  		config.files.log.ftl.v.s = config.files.log.ftl.d.s;
  
 -	// Check if the config file contains a different path
@@ -294,9 +280,9 @@
  	return true;
  }
  
-@@ -1564,9 +1534,6 @@ void set_blockingstatus(bool enabled)
+@@ -1811,9 +1783,6 @@ void set_blockingstatus(bool enabled)
  	config.dns.blocking.active.v.b = enabled;
- 	if(uci_set_value(config.uci_ctx, &config.dns.blocking.active, enabled ? "1" : "0") != 0)
+ 	if(uci_set_value(config.uci_ctx, &config.dns.blocking.active, enabled ? "1" : "0", true) != 0)
  		log_err("failed to set uci config blocking_active");
 -
 -	writeFTLtoml(true);
@@ -304,7 +290,7 @@
  }
  
  const char * __attribute__ ((const)) get_conf_type_str(const enum conf_type type)
-@@ -1640,11 +1607,9 @@ void reread_config(void)
+@@ -1886,11 +1855,9 @@ void reread_config(void)
  {
  
  	// Create checksum of config file
@@ -317,7 +303,7 @@
  	   !sha256sum(UCI_CONFIG_DHCP, checksum_pihole))
  	{
  		log_err("Unable to create checksum of config files, not re-reading configuration");
-@@ -1652,65 +1617,20 @@ void reread_config(void)
+@@ -1898,58 +1865,16 @@ void reread_config(void)
  	}
  
  	// Compare checksums
@@ -368,15 +354,8 @@
 -		free_config(&conf_copy);
 -	}
 -
- 	// reload uci config
- 	if(!uci_load_package(config.uci_ctx, true))
--	{
--		log_err("failed to reload uci config");
- 		return;
--	}
- 
 +	log_info("Reloading config due to /etc/config/ changes");
- 	uci_get_config_values(&config);
+ 	uci_get_config_values(&config, true);
  
 -	// Write the config file back to disk to ensure that all options and
 -	// comments about options deviating from the default are present
@@ -385,9 +364,9 @@
  	// We do not write the dnsmasq config file here as this is done on every
  	// restart and changes would have no effect here
  
-@@ -1719,12 +1639,6 @@ void reread_config(void)
+@@ -1957,12 +1882,6 @@ void reread_config(void)
+ 	// at any time and is automatically reloaded by dnsmasq
  	write_custom_list();
- 	write_static_hosts(config.uci_ctx);
  
 -	// If we need to restart FTL, we do so now
 -	if(restart)
@@ -410,15 +389,6 @@
  #define UCI_CONFIG_PIHOLE "/etc/config/pihole"
  #define UCI_CONFIG_DHCP "/etc/config/dhcp"
  
-@@ -332,7 +331,7 @@ void reset_config(struct conf_item *conf_item);
- void set_all_debug(struct config *conf, const bool status);
- void initConfig(struct config *conf);
- void reset_config(struct conf_item *conf_item);
--bool readFTLconf(struct config *conf, const bool rewrite);
-+void readFTLconf(struct config *conf, const bool rewrite);
- bool getLogFilePath(void);
- struct conf_item *get_conf_item(struct config *conf, const unsigned int n);
- struct conf_item *get_debug_item(struct config *conf, const enum debug_flag debug);
 --- a/src/config/password.c
 +++ b/src/config/password.c
 @@ -22,9 +22,6 @@
@@ -431,7 +401,7 @@
  // crypto library
  #include <nettle/sha2.h>
  #include <nettle/base64.h>
-@@ -411,7 +408,6 @@ enum password_result verify_password(const char *passw
+@@ -411,7 +408,6 @@ enum password_result verify_password(con
  					free(config.webserver.api.pwhash.v.s);
  				config.webserver.api.pwhash.v.s = new_hash;
  				config.webserver.api.pwhash.t = CONF_STRING_ALLOCATED;
@@ -441,7 +411,7 @@
  
 --- a/src/main.c
 +++ b/src/main.c
-@@ -76,11 +76,7 @@ int main (int argc, char *argv[])
+@@ -76,11 +76,9 @@ int main (int argc, char *argv[])
  	// We configure real-time signals later (after dnsmasq has forked)
  	handle_signals();
  
@@ -450,7 +420,9 @@
 -	// settings are present and have a valid value
 -	if(readFTLconf(&config, true))
 -		log_info("Parsed config file "GLOBALTOMLPATH" successfully");
-+	readFTLconf(&config, true);
++	if(readFTLconf(&config, true)) {
++		log_info("Parsed config file successfully");
++	}
  
  	// Set process priority
  	set_nice();
@@ -469,7 +441,7 @@
  // write_dnsmasq_config()
  #include "config/dnsmasq_config.h"
  // lock_shm(), unlock_shm()
-@@ -65,7 +59,6 @@ static const char *extract_files[] = {
+@@ -65,7 +59,6 @@ static const char *ftl_tables[] = {
  
  // List of files to process from a Teleporter ZIP archive
  static const char *extract_files[] = {
@@ -477,7 +449,7 @@
  	"etc/pihole/dhcp.leases",
  	"etc/pihole/gravity.db"
  };
-@@ -153,6 +146,8 @@ const char *generate_teleporter_zip(mz_zip_archive *zi
+@@ -153,6 +146,8 @@ const char *generate_teleporter_zip(mz_z
  {
  	// Initialize ZIP archive
  	memset(zip, 0, sizeof(*zip));
@@ -486,7 +458,7 @@
  
  	// Start with 64KB allocation size (pihole.TOML is slightly larger than 32KB
  	// at the time of writing thjs)
-@@ -161,15 +156,6 @@ const char *generate_teleporter_zip(mz_zip_archive *zi
+@@ -161,15 +156,6 @@ const char *generate_teleporter_zip(mz_z
  		return "Failed creating heap ZIP archive";
  	}
  
@@ -502,7 +474,7 @@
  	// Add /etc/hosts to the ZIP archive
  	file_comment = "System's HOSTS file";
  	file_path = "/etc/hosts";
-@@ -181,7 +167,7 @@ const char *generate_teleporter_zip(mz_zip_archive *zi
+@@ -181,7 +167,7 @@ const char *generate_teleporter_zip(mz_z
  
  	// Add /etc/pihole/dhcp.lease to the ZIP archive if it exists
  	file_comment = "DHCP leases file";
@@ -511,7 +483,7 @@
  	if(file_exists(file_path) && !mz_zip_writer_add_file(zip, file_path+1, file_path, file_comment, (uint16_t)strlen(file_comment), MZ_BEST_COMPRESSION))
  	{
  		mz_zip_writer_end(zip);
-@@ -289,55 +275,6 @@ const char *generate_teleporter_zip(mz_zip_archive *zi
+@@ -289,55 +275,6 @@ const char *generate_teleporter_zip(mz_z
  	return NULL;
  }
  
@@ -567,7 +539,7 @@
  static const char *import_dhcp_leases(void *ptr, size_t size, char * const hint)
  {
  	// We do not check if the file is empty here, as an empty dhcp.leases file is valid
-@@ -584,21 +521,8 @@ const char *read_teleporter_zip(uint8_t *buffer, const
+@@ -584,21 +521,8 @@ const char *read_teleporter_zip(uint8_t
  		          file_stat.m_comment, (unsigned long)file_stat.m_time);
  
  		// Process file
