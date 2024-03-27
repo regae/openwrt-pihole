@@ -124,7 +124,7 @@
  // Set debug flags from config struct to global debug_flags array
  // This is called whenever the config is reloaded and debug flags may have
  // changed
-@@ -1250,16 +1262,6 @@ void initConfig(struct config *conf)
+@@ -1259,16 +1271,6 @@ void initConfig(struct config *conf)
  	conf->files.macvendor.uci.opt = "macvendor";
  	conf->files.macvendor.uci.sec = "database";
  
@@ -141,7 +141,7 @@
  	conf->files.pcap.k = "files.pcap";
  	conf->files.pcap.h = "An optional file containing a pcap capture of the network traffic. This file is used for debugging purposes only. If you don't know what this is, you don't need it.\n Setting this to an empty string disables pcap recording. The file must be writable by the user running FTL (typically pihole). Failure to write to this file will prevent the DNS resolver from starting. The file is appended to if it already exists.";
  	conf->files.pcap.a = cJSON_CreateStringReference("<any writable pcap file>");
-@@ -1761,27 +1763,6 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1770,27 +1772,6 @@ bool readFTLconf(struct config *conf, const bool rewri
  
  	// read uci value
  	uci_get_config_values(conf, false);
@@ -169,7 +169,7 @@
  
  	log_info("Initialised webserver ports at %s", conf->webserver.port.v.s);
  
-@@ -1817,7 +1798,7 @@ bool getLogFilePath(void)
+@@ -1826,7 +1807,7 @@ bool getLogFilePath(void)
  
  	// Check if the config file contains a different path
  	if(!getLogFilePathTOML())
@@ -180,7 +180,7 @@
  }
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -263,7 +2623,6 @@ struct config {
+@@ -259,7 +259,6 @@ struct config {
  		struct conf_item gravity;
  		struct conf_item gravity_tmp;
  		struct conf_item macvendor;
@@ -199,7 +199,7 @@
  // run_dnsmasq_main()
  #include "args.h"
  // optind
-@@ -1103,131 +1101,6 @@ void write_static_hosts(struct uci_context *ctx)
+@@ -1109,131 +1107,6 @@ void write_static_hosts(struct uci_context *ctx)
  	return true;
  }
  

@@ -45,7 +45,7 @@
  	free_upload_data(data);
 --- a/src/config/config.c
 +++ b/src/config/config.c
-@@ -1536,24 +1536,18 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1543,24 +1543,18 @@ bool readFTLconf(struct config *conf, const bool rewri
  	getEnvVars();
  
  	// Try to read TOML config file
@@ -79,7 +79,7 @@
  	}
  
  	log_info("No config file nor backup available, using defaults");
-@@ -1579,16 +1573,6 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1586,16 +1580,6 @@ bool readFTLconf(struct config *conf, const bool rewri
  	// custom.list
  	read_legacy_custom_hosts_config();
  
@@ -96,7 +96,7 @@
  	// Determine default webserver ports if not imported from setupVars.conf
  	if(!(config.webserver.port.f & FLAG_CONF_IMPORTED))
  	{
-@@ -1760,7 +1744,7 @@ void reread_config(void)
+@@ -1767,7 +17175144,7 @@ void reread_config(void)
  
  	// Read TOML config file
  	bool restart = false;
@@ -107,7 +107,7 @@
  		log_debug(DEBUG_CONFIG, "Loaded configuration is valid, installing it");
 --- a/src/config/toml_helper.c
 +++ b/src/config/toml_helper.c
-@@ -15,50 +15,32 @@
+@@ -15,52 +15,34 @@
  #include "datastructure.h"
  // flock(), LOCK_SH
  #include <sys/file.h>
@@ -117,6 +117,8 @@
  #include "config/password.h"
  // PATH_MAX
  #include <limits.h>
+ // escape_json()
+ #include "webserver/http-common.h"
  
  // Open the TOML file for reading or writing
 -FILE * __attribute((malloc)) __attribute((nonnull(1))) openFTLtoml(const char *mode, const unsigned int version)
@@ -168,7 +170,7 @@
  		return NULL;
  	}
  
-@@ -72,10 +54,6 @@ FILE * __attribute((malloc)) __attribute((nonnull(1)))
+@@ -74,10 +56,6 @@ FILE * __attribute((malloc)) __attribute((nonnull(1)))
  		errno = _e;
  		return NULL;
  	}
@@ -274,7 +276,7 @@
  	{
  		log_warn("Cannot write to FTL config file (%s), content not updated", strerror(errno));
  		return false;
-@@ -142,9 +142,6 @@ bool writeFTLtoml(const bool verbose)
+@@ -138,9 +138,6 @@ bool writeFTLtoml(const bool verbose)
  	{
  		// Stop watching for changes in the config file
  		watch_config(false);

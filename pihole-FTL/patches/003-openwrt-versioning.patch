@@ -250,9 +250,9 @@
  	// Write header
 -	fprintf(fp, "# Pi-hole configuration file (%s)\n", get_FTL_version());
 +	fprintf(fp, "# Pi-hole configuration file (%s)\n", FTL_VERSION);
- #ifdef TOML_UTF8
  	fputs("# Encoding: UTF-8\n", fp);
- #else
+ 	fputs("# This file is managed by pihole-FTL\n", fp);
+ 	char timestring[TIMESTR_SIZE] = "";
 --- a/src/dnsmasq/CMakeLists.txt
 +++ b/src/dnsmasq/CMakeLists.txt
 @@ -67,3 +67,4 @@ target_compile_definitions(dnsmasq PRIVA

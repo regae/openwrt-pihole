@@ -236,7 +236,7 @@
  uint8_t last_checksum_dhcp[SHA256_DIGEST_SIZE] = { 0 };
  uint8_t last_checksum_pihole[SHA256_DIGEST_SIZE] = { 0 };
  
-@@ -1742,36 +1739,17 @@ bool readFTLconf(struct config *conf, co
+@@ -1751,36 +1748,17 @@ bool readFTLconf(struct config *conf, co
  	// First, read the environment
  	getEnvVars();
  
@@ -277,7 +277,7 @@
  }
  
  bool getLogFilePath(void)
-@@ -1796,10 +1774,6 @@ bool getLogFilePath(void)
+@@ -1805,10 +1783,6 @@ bool getLogFilePath(void)
  	if(uci_get_value(config.uci_ctx, &config.files.log.ftl, false))
  		config.files.log.ftl.v.s = config.files.log.ftl.d.s;
  
@@ -288,7 +288,7 @@
  	return true;
  }
  
-@@ -1820,9 +1794,6 @@ void set_blockingstatus(bool enabled)
+@@ -1829,9 +1803,6 @@ void set_blockingstatus(bool enabled)
  	config.dns.blocking.active.v.b = enabled;
  	if(uci_set_value(config.uci_ctx, &config.dns.blocking.active, enabled ? "1" : "0", true) != 0)
  		log_err("failed to set uci config blocking_active");
@@ -298,7 +298,7 @@
  }
  
  const char * __attribute__ ((const)) get_conf_type_str(const enum conf_type type)
-@@ -1895,11 +1866,9 @@ void reread_config(void)
+@@ -1904,11 +1875,9 @@ void reread_config(void)
  {
  
  	// Create checksum of config file
@@ -311,7 +311,7 @@
  	   !sha256sum(UCI_CONFIG_DHCP, checksum_pihole))
  	{
  		log_err("Unable to create checksum of config files, not re-reading configuration");
-@@ -1907,58 +1876,16 @@ void reread_config(void)
+@@ -1916,58 +1885,16 @@ void reread_config(void)
  	}
  
  	// Compare checksums
@@ -372,7 +372,7 @@
  	// We do not write the dnsmasq config file here as this is done on every
  	// restart and changes would have no effect here
  
-@@ -1966,12 +1893,6 @@ void reread_config(void)
+@@ -1975,12 +1902,6 @@ void reread_config(void)
  	// at any time and is automatically reloaded by dnsmasq
  	write_custom_list();
  

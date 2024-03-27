@@ -33,7 +33,7 @@
  			showblocked = false;
 --- a/src/config/config.c
 +++ b/src/config/config.c
-@@ -1182,6 +1182,15 @@ void initConfig(struct config *conf)
+@@ -1191,6 +1191,15 @@ void initConfig(struct config *conf)
  	conf->webserver.api.allow_destructive.uci.opt = "allow_destructive";
  	conf->webserver.api.allow_destructive.uci.sec = "api";
  
@@ -51,7 +51,7 @@
  	conf->webserver.api.temp.limit.h = "Which upper temperature limit should be used by Pi-hole? Temperatures above this limit will be shown as \"hot\". The number specified here is in the unit defined below";
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -249,6 +249,7 @@ struct config {
+@@ -245,6 +245,7 @@ struct config {
  			struct conf_item maxClients;
  			struct conf_item client_history_global_max;
  			struct conf_item allow_destructive;
