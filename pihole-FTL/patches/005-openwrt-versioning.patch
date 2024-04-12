@@ -1,6 +1,6 @@
 --- a/src/api/info.c
 +++ b/src/api/info.c
-@@ -58,8 +58,6 @@
+@@ -56,8 +56,6 @@
  // timer_elapsed_msec()
  #include "timers.h"
  
@@ -9,7 +9,7 @@
  int api_info_client(struct ftl_conn *api)
  {
  	cJSON *json = JSON_NEW_OBJECT();
-@@ -715,129 +713,37 @@ int api_info_sensors(struct ftl_conn *ap
+@@ -713,129 +711,37 @@ int api_info_sensors(struct ftl_conn *ap
  
  int api_info_version(struct ftl_conn *api)
  {
@@ -222,7 +222,7 @@
  // get_blocking_mode_str()
  #include "datastructure.h"
  // flock(), LOCK_SH
-@@ -215,7 +216,7 @@ static void write_config_header(FILE *fp
+@@ -213,7 +214,7 @@ static void write_config_header(FILE *fp
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure misc.etc_dnsmasq_d is set to true in /etc/pihole/pihole.toml)");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "Last updated: %s", timestring);
@@ -353,7 +353,7 @@
              COMMAND           uname -m
 --- a/src/log.c
 +++ b/src/log.c
-@@ -488,10 +488,10 @@ void log_counter_info(void)
+@@ -487,10 +487,10 @@ void log_counter_info(void)
  
  void log_FTL_version(const bool crashreport)
  {
@@ -368,7 +368,7 @@
  	if(crashreport)
  	{
  		char *username_now = getUserName();
-@@ -503,38 +503,6 @@ void log_FTL_version(const bool crashrep
+@@ -502,38 +502,6 @@ void log_FTL_version(const bool crashrep
  	log_info("Compiled for %s using %s", FTL_ARCH, FTL_CC);
  }
  
@@ -407,7 +407,7 @@
  const char __attribute__ ((const)) *get_ordinal_suffix(unsigned int number)
  {
  	if((number % 100) > 9 && (number % 100) < 20)
-@@ -674,7 +642,7 @@ const char * __attribute__ ((pure)) shor
+@@ -673,7 +641,7 @@ const char * __attribute__ ((pure)) shor
  
  void print_FTL_version(void)
  {
@@ -418,8 +418,8 @@
  // Skip leading string if found
 --- a/src/log.h
 +++ b/src/log.h
-@@ -47,7 +47,6 @@ void format_memory_size(char prefix[2],
-                         double * const formatted);
+@@ -48,7 +48,6 @@ void format_memory_size(char prefix[2],
+ void format_memory_size(char prefix[2], const uint64_t bytes, double * const formatted);
  void format_time(char buffer[42], unsigned long seconds, double milliseconds);
  unsigned int get_year(const time_t timein);
 -const char *get_FTL_version(void);

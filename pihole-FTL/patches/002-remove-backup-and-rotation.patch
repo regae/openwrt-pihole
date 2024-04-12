@@ -20,7 +20,7 @@
  
  #define MAXFILESIZE (50u*1024*1024)
  
-@@ -700,22 +698,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+@@ -790,22 +788,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
  	// Remove pihole.toml to prevent it from being imported on restart
  	if(remove(GLOBALTOMLPATH) != 0)
  		log_err("Unable to remove file \"%s\": %s", GLOBALTOMLPATH, strerror(errno));
@@ -267,7 +267,7 @@
  #endif //TOML_READER_H
 --- a/src/config/toml_writer.c
 +++ b/src/config/toml_writer.c
-@@ -30,7 +30,7 @@ bool writeFTLtoml(const bool verbose)
+@@ -29,7 +29,7 @@ bool writeFTLtoml(const bool verbose)
  {
  	// Try to open a temporary config file for writing
  	FILE *fp;
@@ -276,7 +276,7 @@
  	{
  		log_warn("Cannot write to FTL config file (%s), content not updated", strerror(errno));
  		return false;
-@@ -138,9 +138,6 @@ bool writeFTLtoml(const bool verbose)
+@@ -137,9 +137,6 @@ bool writeFTLtoml(const bool verbose)
  	{
  		// Stop watching for changes in the config file
  		watch_config(false);
@@ -288,7 +288,7 @@
  		if(rename(GLOBALTOMLPATH".tmp", GLOBALTOMLPATH) != 0)
 --- a/src/files.c
 +++ b/src/files.c
-@@ -318,191 +318,6 @@ static char *trim(char *str)
+@@ -354,191 +354,6 @@ static char *trim(char *str)
  	return start;
  }
  
@@ -502,7 +502,7 @@
  
 --- a/src/zip/teleporter.c
 +++ b/src/zip/teleporter.c
-@@ -315,7 +315,7 @@ static const char *test_and_import_pihole_toml(void *p
+@@ -311,7 +311,7 @@ static const char *test_and_import_pihole_toml(void *p
  	// a temporary config struct (teleporter_config)
  	struct config teleporter_config = { 0 };
  	duplicate_config(&teleporter_config, &config);
@@ -511,7 +511,7 @@
  		return "File etc/pihole/pihole.toml in ZIP archive contains invalid TOML configuration";
  
  	// Test dnsmasq config in the imported configuration
-@@ -332,7 +332,6 @@ static const char *test_and_import_pihole_toml(void *p
+@@ -328,7 +328,6 @@ static const char *test_and_import_pihole_toml(void *p
  
  	// Write new pihole.toml to disk, the dnsmaq config was already written above
  	// Also write the custom list to disk
@@ -519,7 +519,7 @@
  	writeFTLtoml(true);
  	write_custom_list();
  
-@@ -346,9 +345,6 @@ static const char *import_dhcp_leases(void *ptr, size_
+@@ -342,9 +341,6 @@ static const char *import_dhcp_leases(void *ptr, size_
  	// When we reach this point, we know that the file is a valid dhcp.leases file.
  	// We can now safely overwrite the current dhcp.leases file with the one from the ZIP archive
  	// Nevertheless, we rotate the current dhcp.leases file to keep a backup of the previous version

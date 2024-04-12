@@ -19,7 +19,7 @@
  // write_dnsmasq_config()
  #include "config/dnsmasq_config.h"
  // shm_lock()
-@@ -837,9 +835,6 @@ static int api_config_patch(struct ftl_c
+@@ -827,9 +825,6 @@ static int api_config_patch(struct ftl_c
  		// Reload debug levels
  		set_debug_flags(&config);
  
@@ -29,7 +29,7 @@
  		// Rewrite HOSTS file if required
  		if(rewrite_hosts)
  			write_custom_list();
-@@ -1060,9 +1055,6 @@ static int api_config_put_delete(struct
+@@ -1052,9 +1047,6 @@ static int api_config_put_delete(struct
  	// Reload debug levels
  	set_debug_flags(&config);
  
@@ -41,7 +41,7 @@
  		write_custom_list();
 --- a/src/api/teleporter.c
 +++ b/src/api/teleporter.c
-@@ -679,10 +679,6 @@ static int process_received_tar_gz(struc
+@@ -772,10 +772,6 @@ static int process_received_tar_gz(struc
  		}
  	}
  
@@ -83,7 +83,7 @@
  #include "config/dnsmasq_config.h"
  #include "log.h"
  #include "datastructure.h"
-@@ -375,6 +373,102 @@ bool readStringValue(struct conf_item *c
+@@ -376,6 +374,102 @@ bool readStringValue(struct conf_item *c
  	return true;
  }
  
@@ -186,7 +186,7 @@
  int set_config_from_CLI(const char *key, const char *value)
  {
  	// Check if we are either
-@@ -494,7 +588,7 @@ int set_config_from_CLI(const char *key,
+@@ -495,7 +589,7 @@ int set_config_from_CLI(const char *key,
  			log_err("Failed to save new config for: %s=%s", new_item->k, value);
  
  		// Print value
@@ -195,7 +195,7 @@
  	}
  	else
  	{
-@@ -503,11 +597,10 @@ int set_config_from_CLI(const char *key,
+@@ -504,11 +598,10 @@ int set_config_from_CLI(const char *key,
  		free_config(&newconf);
  
  		// Print value
@@ -208,7 +208,7 @@
  	return OKAY;
  }
  
-@@ -560,7 +653,7 @@ int get_config_from_CLI(const char *key,
+@@ -561,7 +654,7 @@ int get_config_from_CLI(const char *key,
  		if(conf_item-> f & FLAG_WRITE_ONLY)
  			puts("<write-only property>");
  		else
@@ -236,7 +236,7 @@
  uint8_t last_checksum_dhcp[SHA256_DIGEST_SIZE] = { 0 };
  uint8_t last_checksum_pihole[SHA256_DIGEST_SIZE] = { 0 };
  
-@@ -1751,36 +1748,17 @@ bool readFTLconf(struct config *conf, co
+@@ -1794,25 +1791,6 @@ bool readFTLconf(struct config *conf, co
  	// First, read the environment
  	getEnvVars();
  
@@ -262,22 +262,21 @@
  	// read uci value
  	uci_get_config_values(conf, false);
  
- 	log_info("Initialised webserver ports at %s", conf->webserver.port.v.s);
+@@ -1846,12 +1824,8 @@ bool readFTLconf(struct config *conf, co
+ 	log_info("Initialised webserver ports at %d (HTTP) and %d (HTTPS), IPv6 support is %s",
+ 		http_port, https_port, have_ipv6 ? "enabled" : "disabled");
  
 -	// Initialize the TOML config file
 -	writeFTLtoml(true);
 -	write_dnsmasq_config(conf, false, NULL);
-+	if(!write_dnsmasq_config(conf, false, NULL))
-+		return false;
-+
  	write_custom_list();
- 
+-
 -	return false;
-+	return true;
++	return write_dnsmasq_config(conf, false, NULL);
  }
  
  bool getLogFilePath(void)
-@@ -1805,10 +1783,6 @@ bool getLogFilePath(void)
+@@ -1876,10 +1854,6 @@ bool getLogFilePath(void)
  	if(uci_get_value(config.uci_ctx, &config.files.log.ftl, false))
  		config.files.log.ftl.v.s = config.files.log.ftl.d.s;
  
@@ -288,17 +287,17 @@
  	return true;
  }
  
-@@ -1829,9 +1803,6 @@ void set_blockingstatus(bool enabled)
+@@ -1900,9 +1874,6 @@ void set_blockingstatus(bool enabled)
  	config.dns.blocking.active.v.b = enabled;
  	if(uci_set_value(config.uci_ctx, &config.dns.blocking.active, enabled ? "1" : "0", true) != 0)
- 		log_err("failed to set uci config blocking_active");
+ 		log_err("failed to set UCI config blocking_active");
 -
 -	writeFTLtoml(true);
 -	raise(SIGHUP);
  }
  
  const char * __attribute__ ((const)) get_conf_type_str(const enum conf_type type)
-@@ -1904,11 +1875,9 @@ void reread_config(void)
+@@ -1975,11 +1946,9 @@ void reread_config(void)
  {
  
  	// Create checksum of config file
@@ -311,7 +310,7 @@
  	   !sha256sum(UCI_CONFIG_DHCP, checksum_pihole))
  	{
  		log_err("Unable to create checksum of config files, not re-reading configuration");
-@@ -1916,58 +1885,16 @@ void reread_config(void)
+@@ -1987,58 +1956,16 @@ void reread_config(void)
  	}
  
  	// Compare checksums
@@ -372,7 +371,7 @@
  	// We do not write the dnsmasq config file here as this is done on every
  	// restart and changes would have no effect here
  
-@@ -1975,12 +1902,6 @@ void reread_config(void)
+@@ -2046,14 +1973,8 @@ void reread_config(void)
  	// at any time and is automatically reloaded by dnsmasq
  	write_custom_list();
  
@@ -387,11 +386,13 @@
 +	// by removing toml function we lost
 +	// the ability to restart pihole-FTL if privacelevel changes
  }
+ 
+ // Very simple test of a port's availability by trying to bind a TCP socket to
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -33,7 +33,6 @@
+@@ -32,7 +32,6 @@
+ // enum web_theme
  #include "api/theme.h"
- #include "config/config_uci.h"
  
 -#define GLOBALTOMLPATH "/tmp/etc/pihole.toml"
  #define UCI_CONFIG_PIHOLE "/etc/config/pihole"
@@ -550,13 +551,21 @@
  static const char *import_dhcp_leases(void *ptr, size_t size, char * const hint)
  {
  	// We do not check if the file is empty here, as an empty dhcp.leases file is valid
-@@ -584,21 +521,8 @@ const char *read_teleporter_zip(uint8_t
- 		          file_stat.m_comment, (unsigned long)file_stat.m_time);
- 
+@@ -586,29 +523,8 @@ const char *read_teleporter_zip(uint8_t
  		// Process file
+ 		const char *import_tables[ArraySize(gravity_tables)] = { NULL };
+ 		size_t num_tables = 0u;
 -		// Is this "etc/pihole/pihole.toml" ?
--		if(strcmp(file_stat.m_filename, "etc/pihole/pihole.toml") == 0)
+-		if(strcmp(file_stat.m_filename, extract_files[0]) == 0)
 -		{
+-			// Check whether we should import this file
+-			if(import != NULL && !JSON_KEY_TRUE(import, "config"))
+-			{
+-				log_info("Ignoring file %s in Teleporter archive (not in import list)", file_stat.m_filename);
+-				free(ptr);
+-				continue;
+-			}
+-
 -			// Import Pi-hole configuration
 -			memset(hint, 0, ERRBUF_SIZE);
 -			const char *err = test_and_import_pihole_toml(ptr, file_stat.m_uncomp_size, hint);
@@ -568,8 +577,8 @@
 -			log_debug(DEBUG_CONFIG, "Imported Pi-hole configuration: %s", file_stat.m_filename);
 -		}
  		// Is this "etc/pihole/dhcp.leases"?
--		else if(strcmp(file_stat.m_filename, "etc/pihole/dhcp.leases") == 0)
+-		else if(strcmp(file_stat.m_filename, extract_files[1]) == 0)
 +		if(strcmp(file_stat.m_filename, "etc/pihole/dhcp.leases") == 0)
  		{
- 			// Import DHCP leases
- 			memset(hint, 0, ERRBUF_SIZE);
+ 			// Check whether we should import this file
+ 			if(import != NULL && !JSON_KEY_TRUE(import, "dhcp_leases"))

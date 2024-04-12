@@ -351,7 +351,7 @@
 +#endif
  // directory_exists()
  #include "files.h"
- // trim_whitespace()
+ // run_dnsmasq_main()
 --- a/src/config/password.c
 +++ b/src/config/password.c
 @@ -17,8 +17,10 @@
@@ -669,7 +669,7 @@
 +#endif
  // enum fifo_logs
  #include "enums.h"
- 
+ // tablerow
 --- a/src/webserver/json_macros.h
 +++ b/src/webserver/json_macros.h
 @@ -8,7 +8,11 @@
@@ -735,7 +735,7 @@
 +#endif
  // set_event()
  #include "events.h"
- 
+ // JSON_KEY_TRUE
 --- a/src/zip/teleporter.h
 +++ b/src/zip/teleporter.h
 @@ -11,7 +11,11 @@

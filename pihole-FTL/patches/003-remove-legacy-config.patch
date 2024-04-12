@@ -44,17 +44,18 @@
  // get_FTL_db_filesize()
 --- a/src/api/teleporter.c
 +++ b/src/api/teleporter.c
-@@ -651,9 +651,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
- 		},{
+@@ -728,10 +728,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+ 			// i = 2
  			.archive_name = "pihole-FTL.conf",
  			.destination = GLOBALCONFFILE_LEGACY
 -		},{
+-			// i = 3
 -			.archive_name = "setupVars.conf",
 -			.destination = config.files.setupVars.v.s
  		}
  	};
  	for(size_t i = 0; i < sizeof(extract_files) / sizeof(*extract_files); i++)
-@@ -680,16 +677,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+@@ -773,16 +769,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
  			fclose(fp);
  			JSON_COPY_STR_TO_ARRAY(imported_files, extract_files[i].destination);
  		}
@@ -73,7 +74,7 @@
  	// Remove pihole.toml to prevent it from being imported on restart
 --- a/src/config/CMakeLists.txt
 +++ b/src/config/CMakeLists.txt
-@@ -21,14 +21,10 @@ set(sources
+@@ -19,14 +19,10 @@ set(sources
          env.h
          inotify.c
          inotify.h
@@ -102,9 +103,9 @@
  // file_exists()
  #include "files.h"
  // write_dnsmasq_config()
-@@ -42,6 +39,21 @@ uint8_t last_checksum[SHA256_DIGEST_SIZE] = { 0 };
- uint8_t last_checksum_dhcp[SHA256_DIGEST_SIZE] = { 0 };
- uint8_t last_checksum_pihole[SHA256_DIGEST_SIZE] = { 0 };
+@@ -43,6 +40,21 @@ static bool port_in_use(const in_port_t port);
+ // Private prototypes
+ static bool port_in_use(const in_port_t port);
  
 +static pthread_mutex_t lock;
 +
@@ -124,9 +125,9 @@
  // Set debug flags from config struct to global debug_flags array
  // This is called whenever the config is reloaded and debug flags may have
  // changed
-@@ -1259,16 +1271,6 @@ void initConfig(struct config *conf)
- 	conf->files.macvendor.uci.opt = "macvendor";
- 	conf->files.macvendor.uci.sec = "database";
+@@ -1136,14 +1148,6 @@ void initConfig(struct config *conf)
+ 	conf->files.macvendor.d.s = (char*)"/etc/pihole/macvendor.db";
+ 	conf->files.macvendor.c = validate_filepath;
  
 -	conf->files.setupVars.k = "files.setupVars";
 -	conf->files.setupVars.h = "The old config file of Pi-hole used before v6.0";
@@ -135,17 +136,45 @@
 -	conf->files.setupVars.f = FLAG_ADVANCED_SETTING;
 -	conf->files.setupVars.d.s = (char*)"/etc/pihole/setupVars.conf";
 -	conf->files.setupVars.c = validate_filepath;
--	conf->files.setupVars.uci.opt = "setupVars";
--	conf->files.setupVars.uci.sec = "pihole";
 -
  	conf->files.pcap.k = "files.pcap";
  	conf->files.pcap.h = "An optional file containing a pcap capture of the network traffic. This file is used for debugging purposes only. If you don't know what this is, you don't need it.\n Setting this to an empty string disables pcap recording. The file must be writable by the user running FTL (typically pihole). Failure to write to this file will prevent the DNS resolver from starting. The file is appended to if it already exists.";
  	conf->files.pcap.a = cJSON_CreateStringReference("<any writable pcap file>");
-@@ -1770,27 +1772,6 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1556,64 +1560,37 @@ bool readFTLconf(struct config *conf, const bool rewri
+ 		}
+ 		return true;
+ 	}
++
++	// Check if ports 80/TCP and 443/TCP are already in use
++	const in_port_t http_port = port_in_use(80) ? 8080 : 80;
++	const in_port_t https_port = port_in_use(443) ? 8443 : 443;
++
++	// Create a string with the default ports
++	// Allocate memory for the string
++	char *ports = calloc(32, sizeof(char));
++	if(ports == NULL)
++	{
++		log_err("Unable to allocate memory for default ports string");
++		return false;
++	}
++	// Create the string
++	snprintf(ports, 32, "%d,%ds", http_port, https_port);
++
++	// Append IPv6 ports if IPv6 is enabled
++	const bool have_ipv6 = ipv6_enabled();
++	if(have_ipv6)
++		snprintf(ports + strlen(ports), 32 - strlen(ports),
++			",[::]:%d,[::]:%ds", http_port, https_port);
++
++	// Set default values for webserver ports
++	if(conf->webserver.port.t == CONF_STRING_ALLOCATED)
++		free(conf->webserver.port.v.s);
++	conf->webserver.port.v.s = ports;
++	conf->webserver.port.t = CONF_STRING_ALLOCATED;
++
++	log_info("Initialised webserver ports at %d (HTTP) and %d (HTTPS), IPv6 support is %s",
++		http_port, https_port, have_ipv6 ? "enabled" : "disabled");
  
- 	// read uci value
- 	uci_get_config_values(conf, false);
--
 -	log_info("No config file nor backup available, using defaults");
 -
 -	// If no previous config file could be read, we are likely either running
@@ -166,10 +195,47 @@
 -	read_legacy_dhcp_static_config();
 -	// 05-pihole-custom-cname.conf
 -	read_legacy_cnames_config();
- 
- 	log_info("Initialised webserver ports at %s", conf->webserver.port.v.s);
- 
-@@ -1826,7 +1807,7 @@ bool getLogFilePath(void)
+-	// custom.list
+-	read_legacy_custom_hosts_config();
+-
+-	// Determine default webserver ports if not imported from setupVars.conf
+-	if(!(config.webserver.port.f & FLAG_CONF_IMPORTED))
+-	{
+-		// Check if ports 80/TCP and 443/TCP are already in use
+-		const in_port_t http_port = port_in_use(80) ? 8080 : 80;
+-		const in_port_t https_port = port_in_use(443) ? 8443 : 443;
+-
+-		// Create a string with the default ports
+-		// Allocate memory for the string
+-		char *ports = calloc(32, sizeof(char));
+-		if(ports == NULL)
+-		{
+-			log_err("Unable to allocate memory for default ports string");
+-			return false;
+-		}
+-		// Create the string
+-		snprintf(ports, 32, "%d,%ds", http_port, https_port);
+-
+-		// Append IPv6 ports if IPv6 is enabled
+-		const bool have_ipv6 = ipv6_enabled();
+-		if(have_ipv6)
+-			snprintf(ports + strlen(ports), 32 - strlen(ports),
+-				",[::]:%d,[::]:%ds", http_port, https_port);
+-
+-		// Set default values for webserver ports
+-		if(conf->webserver.port.t == CONF_STRING_ALLOCATED)
+-			free(conf->webserver.port.v.s);
+-		conf->webserver.port.v.s = ports;
+-		conf->webserver.port.t = CONF_STRING_ALLOCATED;
+-
+-		log_info("Initialised webserver ports at %d (HTTP) and %d (HTTPS), IPv6 support is %s",
+-			http_port, https_port, have_ipv6 ? "enabled" : "disabled");
+-	}
+-
+ 	// Initialize the TOML config file
+ 	writeFTLtoml(true);
+ 	write_dnsmasq_config(conf, false, NULL);
+@@ -1639,7 +1616,7 @@ bool getLogFilePath(void)
  
  	// Check if the config file contains a different path
  	if(!getLogFilePathTOML())
@@ -180,7 +246,15 @@
  }
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -259,7 +259,6 @@ struct config {
+@@ -95,7 +95,6 @@ enum conf_type {
+ #define FLAG_INVALIDATE_SESSIONS   (1 << 3)
+ #define FLAG_WRITE_ONLY            (1 << 4)
+ #define FLAG_ENV_VAR               (1 << 5)
+-#define FLAG_CONF_IMPORTED         (1 << 6)
+ 
+ struct conf_item {
+ 	const char *k;        // item Key
+@@ -256,7 +255,6 @@ struct config {
  		struct conf_item gravity;
  		struct conf_item gravity_tmp;
  		struct conf_item macvendor;
@@ -190,8 +264,8 @@
  			struct conf_item ftl;
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -27,8 +27,6 @@
- #endif
+@@ -22,8 +22,6 @@
+ #include "webserver/cJSON/cJSON.h"
  // directory_exists()
  #include "files.h"
 -// trim_whitespace()
@@ -199,10 +273,13 @@
  // run_dnsmasq_main()
  #include "args.h"
  // optind
-@@ -1109,131 +1107,6 @@ void write_static_hosts(struct uci_context *ctx)
- 	return true;
- }
- 
+@@ -753,195 +751,6 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+ 			return false;
+ 		}
+ 	}
+-	return true;
+-}
+-
 -bool read_legacy_dhcp_static_config(void)
 -{
 -	// Check if file exists, if not, there is nothing to do
@@ -328,26 +405,88 @@
 -	return true;
 -}
 -
- bool write_custom_list(void)
- {
- 	// Ensure that the directory exists
+-bool read_legacy_custom_hosts_config(void)
+-{
+-	// Check if file exists, if not, there is nothing to do
+-	const char *path = DNSMASQ_CUSTOM_LIST_LEGACY;
+-	const char *target = DNSMASQ_CUSTOM_LIST_LEGACY".bck";
+-	if(!file_exists(path))
+-		return true;
+-
+-	FILE *fp = fopen(path, "r");
+-	if(!fp)
+-	{
+-		log_err("Cannot read %s for reading, unable to import list of custom cnames: %s",
+-		        path, strerror(errno));
+-		return false;
+-	}
+-
+-	char *linebuffer = NULL;
+-	size_t size = 0u;
+-	errno = 0;
+-	while(getline(&linebuffer, &size, fp) != -1)
+-	{
+-		// Check if memory allocation failed
+-		if(linebuffer == NULL)
+-			break;
+-
+-		// Import lines in the file
+-		// Trim whitespace at beginning and end, this function
+-		// modifies the string inplace
+-		trim_whitespace(linebuffer);
+-
+-		// Skip empty lines
+-		if(strlen(linebuffer) == 0 ||
+-		   linebuffer[0] == '\n' ||
+-		   linebuffer[0] == '\r' ||
+-		   linebuffer[0] == '\0')
+-			continue;
+-
+-		// Skip comments
+-		if(linebuffer[0] == '#')
+-			continue;
+-
+-		// Add entry to config.dns.hosts
+-		cJSON *item = cJSON_CreateString(linebuffer);
+-		cJSON_AddItemToArray(config.dns.hosts.v.json, item);
+-	}
+-
+-	// Free allocated memory
+-	free(linebuffer);
+-
+-	// Close file
+-	if(fclose(fp) != 0)
+-	{
+-		log_err("Cannot close %s: %s", path, strerror(errno));
+-		return false;
+-	}
+-
+-	// Move file to backup location
+-	log_info("Moving %s to %s", path, target);
+-	if(rename(path, target) != 0)
+-		log_warn("Unable to move %s to %s: %s", path, target, strerror(errno));
+-
+ 	return true;
+ }
+ 
 --- a/src/config/dnsmasq_config.h
 +++ b/src/config/dnsmasq_config.h
-@@ -17,14 +17,10 @@ char *get_dnsmasq_line(const unsigned int lineno);
+@@ -17,15 +17,10 @@ char *get_dnsmasq_line(const unsigned int lineno);
  bool write_dnsmasq_config(struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE]);
  int get_lineno_from_string(const char *string);
  char *get_dnsmasq_line(const unsigned int lineno);
 -bool read_legacy_dhcp_static_config(void);
 -bool read_legacy_cnames_config(void);
+-bool read_legacy_custom_hosts_config(void);
  bool write_custom_list(void);
  
- #define DNSMASQ_PH_CONFIG "/tmp/etc/dnsmasq.conf"
- #define DNSMASQ_TEMP_CONF "/tmp/etc/dnsmasq.conf.temp"
+ #define DNSMASQ_PH_CONFIG "/etc/pihole/dnsmasq.conf"
+ #define DNSMASQ_TEMP_CONF "/etc/pihole/dnsmasq.conf.temp"
 -#define DNSMASQ_STATIC_LEASES "/etc/pihole/04-pihole-static-dhcp.conf"
 -#define DNSMASQ_CNAMES "/etc/pihole/05-pihole-custom-cname.conf"
- #define DNSMASQ_HOSTSDIR "/tmp/hosts"
- #define DNSMASQ_CUSTOM_LIST DNSMASQ_HOSTSDIR"/host_custom"
- #define DNSMASQ_STATIC_LIST DNSMASQ_HOSTSDIR"/host_static"
+ #define DNSMASQ_HOSTSDIR "/etc/pihole/hosts"
+ #define DNSMASQ_CUSTOM_LIST DNSMASQ_HOSTSDIR"/custom.list"
+ #define DNSMASQ_CUSTOM_LIST_LEGACY "/etc/pihole/custom.list"
 --- a/src/config/toml_reader.c
 +++ b/src/config/toml_reader.c
 @@ -10,7 +10,6 @@
