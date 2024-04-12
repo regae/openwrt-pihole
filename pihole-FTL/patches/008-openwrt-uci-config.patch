@@ -738,7 +738,7 @@
 +	conf->dhcp.leaseFile.c = validate_filepath;
 +	conf->dhcp.leaseFile.uci.opt = "leasefile";
 +	conf->dhcp.leaseFile.uci.stype = "dnsmasq";
-+//apus
++
  	conf->dhcp.ipv6.k = "dhcp.ipv6";
  	conf->dhcp.ipv6.h = "Should Pi-hole make an attempt to also satisfy IPv6 address requests (be aware that IPv6 works a whole lot different than IPv4)";
  	conf->dhcp.ipv6.t = CONF_BOOL;
