@@ -33,7 +33,7 @@
  # We define HAVE_POLL_H as this is needed for the musl builds to succeed
  set(CMAKE_C_FLAGS "-pipe ${WARN_FLAGS} -D_FILE_OFFSET_BITS=64 ${HARDENING_FLAGS} ${DEBUG_FLAGS} ${CMAKE_C_FLAGS} -DHAVE_POLL_H ${SQLITE_DEFINES}")
 +if(SHARED_CJSON)
-+	set(CMAKE_C_FLAGS "-${CMAKE_C_FLAGS} -DSYSTEM_CJSON")
++	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DSYSTEM_CJSON")
 +endif()
  
  set(CMAKE_C_FLAGS_DEBUG "-O0 -g3")
@@ -549,7 +549,7 @@
 +target_compile_definitions(dnsmasq PRIVATE CONFFILE=\"/tmp/etc/dnsmasq.conf\")
  target_compile_options(dnsmasq PRIVATE -Wno-maybe-uninitialized)
  target_include_directories(dnsmasq PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
- add_dependencies(dnsmasq gen_version)
+ if(NOT EXISTS "${PROJECT_SOURCE_DIR}/src/version.h")
 --- a/src/lua/CMakeLists.txt
 +++ b/src/lua/CMakeLists.txt
 @@ -78,7 +78,7 @@ if(LUA_DL STREQUAL "true")

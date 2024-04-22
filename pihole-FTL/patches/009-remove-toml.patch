@@ -67,11 +67,14 @@
          validator.c
          validator.h
          )
-@@ -39,4 +33,3 @@ add_library(config OBJECT ${sources})
+@@ -39,7 +33,6 @@ add_library(config OBJECT ${sources})
  
  target_compile_options(config PRIVATE ${EXTRAWARN})
  target_include_directories(config PRIVATE ${PROJECT_SOURCE_DIR}/src)
 -add_subdirectory(tomlc99)
+ if(NOT EXISTS "${PROJECT_SOURCE_DIR}/src/version.h")
+     add_dependencies(config gen_version)
+ endif()
 --- a/src/config/cli.c
 +++ b/src/config/cli.c
 @@ -11,8 +11,6 @@
@@ -259,9 +262,9 @@
 -		return true;
 -	}
 -
- 	// read uci value
- 	uci_get_config_values(conf, false);
- 
+ 	// Check if ports 80/TCP and 443/TCP are already in use
+ 	const in_port_t http_port = port_in_use(80) ? 8080 : 80;
+ 	const in_port_t https_port = port_in_use(443) ? 8443 : 443;
 @@ -1846,12 +1824,8 @@ bool readFTLconf(struct config *conf, co
  	log_info("Initialised webserver ports at %d (HTTP) and %d (HTTPS), IPv6 support is %s",
  		http_port, https_port, have_ipv6 ? "enabled" : "disabled");
@@ -277,7 +280,7 @@
  
  bool getLogFilePath(void)
 @@ -1876,10 +1854,6 @@ bool getLogFilePath(void)
- 	if(uci_get_value(config.uci_ctx, &config.files.log.ftl, false))
+ 	if(uci_get_value(config.uci_ctx, &config.files.log.ftl))
  		config.files.log.ftl.v.s = config.files.log.ftl.d.s;
  
 -	// Check if the config file contains a different path
@@ -301,9 +304,9 @@
  {
  
  	// Create checksum of config file
--	uint8_t checksum_toml[SHA256_DIGEST_SIZE];
- 	uint8_t checksum_dhcp[SHA256_DIGEST_SIZE];
- 	uint8_t checksum_pihole[SHA256_DIGEST_SIZE];
+-	uint8_t checksum_toml[SHA256_DIGEST_SIZE] = { 0 };
+ 	uint8_t checksum_dhcp[SHA256_DIGEST_SIZE] = { 0 };
+ 	uint8_t checksum_pihole[SHA256_DIGEST_SIZE] = { 0 };
 -	if(!sha256sum(GLOBALTOMLPATH, checksum_toml) ||
 -	   !sha256sum(UCI_CONFIG_PIHOLE, checksum_pihole) ||
 +	if(!sha256sum(UCI_CONFIG_PIHOLE, checksum_pihole) ||

@@ -12,10 +12,10 @@ PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/pi-hole/FTL
-PKG_SOURCE_VERSION:=0cffd8ccdc2aca32b604e8fa784442c22595d8a3
-PKG_MIRROR_HASH:=a65598d89104aa7b67077addf93f5d61426eac9880aaba68584d6f483252701e
-
-PKG_VERSION:=6.0-$(call version_abbrev,$(PKG_SOURCE_VERSION))
+PKG_SOURCE_VERSION:=1b71a440f5196cc8ba8c003f953f8474f0533364
+PKG_MIRROR_HASH:=68b09c636ff3888d8829c7efdf149c2eb2ed3e91eb2410b03b38efb860d333f1
+SHORT_VER:=$(call version_abbrev,$(PKG_SOURCE_VERSION))
+PKG_VERSION:=6.0-$(SHORT_VER)
 
 CMAKE_INSTALL:=1
 
@@ -56,13 +56,14 @@ ifeq ($(CONFIG_BUILD_NLS),y)
 CMAKE_OPTIONS += -DBUILD_NLS=ON -DSTAGING_DIR=$(STAGING_DIR)
 endif
 
-export WEB_VERSION=$(PKG_VERSION)
-export CORE_VERSION=$(PKG_VERSION)
-export FTL_BRANCH=$(shell git --git-dir=$(TOPDIR)/.git rev-parse --abbrev-ref HEAD)
+export FTL_BRANCH:=development-v6
+export CURDIR:=$(CURDIR)
+export FTL_HASH=$(SHORT_VER)
 export FTL_VERSION=$(PKG_VERSION)
 export FTL_ARCH=$(ARCH)
-export FTL_HASH=r23512-c22931b653
-export FTL_DATE=$(shell git --git-dir=$(TOPDIR)/.git show -s --format=%ci)
+ifdef REVISION
+export FTL_HASH=$(REVISION)
+endif
 
 # KERNEL_EXT4_FS_SECURITY is needed if using linux capabilities (setcap/getcap)
 define Package/pihole-FTL

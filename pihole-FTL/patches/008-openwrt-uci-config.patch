@@ -1558,7 +1558,7 @@
  		// If successful, we write the config file back to disk
  		// to ensure that all options are present and comments
  		// about options deviating from the default are present
-@@ -1557,10 +1808,14 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1557,6 +1808,7 @@ bool readFTLconf(struct config *conf, const bool rewri
  			writeFTLtoml(true);
  			write_dnsmasq_config(conf, false, NULL);
  			write_custom_list();
@@ -1566,13 +1566,16 @@
  		}
  		return true;
  	}
+@@ -1588,6 +1840,9 @@ bool readFTLconf(struct config *conf, const bool rewri
+ 	conf->webserver.port.v.s = ports;
+ 	conf->webserver.port.t = CONF_STRING_ALLOCATED;
  
 +	// read uci value
 +	uci_get_config_values(conf, false);
 +
- 	// Check if ports 80/TCP and 443/TCP are already in use
- 	const in_port_t http_port = port_in_use(80) ? 8080 : 80;
- 	const in_port_t https_port = port_in_use(443) ? 8443 : 443;
+ 	log_info("Initialised webserver ports at %d (HTTP) and %d (HTTPS), IPv6 support is %s",
+ 		http_port, https_port, have_ipv6 ? "enabled" : "disabled");
+ 
 @@ -1604,6 +1859,8 @@ bool getLogFilePath(void)
  	// Initialize memory
  	memset(&config, 0, sizeof(config));
@@ -1592,7 +1595,7 @@
 +	config.files.log.ftl.uci.stype = "pihole";
  
 +	// reread logfile location from uci
-+	if(uci_get_value(config.uci_ctx, &config.files.log.ftl, false))
++	if(uci_get_value(config.uci_ctx, &config.files.log.ftl))
 +		config.files.log.ftl.v.s = config.files.log.ftl.d.s;
 +
  	// Check if the config file contains a different path
@@ -1623,9 +1626,9 @@
  	// Create checksum of config file
 -	uint8_t checksum[SHA256_DIGEST_SIZE];
 -	if(!sha256sum(GLOBALTOMLPATH, checksum))
-+	uint8_t checksum_toml[SHA256_DIGEST_SIZE];
-+	uint8_t checksum_dhcp[SHA256_DIGEST_SIZE];
-+	uint8_t checksum_pihole[SHA256_DIGEST_SIZE];
++	uint8_t checksum_toml[SHA256_DIGEST_SIZE] = { 0 };
++	uint8_t checksum_dhcp[SHA256_DIGEST_SIZE] = { 0 };
++	uint8_t checksum_pihole[SHA256_DIGEST_SIZE] = { 0 };
 +	if(!sha256sum(GLOBALTOMLPATH, checksum_toml) ||
 +	   !sha256sum(UCI_CONFIG_PIHOLE, checksum_pihole) ||
 +	   !sha256sum(UCI_CONFIG_DHCP, checksum_pihole))
@@ -1690,7 +1693,7 @@
 +	struct {
 +		const char *opt;      // UCI option
 +		const char *stype;    // UCI section type
-+		const char *sname;    // UCI section name
++		char *sname;          // UCI section name
 +	} uci;
  };
  
@@ -1760,48 +1763,48 @@
 +	const char* defaultValue;
 +};
 +
-+// dnsmasq options that are not covered by struct config
-+// for now to differentiate between bool or not is by defaultValue
-+// maybe using second dnsmasqOpts to distinguish them
++// dnsmasq options that are not covered by struct config, for now to differentiate
++// between bool or not is by defaultValue, or use second dnsmasqOpts?
 +static const struct dnsmasqOpt dnsmasqOpts[] = {
-+    {"ubus", "enable-ubus", "1"},
-+    {"nonwildcard", "bind-dynamic", "1"},
-+    {"tftp_no_fail", "tftp-no-fail", "0"},
-+    {"noresolv", "no-resolv", "0"},
-+    {"no_id", "no-ident", "0"},
-+    {"filterwin2k", "filterwin2k", "0"},
-+    {"nohosts", "no-hosts", "0"},
-+    {"strictorder", "strict-order", "0"},
-+    {"readethers", "read-ethers", "0"},
-+    {"dbus", "enable-dbus", "0"},
-+    {"allservers", "all-servers", "0"},
-+    {"noping", "no-ping", "0"},
-+    {"filter_a", "filter-A", "0"},
-+    {"filter_aaaa", "filter-AAAA", "0"},
-+    {"scriptarp", "script-arp", "0"},
-+    {"enable_tftp", "enable-tftp", "0"},
-+    {"proxydnssec", "proxy-dnssec", "0"},
-+    {"rebind_protection", "stop-dns-rebind", "0"},
-+    {"rebind_localhost", "rebind-localhost-ok", "0"},
-+    {"quietdhcp", "quiet-dhcp", "0"},
-+    {"fqdn", "dhcp-fqdn", "0"},
-+    {"sequential_ip", "dhcp-sequential-ip", "0"},
-+    {"tftp_root", "tftp-root", NULL},
-+    {"tftp_unique_root", "ftp-unique-root", NULL},
-+    {"ednspacket_max", "edns-packet-max", NULL},
-+    {"dnsforwardmax", "dns-forward-max", NULL},
-+    {"queryport", "query-port", NULL},
-+    {"minport", "min-port", NULL},
-+    {"maxport", "max-port", NULL},
-+    {"local_ttl", "local-ttl", NULL},
-+    {"max_ttl", "max-ttl", NULL},
-+    {"min_cache_ttl", "min-cache-ttl", NULL},
-+    {"max_cache_ttl", "max-cache-ttl", NULL},
-+    {"serversfile", "servers-file", NULL},
-+    {"rebind_domain", "rebind-domain-ok", NULL},
-+    {"notinterface", "except-interface", NULL},
-+    {"addnhosts", "addn-hosts", NULL},
-+    {"bogusnxdomain", "bogus-nxdomain", NULL}
++	{ "ubus", "enable-ubus", "1" },
++	{ "nonwildcard", "bind-dynamic", "1" },
++	{ "tftp_no_fail", "tftp-no-fail", "0" },
++	{ "noresolv", "no-resolv", "0" },
++	{ "nonegcache", "no-negcache", "0" },
++	{ "no_id", "no-ident", "0" },
++	{ "filterwin2k", "filterwin2k", "0" },
++	{ "nohosts", "no-hosts", "0" },
++	{ "strictorder", "strict-order", "0" },
++	{ "readethers", "read-ethers", "0" },
++	{ "dbus", "enable-dbus", "0" },
++	{ "allservers", "all-servers", "0" },
++	{ "noping", "no-ping", "0" },
++	{ "filter_a", "filter-A", "0" },
++	{ "filter_aaaa", "filter-AAAA", "0" },
++	{ "scriptarp", "script-arp", "0" },
++	{ "enable_tftp", "enable-tftp", "0" },
++	{ "proxydnssec", "proxy-dnssec", "0" },
++	{ "rebind_protection", "stop-dns-rebind", "0" },
++	{ "rebind_localhost", "rebind-localhost-ok", "0" },
++	{ "quietdhcp", "quiet-dhcp", "0" },
++	{ "fqdn", "dhcp-fqdn", "0" },
++	{ "sequential_ip", "dhcp-sequential-ip", "0" },
++	{ "tftp_root", "tftp-root", NULL },
++	{ "tftp_unique_root", "ftp-unique-root", NULL} ,
++	{ "ednspacket_max", "edns-packet-max", NULL },
++	{ "dnsforwardmax", "dns-forward-max", NULL },
++	{ "queryport", "query-port", NULL },
++	{ "minport", "min-port", NULL },
++	{ "maxport", "max-port", NULL },
++	{ "local_ttl", "local-ttl", NULL },
++	{ "max_ttl", "max-ttl", NULL },
++	{ "min_cache_ttl", "min-cache-ttl", NULL },
++	{ "max_cache_ttl", "max-cache-ttl", NULL },
++	{ "serversfile", "servers-file", NULL },
++	{ "rebind_domain", "rebind-domain-ok", NULL },
++	{ "notinterface", "except-interface", NULL },
++	{ "addnhosts", "addn-hosts", NULL },
++	{ "bogusnxdomain", "bogus-nxdomain", NULL }
 +};
 +
 +#define NUM_DNSMQ_OPT (sizeof(dnsmasqOpts) / sizeof(dnsmasqOpts[0]))
@@ -1901,25 +1904,21 @@
 +			}
 +		}
 +
-+		if(iface == NULL)
++		if(skipped_dhcp || iface == NULL)
 +			continue;
 +
-+		const char *ipaddr = NULL;
-+		const char *netmask = NULL;
 +		network_section = uci_lookup_section(ctx, network_pkg, iface);
++		if(!network_section)
++			continue;
 +
-+		if(network_section) {
-+			ipaddr = uci_lookup_option_string(ctx, network_section, "ipaddr");
-+			netmask = uci_lookup_option_string(ctx, network_section, "netmask");
-+		}
++		const char *ipaddr = uci_lookup_option_string(ctx, network_section, "ipaddr");
++		const char *netmask = uci_lookup_option_string(ctx, network_section, "netmask");
 +
-+		if(skipped_dhcp || !ipaddr || !netmask)
++		if(!ipaddr || !netmask)
 +			continue;
 +
 +		struct in_addr addr4, mask, net;
 +		memset(&addr4, 0, sizeof(addr4));
-+		memset(&net, 0, sizeof(net));
-+		memset(&mask, 0, sizeof(mask));
 +		if(!inet_pton(AF_INET, ipaddr, &addr4))
 +			continue;
 +
@@ -1928,10 +1927,13 @@
 +		     ip_start[INET_ADDRSTRLEN] = { 0 },
 +		     ip_end[INET_ADDRSTRLEN] = { 0 };
 +
++		memset(&mask, 0, sizeof(mask));
 +		if(prfx == 32)
 +			mask.s_addr = htonl(~0);
 +		else
 +			mask.s_addr = htonl(~((1 << (32 - prfx)) - 1));
++
++		memset(&net, 0, sizeof(net));
 +		net.s_addr = addr4.s_addr & mask.s_addr;
 +
 +		addr4.s_addr = htonl(ntohl(net.s_addr));
@@ -1944,10 +1946,13 @@
 +		inet_ntop(AF_INET, &addr4.s_addr, ip_end, INET_ADDRSTRLEN);
 +
 +		// dhcp-range=set:lan,192.168.0.10,192.168.0.19,255.255.255.0,24h
-+		fprintf(fp, "dhcp-range=set:%s,%s,%s,%s,%s\n", iface, ip_start,
-+				ip_end, netmask, leasetime);
++		fprintf(fp, "dhcp-range=set:%s,%s,%s,%s", iface, ip_start,
++				ip_end, netmask);
 +
-+		fprintf(fp, "dhcp-option=%s,option:router,%s\n", iface, ipaddr);
++		if(leasetime)
++			fprintf(fp, ",%s", leasetime);
++
++		fprintf(fp, "\ndhcp-option=%s,option:router,%s\n", iface, ipaddr);
 +
 +		// domain=lan,192.168.0.0/24,local
 +		// domain=lan,192.168.0.1,192,168.0.50,local
@@ -2001,8 +2006,6 @@
 +		}
 +	}
 +
-+	e = NULL;
-+	s = NULL;
 +	uci_foreach_element(&network_pkg->sections, e) {
 +		s = uci_to_section(e);
 +		if (strcmp(s->type, "interface") != 0)

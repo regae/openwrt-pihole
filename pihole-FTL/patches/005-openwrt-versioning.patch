@@ -106,10 +106,10 @@
 +	JSON_REF_STR_IN_OBJECT(ftl_local, "hash", FTL_HASH);
 +	JSON_REF_STR_IN_OBJECT(web_local, "branch", FTL_BRANCH);
 +	JSON_REF_STR_IN_OBJECT(web_local, "version", WEB_VERSION);
-+	JSON_REF_STR_IN_OBJECT(web_local, "hash", FTL_HASH);
++	JSON_REF_STR_IN_OBJECT(web_local, "hash", WEB_HASH);
 +	JSON_REF_STR_IN_OBJECT(core_local, "branch", FTL_BRANCH);
 +	JSON_REF_STR_IN_OBJECT(core_local, "version", CORE_VERSION);
-+	JSON_REF_STR_IN_OBJECT(core_local, "hash", FTL_HASH);
++	JSON_REF_STR_IN_OBJECT(core_local, "hash", CORE_HASH);
  
  	cJSON *version = JSON_NEW_OBJECT();
  
@@ -184,7 +184,7 @@
  		   strcmp(argv[i], "tag") == 0)
  		{
 -			printf("%s\n",GIT_TAG);
-+			printf("%s\n",FTL_VERSION);
++			printf("%s\n",FTL_TAG);
  			exit(EXIT_SUCCESS);
  		}
  
@@ -199,7 +199,7 @@
  		if(strcmp(argv[i], "--hash") == 0)
  		{
 -			printf("%s\n",GIT_HASH);
-+			printf("%s\n",FTL_HASH);
++			printf("%s-%s\n", FTL_TAG, FTL_HASH);
  			exit(EXIT_SUCCESS);
  		}
  
@@ -212,6 +212,15 @@
  			printf("Typically, pihole-FTL runs as a system service and is controlled\n");
  			printf("by %ssudo service pihole-FTL %s<action>%s where %s<action>%s is one out\n", green, purple, normal, purple, normal);
  			printf("of %sstart%s, %sstop%s, or %srestart%s.\n\n", green, normal, green, normal, green, normal);
+--- a/src/config/CMakeLists.txt
++++ b/src/config/CMakeLists.txt
+@@ -38,3 +38,6 @@
+ target_compile_options(config PRIVATE ${EXTRAWARN})
+ target_include_directories(config PRIVATE ${PROJECT_SOURCE_DIR}/src)
+ add_subdirectory(tomlc99)
++if(NOT EXISTS "${PROJECT_SOURCE_DIR}/src/version.h")
++    add_dependencies(config gen_version)
++endif()
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
 @@ -12,6 +12,7 @@
@@ -255,11 +264,13 @@
  	char timestring[TIMESTR_SIZE] = "";
 --- a/src/dnsmasq/CMakeLists.txt
 +++ b/src/dnsmasq/CMakeLists.txt
-@@ -67,3 +67,4 @@ target_compile_definitions(dnsmasq PRIVA
+@@ -67,3 +67,6 @@ target_compile_definitions(dnsmasq PRIVA
  target_compile_definitions(dnsmasq PRIVATE CONFFILE=\"/etc/pihole/dnsmasq.conf\")
  target_compile_options(dnsmasq PRIVATE -Wno-maybe-uninitialized)
  target_include_directories(dnsmasq PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
-+add_dependencies(dnsmasq gen_version)
++if(NOT EXISTS "${PROJECT_SOURCE_DIR}/src/version.h")
++    add_dependencies(dnsmasq gen_version)
++endif()
 --- a/src/dnsmasq/option.c
 +++ b/src/dnsmasq/option.c
 @@ -20,7 +20,7 @@
@@ -282,75 +293,175 @@
        add_txt("local.api.ftl", NULL, TXT_API_LOCAL);
 --- a/src/gen_version.cmake
 +++ b/src/gen_version.cmake
-@@ -8,7 +8,10 @@
+@@ -8,68 +8,101 @@
  # This file is copyright under the latest version of the EUPL.
  # Please see LICENSE file for your rights under this license.
  
 -if(DEFINED ENV{GIT_BRANCH})
+-    set(GIT_BRANCH "$ENV{GIT_BRANCH}")
 +if(DEFINED ENV{FTL_BRANCH})
 +    set(FTL_BRANCH "$ENV{FTL_BRANCH}")
-+    set(GIT_BRANCH "$ENV{FTL_BRANCH}")
-+elseif(DEFINED ENV{GIT_BRANCH})
-     set(GIT_BRANCH "$ENV{GIT_BRANCH}")
  else()
      execute_process(
-@@ -20,7 +23,10 @@ else()
-     )
- endif()
- 
--if(DEFINED ENV{GIT_HASH})
+-            COMMAND           bash -c "git branch | sed -n 's/^\\* //p'"
++    		COMMAND           bash -c "git --git-dir=$TOPDIR/.git branch | awk '/^\\*/ {branch=\$2} /^\\*/ && branch == \"master\" && branch !~ /openwrt/ {print \"openwrt-\" branch} /^\\*/ && branch != \"master\" {print branch} /^\\*/ && branch ~ /openwrt/ {print branch}'"
++    		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
++    		OUTPUT_VARIABLE   FTL_BRANCH
++    		OUTPUT_STRIP_TRAILING_WHITESPACE
++    )
++endif()
++
 +if(DEFINED ENV{FTL_HASH})
 +    set(FTL_HASH "$ENV{FTL_HASH}")
-+    set(GIT_HASH "$ENV{FTL_HASH}")
-+elseif(DEFINED ENV{GIT_HASH})
-     set(GIT_HASH "$ENV{GIT_HASH}")
- else()
-     execute_process(
-@@ -32,7 +38,22 @@ else()
-     )
- endif()
- 
--if(DEFINED ENV{GIT_VERSION})
++else()
++	execute_process(
++	        COMMAND           bash -c "git --git-dir=$TOPDIR/.git log -n 1 --format=\"%h\""
++	        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
++	        OUTPUT_VARIABLE   FTL_HASH
++	        OUTPUT_STRIP_TRAILING_WHITESPACE
++	)
++endif()
++
 +if(DEFINED ENV{CORE_VERSION})
 +    set(CORE_VERSION "$ENV{CORE_VERSION}")
 +else()
-+    set(CORE_VERSION "Unknown")
++    execute_process(
++            COMMAND bash -c "grep '^PKG_VERSION' $CURDIR/../pihole/Makefile | cut -d '=' -f 2 | cut -d '-' -f 1"
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_BRANCH
+-            ERROR_QUIET
++            OUTPUT_VARIABLE CORE_VER
++            OUTPUT_STRIP_TRAILING_WHITESPACE
++    )
++
++    execute_process(
++            COMMAND bash -c "grep '^PKG_SOURCE_VERSION' $CURDIR/../pihole/Makefile | cut -d '=' -f 2 | cut -c 1-8"
++            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
++            OUTPUT_VARIABLE CORE_SOURCE_VERSION
++            OUTPUT_STRIP_TRAILING_WHITESPACE
++    )
++
++    set(CORE_VERSION "${CORE_VER}-${CORE_SOURCE_VERSION}")
 +endif()
 +
 +if(DEFINED ENV{WEB_VERSION})
 +    set(WEB_VERSION "$ENV{WEB_VERSION}")
 +else()
-+    set(WEB_VERSION "Unknown")
++    execute_process(
++            COMMAND bash -c "grep '^PKG_VERSION' $CURDIR/../pihole-web/Makefile | cut -d '=' -f 2 | cut -d '-' -f 1"
++            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
++            OUTPUT_VARIABLE WEB_VERSION
++            OUTPUT_STRIP_TRAILING_WHITESPACE
++    )
++
++    execute_process(
++            COMMAND bash -c "grep '^PKG_SOURCE_VERSION' $CURDIR/../pihole-web/Makefile | cut -d '=' -f 2 | cut -c 1-8"
++            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
++            OUTPUT_VARIABLE WEB_SOURCE_VERSION
++            OUTPUT_STRIP_TRAILING_WHITESPACE
++    )
++
++    set(WEB_VERSION "${WEB_VERSION}-${WEB_SOURCE_VERSION}")
 +endif()
 +
 +if(DEFINED ENV{FTL_VERSION})
 +    set(FTL_VERSION "$ENV{FTL_VERSION}")
-+    set(GIT_VERSION "$ENV{FTL_VERSION}")
-+elseif(DEFINED ENV{GIT_VERSION})
-     set(GIT_VERSION "$ENV{GIT_VERSION}")
- else()
-     execute_process(
-@@ -44,7 +65,10 @@ else()
++else()
++    set(FTL_VERSION "Unknown")
++endif()
++
++if(DEFINED ENV{FTL_DATE})
++    set(FTL_DATE "$ENV{FTL_DATE}")
++else()
++    execute_process(
++            COMMAND           bash -c "git --git-dir=$TOPDIR/.git --no-pager show --date=short --format=\"%ai\" --name-only | head -n 1"
++            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
++            OUTPUT_VARIABLE   FTL_DATE
+             OUTPUT_STRIP_TRAILING_WHITESPACE
      )
  endif()
  
+-if(DEFINED ENV{GIT_HASH})
+-    set(GIT_HASH "$ENV{GIT_HASH}")
++if(DEFINED ENV{FTL_TAG})
++    set(FTL_TAG "$ENV{FTL_TAG}")
+ else()
+     execute_process(
+-            COMMAND           git --no-pager describe --always --abbrev=8 --dirty
++            COMMAND           bash -c "git --git-dir=$TOPDIR/.git rev-list ee53a240ac902dc83209008a2671e7fdcf55957a..HEAD | wc -l | awk '{print \"r\"$1}'"
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_HASH
+-            ERROR_QUIET
++            OUTPUT_VARIABLE   REV
+             OUTPUT_STRIP_TRAILING_WHITESPACE
+     )
+-endif()
+-
+-if(DEFINED ENV{GIT_VERSION})
+-    set(GIT_VERSION "$ENV{GIT_VERSION}")
+-else()
+-    execute_process(
+-            COMMAND           git --no-pager describe --tags --always --abbrev=8 --dirty
+-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_VERSION
+-            ERROR_QUIET
+-            OUTPUT_STRIP_TRAILING_WHITESPACE
+-    )
+-endif()
+-
 -if(DEFINED ENV{GIT_DATE})
-+if(DEFINED ENV{FTL_DATE})
-+    set(FTL_DATE "$ENV{FTL_DATE}")
-+    set(GIT_DATE "$ENV{FTL_DATE}")
-+elseif(DEFINED ENV{GIT_DATE})
-     set(GIT_DATE "$ENV{GIT_DATE}")
- else()
-     execute_process(
-@@ -71,6 +95,8 @@ endif()
+-    set(GIT_DATE "$ENV{GIT_DATE}")
+-else()
+-    execute_process(
+-            COMMAND           bash -c "git --no-pager show --date=short --format=\"%ai\" --name-only | head -n 1"
+-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_DATE
+-            ERROR_QUIET
+-            OUTPUT_STRIP_TRAILING_WHITESPACE
+-    )
+-endif()
+-
+-if(DEFINED ENV{GIT_TAG})
+-    set(GIT_TAG "$ENV{GIT_TAG}")
+-else()
+-    execute_process(
+-            COMMAND           git describe --tags --abbrev=0
+-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-            OUTPUT_VARIABLE   GIT_TAG
+-            ERROR_QUIET
+-            OUTPUT_STRIP_TRAILING_WHITESPACE
+-    )
++    set(FTL_TAG "${REV}-${FTL_HASH}")
+ endif()
+ 
  # If CI_ARCH is unset (local compilation), ask uname -m and add locally compiled comment
- if(DEFINED ENV{CI_ARCH})
-     set(FTL_ARCH "$ENV{CI_ARCH} (compiled on CI)")
-+elseif(DEFINED ENV{FTL_ARCH})
+-if(DEFINED ENV{CI_ARCH})
++if(DEFINED ENV{FTL_ARCH})
 +    set(FTL_ARCH "$ENV{FTL_ARCH}")
++elseif(DEFINED ENV{CI_ARCH})
+     set(FTL_ARCH "$ENV{CI_ARCH} (compiled on CI)")
  else()
      execute_process(
-             COMMAND           uname -m
+@@ -90,12 +123,14 @@
+ )
+ 
+ message("Building Pi-hole FTL daemon")
+-message("   - Branch: ${GIT_BRANCH}")
++message("   - Branch: ${FTL_BRANCH}")
+ message("   - Architecture: ${FTL_ARCH}")
+-message("   - Version: ${GIT_VERSION}")
+-message("   - Tag: ${GIT_TAG}")
+-message("   - Hash: ${GIT_HASH}")
+-message("   - Commit date: ${GIT_DATE}")
++message("   - FTL Version: ${FTL_VERSION}")
++message("   - Core Version: ${CORE_VERSION}")
++message("   - Web Version: ${WEB_VERSION}")
++message("   - Tag: ${FTL_TAG}")
++message("   - Hash: ${FTL_HASH}")
++message("   - Commit date: ${FTL_DATE}")
+ 
+ # configure the version file, but output to a temporary location
+ configure_file(
 --- a/src/log.c
 +++ b/src/log.c
 @@ -487,10 +487,10 @@ void log_counter_info(void)
@@ -428,11 +539,13 @@
  void get_timestr(char timestring[TIMESTR_SIZE], const time_t timein, const bool millis, const bool uri_compatible);
 --- a/src/lua/CMakeLists.txt
 +++ b/src/lua/CMakeLists.txt
-@@ -86,3 +86,4 @@ else()
+@@ -86,3 +86,6 @@ else()
  endif()
  
  target_include_directories(lua PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
-+add_dependencies(lua gen_version)
++if(NOT EXISTS "${PROJECT_SOURCE_DIR}/src/version.h")
++    add_dependencies(lua gen_version)
++endif()
 --- a/src/lua/ftl_lua.c
 +++ b/src/lua/ftl_lua.c
 @@ -12,8 +12,8 @@
@@ -472,7 +585,7 @@
  
 --- a/src/version.h.in
 +++ b/src/version.h.in
-@@ -1,11 +1,12 @@
+@@ -1,11 +1,15 @@
  #ifndef VERSION_H
  #define VERSION_H
  
@@ -481,8 +594,11 @@
 -#define GIT_BRANCH "@GIT_BRANCH@"
 -#define GIT_TAG "@GIT_TAG@"
 -#define GIT_HASH "@GIT_HASH@"
++#define FTL_TAG "@FTL_TAG@"
 +#define WEB_VERSION "@WEB_VERSION@"
++#define WEB_HASH "@WEB_SOURCE_VERSION@"
 +#define CORE_VERSION "@CORE_VERSION@"
++#define CORE_HASH "@CORE_SOURCE_VERSION@"
 +#define FTL_VERSION "@FTL_VERSION@"
 +#define FTL_DATE "@FTL_DATE@"
 +#define FTL_BRANCH "@FTL_BRANCH@"
