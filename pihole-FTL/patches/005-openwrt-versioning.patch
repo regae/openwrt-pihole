@@ -177,8 +177,8 @@
 +			printf("Branch:          " FTL_BRANCH "\n");
 +			printf("Commit:          " FTL_HASH " (" FTL_DATE ")\n");
  			printf("Architecture:    " FTL_ARCH "\n");
- 			printf("Compiler:        " FTL_CC "\n\n");
- 
+ 			printf("Compiler:        " FTL_CC "\n");
+ #if defined(__GLIBC__) && defined(__GLIBC_MINOR__)
 @@ -837,20 +837,20 @@ void parse_args(int argc, char* argv[])
  		if(strcmp(argv[i], "-t") == 0 ||
  		   strcmp(argv[i], "tag") == 0)
@@ -261,12 +261,12 @@
 +	fprintf(fp, "# Pi-hole configuration file (%s)\n", FTL_VERSION);
  	fputs("# Encoding: UTF-8\n", fp);
  	fputs("# This file is managed by pihole-FTL\n", fp);
- 	char timestring[TIMESTR_SIZE] = "";
+ 	char timestring[TIMESTR_SIZE];
 --- a/src/dnsmasq/CMakeLists.txt
 +++ b/src/dnsmasq/CMakeLists.txt
-@@ -67,3 +67,6 @@ target_compile_definitions(dnsmasq PRIVA
- target_compile_definitions(dnsmasq PRIVATE CONFFILE=\"/etc/pihole/dnsmasq.conf\")
- target_compile_options(dnsmasq PRIVATE -Wno-maybe-uninitialized)
+@@ -71,3 +71,6 @@ target_compile_definitions(dnsmasq PRIVA
+     target_compile_options(dnsmasq PRIVATE -Wno-gnu-variable-sized-type-not-at-end -Wno-sign-compare -Wno-deprecated-non-prototype)
+ endif()
  target_include_directories(dnsmasq PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
 +if(NOT EXISTS "${PROJECT_SOURCE_DIR}/src/version.h")
 +    add_dependencies(dnsmasq gen_version)
@@ -277,8 +277,8 @@
  #include <setjmp.h>
  
  /* Pi-hole modification */
--#include "../log.h"
-+#include "../version.h"
+-#include "log.h"
++#include "version.h"
  /************************/
  
  static volatile int mem_recover = 0;
@@ -293,7 +293,7 @@
        add_txt("local.api.ftl", NULL, TXT_API_LOCAL);
 --- a/src/gen_version.cmake
 +++ b/src/gen_version.cmake
-@@ -8,68 +8,101 @@
+@@ -8,68 +8,107 @@
  # This file is copyright under the latest version of the EUPL.
  # Please see LICENSE file for your rights under this license.
  
@@ -400,13 +400,15 @@
 -if(DEFINED ENV{GIT_VERSION})
 -    set(GIT_VERSION "$ENV{GIT_VERSION}")
 -else()
--    execute_process(
+     execute_process(
 -            COMMAND           git --no-pager describe --tags --always --abbrev=8 --dirty
--            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
++            COMMAND           bash -c "git --git-dir=$TOPDIR/.git log -n 1 --format=\"%h\""
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 -            OUTPUT_VARIABLE   GIT_VERSION
 -            ERROR_QUIET
--            OUTPUT_STRIP_TRAILING_WHITESPACE
--    )
++            OUTPUT_VARIABLE   REV_COMM
+             OUTPUT_STRIP_TRAILING_WHITESPACE
+     )
 -endif()
 -
 -if(DEFINED ENV{GIT_DATE})
@@ -431,7 +433,7 @@
 -            ERROR_QUIET
 -            OUTPUT_STRIP_TRAILING_WHITESPACE
 -    )
-+    set(FTL_TAG "${REV}-${FTL_HASH}")
++    set(FTL_TAG "${REV}-${REV_COMM}")
  endif()
  
  # If CI_ARCH is unset (local compilation), ask uname -m and add locally compiled comment
@@ -442,7 +444,7 @@
      set(FTL_ARCH "$ENV{CI_ARCH} (compiled on CI)")
  else()
      execute_process(
-@@ -90,12 +123,14 @@
+@@ -90,12 +129,14 @@
  )
  
  message("Building Pi-hole FTL daemon")
@@ -539,24 +541,24 @@
  void get_timestr(char timestring[TIMESTR_SIZE], const time_t timein, const bool millis, const bool uri_compatible);
 --- a/src/lua/CMakeLists.txt
 +++ b/src/lua/CMakeLists.txt
-@@ -86,3 +86,6 @@ else()
- endif()
+@@ -88,3 +88,6 @@ else()
  
  target_include_directories(lua PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
+ target_include_directories(ftl_lua PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/src/lua)
 +if(NOT EXISTS "${PROJECT_SOURCE_DIR}/src/version.h")
-+    add_dependencies(lua gen_version)
++    add_dependencies(ftl_lua gen_version)
 +endif()
 --- a/src/lua/ftl_lua.c
 +++ b/src/lua/ftl_lua.c
 @@ -12,8 +12,8 @@
- #include "ftl_lua.h"
+ #include "FTL.h"
  // struct luaL_Reg
  #include "lauxlib.h"
 -// get_FTL_version()
- #include "../log.h"
-+#include "../version.h"
+ #include "log.h"
++#include "version.h"
  // config struct
- #include "../config/config.h"
+ #include "config/config.h"
  // file_exists
 @@ -29,7 +29,7 @@
  int run_lua_interpreter(const int argc, char **argv, bool dnsmasq_debug)

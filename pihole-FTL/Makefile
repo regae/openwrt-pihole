@@ -12,8 +12,8 @@ PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/pi-hole/FTL
-PKG_SOURCE_VERSION:=1b71a440f5196cc8ba8c003f953f8474f0533364
-PKG_MIRROR_HASH:=68b09c636ff3888d8829c7efdf149c2eb2ed3e91eb2410b03b38efb860d333f1
+PKG_SOURCE_VERSION:=9491cdfe2d242b33fb4e74c86a3ca7904549d158
+PKG_MIRROR_HASH:=ff1bcbc55988dd7b442d063261d6e4060e166b2dcfb65f463dfada60f4885b50
 SHORT_VER:=$(call version_abbrev,$(PKG_SOURCE_VERSION))
 PKG_VERSION:=6.0-$(SHORT_VER)
 
@@ -40,8 +40,9 @@ PKG_SSP:=0
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
+override CONFIG_AUTOREMOVE=
 
-CMAKE_OPTIONS += -DSHARED_TRE=ON -DFORCE_STATIC_LIB=OFF -DCMAKE_BUILD_TYPE:String="RELWITHDEBINFO" \
+CMAKE_OPTIONS += \
 	$(if $(CONFIG_pihole_FTL_build_doc),-DBUILD_DOCS=ON,-DBUILD_DOCS=OFF) \
 	$(if $(CONFIG_pihole_FTL_tls_mbedtls),-DTLS_MBEDTLS=ON,-DTLS_MBEDTLS=OFF) \
 	$(if $(CONFIG_pihole_FTL_tls_openssl),-DTLS_OPENSSL=ON,-DTLS_OPENSSL=OFF) \
@@ -61,9 +62,6 @@ export CURDIR:=$(CURDIR)
 export FTL_HASH=$(SHORT_VER)
 export FTL_VERSION=$(PKG_VERSION)
 export FTL_ARCH=$(ARCH)
-ifdef REVISION
-export FTL_HASH=$(REVISION)
-endif
 
 # KERNEL_EXT4_FS_SECURITY is needed if using linux capabilities (setcap/getcap)
 define Package/pihole-FTL
@@ -72,22 +70,15 @@ define Package/pihole-FTL
   TITLE:=The Pi-hole FTL engine
   URL:=https://pi-hole.net/
   DEPENDS:=pihole +uci +libuci +libubus +libnettle \
-	+libtre +libidn2 \
+	+libidn2 \
 	+pihole_FTL_ipset:kmod-ipt-ipset \
 	+pihole_FTL_conntrack:libnetfilter-conntrack \
 	+pihole_FTL_readline:libreadline \
 	+pihole_FTL_nftset:nftables-json \
-<<<<<<< HEAD
 	+pihole_FTL_shared_cjson:+cJSON \
 	+pihole_FTL_shared_sqlite:+libsqlite3 +sqlite3-cli \
 	+pihole_FTL_tls_mbedtls:libmbedtls \
 	+pihole_FTL_tls_openssl:libopenssl
-=======
-	+pihole_FTL_shared_lua:+liblua5.3 +lua5.3 +luac5.3 \
-	+pihole_FTL_shared_sqlite:+libsqlite3 +sqlite3-cli \
-	+pihole_FTL_idn2:libidn2 \
-	+!pihole_FTL_idn2:libidn
->>>>>>> e178876cd363c51946e0b821aba2be2344439299
   CONFLICTS:=dnsmasq
   USERID:=pihole=454:pihole=454
 endef

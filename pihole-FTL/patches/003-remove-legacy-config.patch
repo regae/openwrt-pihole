@@ -125,7 +125,7 @@
  // Set debug flags from config struct to global debug_flags array
  // This is called whenever the config is reloaded and debug flags may have
  // changed
-@@ -1136,14 +1148,6 @@ void initConfig(struct config *conf)
+@@ -1136,13 +1148,6 @@ void initConfig(struct config *conf)
  	conf->files.macvendor.d.s = (char*)"/etc/pihole/macvendor.db";
  	conf->files.macvendor.c = validate_filepath;
  
@@ -133,7 +133,6 @@
 -	conf->files.setupVars.h = "The old config file of Pi-hole used before v6.0";
 -	conf->files.setupVars.a = cJSON_CreateStringReference("<any Pi-hole setupVars file>");
 -	conf->files.setupVars.t = CONF_STRING;
--	conf->files.setupVars.f = FLAG_ADVANCED_SETTING;
 -	conf->files.setupVars.d.s = (char*)"/etc/pihole/setupVars.conf";
 -	conf->files.setupVars.c = validate_filepath;
 -
@@ -246,11 +245,11 @@
  }
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -95,7 +95,6 @@ enum conf_type {
- #define FLAG_INVALIDATE_SESSIONS   (1 << 3)
- #define FLAG_WRITE_ONLY            (1 << 4)
- #define FLAG_ENV_VAR               (1 << 5)
--#define FLAG_CONF_IMPORTED         (1 << 6)
+@@ -94,7 +94,6 @@ enum conf_type {
+ #define FLAG_INVALIDATE_SESSIONS   (1 << 2)
+ #define FLAG_WRITE_ONLY            (1 << 3)
+ #define FLAG_ENV_VAR               (1 << 4)
+-#define FLAG_CONF_IMPORTED         (1 << 5)
  
  struct conf_item {
  	const char *k;        // item Key
@@ -273,18 +272,14 @@
  // run_dnsmasq_main()
  #include "args.h"
  // optind
-@@ -753,195 +751,6 @@ bool __attribute__((const)) write_dnsmasq_config(struc
- 			return false;
- 		}
- 	}
--	return true;
--}
--
+@@ -753,183 +751,6 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+ 	return true;
+ }
+ 
 -bool read_legacy_dhcp_static_config(void)
 -{
 -	// Check if file exists, if not, there is nothing to do
 -	const char *path = DNSMASQ_STATIC_LEASES;
--	const char *target = DNSMASQ_STATIC_LEASES".bck";
 -	if(!file_exists(path))
 -		return true;
 -
@@ -334,11 +329,6 @@
 -		return false;
 -	}
 -
--	// Move file to backup location
--	log_info("Moving %s to %s", path, target);
--	if(rename(path, target) != 0)
--		log_warn("Unable to move %s to %s: %s", path, target, strerror(errno));
--
 -	return true;
 -}
 -
@@ -347,7 +337,6 @@
 -{
 -	// Check if file exists, if not, there is nothing to do
 -	const char *path = DNSMASQ_CNAMES;
--	const char *target = DNSMASQ_CNAMES".bck";
 -	if(!file_exists(path))
 -		return true;
 -
@@ -396,11 +385,6 @@
 -		log_err("Cannot close %s: %s", path, strerror(errno));
 -		return false;
 -	}
--
--	// Move file to backup location
--	log_info("Moving %s to %s", path, target);
--	if(rename(path, target) != 0)
--		log_warn("Unable to move %s to %s: %s", path, target, strerror(errno));
 -
 -	return true;
 -}
@@ -466,9 +450,12 @@
 -	if(rename(path, target) != 0)
 -		log_warn("Unable to move %s to %s: %s", path, target, strerror(errno));
 -
- 	return true;
- }
- 
+-	return true;
+-}
+-
+ bool write_custom_list(void)
+ {
+ 	// Ensure that the directory exists
 --- a/src/config/dnsmasq_config.h
 +++ b/src/config/dnsmasq_config.h
 @@ -17,15 +17,10 @@ char *get_dnsmasq_line(const unsigned int lineno);
@@ -482,8 +469,8 @@
  
  #define DNSMASQ_PH_CONFIG "/etc/pihole/dnsmasq.conf"
  #define DNSMASQ_TEMP_CONF "/etc/pihole/dnsmasq.conf.temp"
--#define DNSMASQ_STATIC_LEASES "/etc/pihole/04-pihole-static-dhcp.conf"
--#define DNSMASQ_CNAMES "/etc/pihole/05-pihole-custom-cname.conf"
+-#define DNSMASQ_STATIC_LEASES "/etc/pihole/migration_backup_v6/04-pihole-static-dhcp.conf"
+-#define DNSMASQ_CNAMES "/etc/pihole/migration_backup_v6/05-pihole-custom-cname.conf"
  #define DNSMASQ_HOSTSDIR "/etc/pihole/hosts"
  #define DNSMASQ_CUSTOM_LIST DNSMASQ_HOSTSDIR"/custom.list"
  #define DNSMASQ_CUSTOM_LIST_LEGACY "/etc/pihole/custom.list"

@@ -1,3 +1,49 @@
+--- a/advanced/Scripts/api.sh
++++ b/advanced/Scripts/api.sh
+@@ -22,6 +22,7 @@ TestAPIAvailability() {
+ 
+     # as we are running locally, we can get the port value from FTL directly
+     local chaos_api_list availabilityResonse
++    local port_uci ports https _urls
+ 
+     # Query the API URLs from FTL using CHAOS TXT local.api.ftl
+     # The result is a space-separated enumeration of full URLs
+@@ -30,8 +31,33 @@ TestAPIAvailability() {
+ 
+     # If the query was not successful, the variable is empty
+     if [ -z "${chaos_api_list}" ]; then
+-        echo "API not available. Please check connectivity"
+-        exit 1
++        port_uci="$(uci -q get pihole.@webserver[0].port)"
++        if [ -n "$port_uci" ]; then
++            for port in $(echo "$port_uci" | grep -o '[0-9]\+s\?'); do
++                if [ "${port%s}" != "$port" ]; then
++                    https="${https}1 "
++                    port="${port%s}"  # Remove 's' from port number
++                else
++                    https="${https}0 "
++                fi
++                ports="${ports}${port} "
++            done
++            ports="${ports% }"
++            https="${https% }"
++            for port in $ports; do
++                if [ "${https%% *}" -eq 1 ]; then
++                    _urls="${_urls}https://localhost:${port}/api/ "
++                else
++                    _urls="${_urls}http://localhost:${port}/api/ "
++                fi
++                https="${https#* }"  # Remove the first value
++            done
++            chaos_api_list="${_urls% }"
++        fi
++        if [ -z "${chaos_api_list}" ]; then
++            echo "API not available. Please check connectivity"
++            exit 1
++        fi
+     fi
+ 
+     # Iterate over space-separated list of URLs
 --- a/advanced/Scripts/database_migration/gravity-db.sh	2023-11-18 18:31:11.000000000 +0700
 +++ b/advanced/Scripts/database_migration/gravity-db.sh	2023-11-25 10:45:52.000000000 +0700
 @@ -10,7 +10,7 @@
@@ -227,7 +273,7 @@
  
 -    # Automatically show detailed information if
 -    # at least one of the components is not on master branch
--    if [ ! "${CORE_BRANCH}" = "master" ] || [ ! "${WEB_BRANCH}" = "master" ] || [ ! "${FTL_BRANCH}" = "master" ] ; then
+-    if [ ! "${CORE_BRANCH}" = "master" ] || [ ! "${WEB_BRANCH}" = "master" ] || [ ! "${FTL_BRANCH}" = "master" ]; then
 -        details=true
 -    fi
 -
@@ -279,13 +325,10 @@
  
  piholeDir="/etc/${basename}"
  
-@@ -36,14 +36,10 @@ blacklistFile="${piholeDir}/blacklist.tx
+@@ -36,11 +36,10 @@ blacklistFile="${piholeDir}/blacklist.tx
  regexFile="${piholeDir}/regex.list"
  adListFile="${piholeDir}/adlists.list"
  
--localList="${piholeDir}/local.list"
--VPNList="/etc/openvpn/ipp.txt"
--
 -piholeGitDir="/etc/.pihole"
  GRAVITYDB=$(getFTLConfigValue files.gravity)
  GRAVITY_TMPDIR=$(getFTLConfigValue files.gravity_tmp)
@@ -296,7 +339,7 @@
  
  domainsExtension="domains"
  curl_connect_timeout=10
-@@ -96,10 +92,15 @@ gravity_swap_databases() {
+@@ -92,10 +91,15 @@ gravity_swap_databases() {
    echo -ne "  ${INFO} ${str}..."
  
    # Swap databases and remove or conditionally rename old database
@@ -304,7 +347,7 @@
    # Number of available blocks on disk
    availableBlocks=$(stat -f --format "%a" "${gravityDIR}")
    # Number of blocks, used by gravity.db
-   gravityBlocks=$(stat --format "%b" ${gravityDBfile})
+   gravityBlocks=$(stat --format "%b" "${gravityDBfile}")
 +  else
 +    availableBlocks=1
 +    gravityBlocks=1
@@ -312,7 +355,7 @@
    # Only keep the old database if available disk space is at least twice the size of the existing gravity.db.
    # Better be safe than sorry...
    oldAvail=false
-@@ -115,6 +116,7 @@ gravity_swap_databases() {
+@@ -111,6 +115,7 @@ gravity_swap_databases() {
    if $oldAvail; then
      echo -e "  ${TICK} The old database remains available"
    fi
@@ -320,46 +363,48 @@
  }
  
  # Update timestamp when the gravity table was last updated successfully
-@@ -299,15 +301,13 @@ migrate_to_database() {
+@@ -160,7 +165,7 @@ database_table_from_file() {
  
+   # Get MAX(id) from domainlist when INSERTing into this table
+   if [[ "${table}" == "domainlist" ]]; then
+-    rowid="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT MAX(id) FROM domainlist;")"
++    rowid="$(sqlite3 "${gravityDBfile}" "SELECT MAX(id) FROM domainlist;")"
+     if [[ -z "$rowid" ]]; then
+       rowid=0
+     fi
+@@ -295,9 +300,12 @@ migrate_to_database() {
  # Determine if DNS resolution is available before proceeding
  gravity_CheckDNSResolutionAvailable() {
--  local lookupDomain="pi.hole"
--
--  # Determine if $localList does not exist, and ensure it is not empty
--  if [[ ! -e "${localList}" ]] || [[ -s "${localList}" ]]; then
--    lookupDomain="raw.githubusercontent.com"
--  fi
-+  local lookupDomain="raw.githubusercontent.com"
+   local lookupDomain="raw.githubusercontent.com"
 +  local cmd="$(command -v getent)"
 +  cmd="${cmd:+${cmd##*/} hosts}"
 +  command -v timeout &> /dev/null && timeoutCMD="timeout"
  
    # Determine if $lookupDomain is resolvable
--  if timeout 4 getent hosts "${lookupDomain}" &> /dev/null; then
+-  if timeout 4 getent hosts "${lookupDomain}" &>/dev/null; then
 +  if ${timeoutCMD:+$timeoutCMD 4} ${cmd:-host} "${lookupDomain}" &> /dev/null; then
      # Print confirmation of resolvability if it had previously failed
      if [[ -n "${secs:-}" ]]; then
        echo -e "${OVER}  ${TICK} DNS resolution is now available\\n"
-@@ -321,7 +321,7 @@ gravity_CheckDNSResolutionAvailable() {
+@@ -311,7 +319,7 @@ gravity_CheckDNSResolutionAvailable() {
    # If the /etc/resolv.conf contains resolvers other than 127.0.0.1 then the local dnsmasq will not be queried and pi.hole is NXDOMAIN.
    # This means that even though name resolution is working, the getent hosts check fails and the holddown timer keeps ticking and eventually fails
    # So we check the output of the last command and if it failed, attempt to use dig +short as a fallback
--  if timeout 4 dig +short "${lookupDomain}" &> /dev/null; then
+-  if timeout 4 dig +short "${lookupDomain}" &>/dev/null; then
 +  if ${timeoutCMD:+$timeoutCMD 4} dig +short "${lookupDomain}" &> /dev/null; then
      if [[ -n "${secs:-}" ]]; then
        echo -e "${OVER}  ${TICK} DNS resolution is now available\\n"
      fi
-@@ -342,7 +342,7 @@ gravity_CheckDNSResolutionAvailable() {
+@@ -332,7 +340,7 @@ gravity_CheckDNSResolutionAvailable() {
    # Ensure DNS server is given time to be resolvable
    secs="120"
    echo -ne "  ${INFO} Time until retry: ${secs}"
--  until timeout 1 getent hosts "${lookupDomain}" &> /dev/null; do
+-  until timeout 1 getent hosts "${lookupDomain}" &>/dev/null; do
 +  until ${timeoutCMD:+$timeoutCMD 1} ${cmd:-host} "${lookupDomain}" &> /dev/null; do
      [[ "${secs:-}" -eq 0 ]] && break
      echo -ne "${OVER}  ${INFO} Time until retry: ${secs}"
      : $((secs--))
-@@ -474,12 +474,19 @@ gravity_DownloadBlocklists() {
+@@ -464,12 +472,19 @@ gravity_DownloadBlocklists() {
  
  compareLists() {
    local adlistID="${1}" target="${2}"
@@ -377,83 +422,74 @@
 +  if [[ -s "${target}.${suffix}" ]]; then
 +    if ! $commands "${target}.${suffix}"; then
        # The list changed upstream, we need to update the checksum
--      sha1sum "${target}" > "${target}.sha1"
+-      sha1sum "${target}" >"${target}.sha1"
 +      $commands "${target}" > "${target}.${suffix}"
        echo "  ${INFO} List has been updated"
        database_adlist_status "${adlistID}" "1"
      else
-@@ -488,7 +495,7 @@ compareLists() {
+@@ -478,7 +493,7 @@ compareLists() {
      fi
    else
      # No checksum available, create one for comparing on the next run
--    sha1sum "${target}" > "${target}.sha1"
+-    sha1sum "${target}" >"${target}.sha1"
 +    $cmd "${target}" > "${target}.${suffix}"
      # We assume here it was changed upstream
      database_adlist_status "${adlistID}" "1"
    fi
-@@ -498,6 +505,7 @@ compareLists() {
- gravity_DownloadBlocklistFromUrl() {
-   local url="${1}" adlistID="${2}" saveLocation="${3}" target="${4}" compression="${5}" gravity_type="${6}"
+@@ -488,6 +503,7 @@ compareLists() {
+   local url="${1}" adlistID="${2}" saveLocation="${3}" target="${4}" compression="${5}" gravity_type="${6}" domain="${7}"
    local heisenbergCompensator="" listCurlBuffer str httpCode success="" ip cmd_ext
+   local file_path permissions ip_addr port blocked=false download=true
 +  local dnsserver
  
    # Create temp file to store content on disk instead of RAM
    # We don't use '--suffix' here because not all implementations of mktemp support it, e.g. on Alpine
-@@ -539,11 +547,13 @@ gravity_DownloadBlocklistFromUrl() {
-   esac
- 
-   if [[ "${blocked}" == true ]]; then
--    printf -v ip_addr "%s" "${PIHOLE_DNS_1%#*}"
--    if [[ ${PIHOLE_DNS_1} != *"#"* ]]; then
-+    dnsserver="$(uci -q get dhcp.@dnsmasq[0].server)"
-+    dnsserver="${dnsserver%% *}"
-+    printf -v ip_addr "%s" "${dnsserver%#*}"
-+    if [[ ${dnsserver} != *"#"* ]]; then
-       port=53
-     else
--      printf -v port "%s" "${PIHOLE_DNS_1#*#}"
-+      printf -v port "%s" "${dnsserver#*#}"
-     fi
-     ip=$(dig "@${ip_addr}" -p "${port}" +short "${domain}" | tail -1)
-     if [[ $(echo "${url}" | awk -F '://' '{print $1}') = "https" ]]; then
-@@ -551,7 +561,7 @@ gravity_DownloadBlocklistFromUrl() {
-     else port=80
-     fi
-     bad_list=$(pihole -q -adlist "${domain}" | head -n1 | awk -F 'Match found in ' '{print $2}')
--    echo -e "${OVER}  ${CROSS} ${str} ${domain} is blocked by ${bad_list%:}. Using DNS on ${PIHOLE_DNS_1} to download ${url}";
-+    echo -e "${OVER}  ${CROSS} ${str} ${domain} is blocked by ${bad_list%:}. Using DNS on ${dnsserver} to download ${url}";
-     echo -ne "  ${INFO} ${str} Pending..."
-     cmd_ext="--resolve $domain:$port:$ip"
+@@ -561,7 +577,10 @@ gravity_DownloadBlocklistFromUrl() {
+       # Get first defined upstream server
+       local upstream
+       upstream="$(getFTLConfigValue dns.upstreams)"
+-
++      if [[ -z "${upstream}" ]]; then
++          upstream="$(uci -q get dhcp.@dnsmasq[0].server)"
++          upstream="${dnsserver%% *}"
++      fi
+       # Isolate first upstream server from a string like
+       # [ 1.2.3.4#1234, 5.6.7.8#5678, ... ]
+       upstream="${upstream%%,*}"
+@@ -708,12 +727,12 @@ gravity_Table_Count() {
+   local table="${1}"
+   local str="${2}"
+   local num
+-  num="$(pihole-FTL sqlite3 -ni "${gravityTEMPfile}" "SELECT COUNT(*) FROM ${table};")"
++  num="$(sqlite3 "${gravityTEMPfile}" "SELECT COUNT(*) FROM ${table};")"
+   if [[ "${table}" == "gravity" ]]; then
+     local unique
+-    unique="$(pihole-FTL sqlite3 -ni "${gravityTEMPfile}" "SELECT COUNT(*) FROM (SELECT DISTINCT domain FROM ${table});")"
++    unique="$(sqlite3 "${gravityTEMPfile}" "SELECT COUNT(*) FROM (SELECT DISTINCT domain FROM ${table});")"
+     echo -e "  ${INFO} Number of ${str}: ${num} (${COL_BOLD}${unique} unique domains${COL_NC})"
+-    pihole-FTL sqlite3 -ni "${gravityTEMPfile}" "INSERT OR REPLACE INTO info (property,value) VALUES ('gravity_count',${unique});"
++    sqlite3 "${gravityTEMPfile}" "INSERT OR REPLACE INTO info (property,value) VALUES ('gravity_count',${unique});"
+   else
+     echo -e "  ${INFO} Number of ${str}: ${num}"
    fi
-@@ -686,18 +696,6 @@ gravity_ShowCount() {
-   gravity_Table_Count "vw_regex_whitelist" "regex allowed filters"
- }
+@@ -782,7 +801,7 @@ database_recovery() {
+   local str="Checking integrity of existing gravity database (this can take a while)"
+   local option="${1}"
+   echo -ne "  ${INFO} ${str}..."
+-  result="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "PRAGMA integrity_check" 2>&1)"
++  result="$(sqlite3 "${gravityDBfile}" "PRAGMA integrity_check" 2>&1)"
  
--# Create "localhost" entries into hosts format
--gravity_generateLocalList() {
--  # Empty $localList if it already exists, otherwise, create it
--  echo "### Do not modify this file, it will be overwritten by pihole -g" > "${localList}"
--  chmod 644 "${localList}"
--
--  # Add additional LAN hosts provided by OpenVPN (if available)
--  if [[ -f "${VPNList}" ]]; then
--    awk -F, '{printf $2"\t"$1".vpn\n"}' "${VPNList}" >> "${localList}"
--  fi
--}
--
- # Trap Ctrl-C
- gravity_Trap() {
-   trap '{ echo -e "\\n\\n  ${INFO} ${COL_LIGHT_RED}User-abort detected${COL_NC}"; gravity_Cleanup "error"; }' INT
-@@ -884,9 +882,6 @@ if ! gravity_DownloadBlocklists; then
-   exit 1
- fi
- 
--# Create local.list
--gravity_generateLocalList
--
- # Update gravity timestamp
- update_gravity_timestamp
- 
+   if [[ ${result} = "ok" ]]; then
+     echo -e "${OVER}  ${TICK} ${str} - no errors found"
+@@ -790,7 +809,7 @@ database_recovery() {
+     str="Checking foreign keys of existing gravity database (this can take a while)"
+     echo -ne "  ${INFO} ${str}..."
+     unset result
+-    result="$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "PRAGMA foreign_key_check" 2>&1)"
++    result="$(sqlite3 "${gravityDBfile}" "PRAGMA foreign_key_check" 2>&1)"
+     if [[ -z ${result} ]]; then
+       echo -e "${OVER}  ${TICK} ${str} - no errors found"
+       if [[ "${option}" != "force" ]]; then
 --- a/pihole	2023-11-18 18:31:11.000000000 +0700
 +++ b/pihole	2023-11-25 10:45:52.000000000 +0700
 @@ -9,18 +9,19 @@
@@ -504,7 +540,7 @@
  updateGravityFunc() {
    exec "${PI_HOLE_SCRIPT_DIR}"/gravity.sh "$@"
  }
-@@ -124,21 +106,6 @@ queryFunc() {
+@@ -124,29 +106,17 @@ queryFunc() {
    exit 0
  }
  
@@ -526,7 +562,6 @@
  versionFunc() {
    exec "${PI_HOLE_SCRIPT_DIR}"/version.sh
  }
-@@ -146,8 +113,11 @@ versionFunc() {
  
  restartDNS() {
    local svcOption svc str output status pid icon FTL_PID_FILE
@@ -538,7 +573,7 @@
    # get the current path to the pihole-FTL.pid
    FTL_PID_FILE="$(getFTLPIDFile)"
  
-@@ -163,6 +133,10 @@ restartDNS() {
+@@ -162,6 +132,10 @@ restartDNS() {
        svc="true"
        str="FTL is not running"
        icon="${INFO}"
@@ -549,7 +584,7 @@
      else
        svc="kill -RTMIN ${pid}"
        str="Reloading DNS lists"
-@@ -176,6 +150,10 @@ restartDNS() {
+@@ -175,6 +149,10 @@ restartDNS() {
        svc="true"
        str="FTL is not running"
        icon="${INFO}"
@@ -560,7 +595,7 @@
      else
        svc="kill -HUP ${pid}"
        str="Flushing DNS cache"
-@@ -183,7 +161,7 @@ restartDNS() {
+@@ -182,7 +160,7 @@ restartDNS() {
      fi
    else
      # A full restart has been requested
@@ -569,7 +604,7 @@
      str="Restarting DNS server"
      icon="${TICK}"
    fi
-@@ -318,8 +296,8 @@ analyze_ports() {
+@@ -317,8 +295,8 @@ analyze_ports() {
    # function is getting called
    # Check individual address family/protocol combinations
    # For a healthy Pi-hole, they should all be up (nothing printed)
@@ -580,7 +615,7 @@
        echo -e "     ${TICK} UDP (IPv4)"
    else
        echo -e "     ${CROSS} UDP (IPv4)"
-@@ -329,7 +307,7 @@ analyze_ports() {
+@@ -328,7 +306,7 @@ analyze_ports() {
    else
        echo -e "     ${CROSS} TCP (IPv4)"
    fi
@@ -589,7 +624,7 @@
    if grep -q "udp " <<< "${lv6}"; then
        echo -e "     ${TICK} UDP (IPv6)"
    else
-@@ -391,9 +369,13 @@ exit 0
+@@ -390,9 +368,13 @@ exit 0
  }
  
  tailFunc() {
@@ -606,7 +641,7 @@
      # No "log-queries" lines are found.
      # Commented out lines (such as "#log-queries") are ignored
      echo "  ${CROSS} Warning: Query logging is disabled"
-@@ -404,7 +386,7 @@ tailFunc() {
+@@ -403,7 +385,7 @@ tailFunc() {
    # Color blocklist/blacklist/wildcard entries as red
    # Color A/AAAA/DHCP strings as white
    # Color everything else as gray
@@ -615,7 +650,7 @@
      -e "s,($(date +'%b %d ')| dnsmasq\[[0-9]*\]),,g" \
      -e "s,(.*(blacklisted |gravity blocked ).*),${COL_RED}&${COL_NC}," \
      -e "s,.*(query\\[A|DHCP).*,${COL_NC}&${COL_NC}," \
-@@ -412,59 +394,6 @@ tailFunc() {
+@@ -411,59 +393,6 @@ tailFunc() {
    exit 0
  }
  
@@ -675,7 +710,7 @@
  unsupportedFunc(){
    echo "Function not supported in Docker images"
    exit 0
-@@ -485,11 +414,7 @@ Whitelist/Blacklist Options:
+@@ -484,11 +413,7 @@ Whitelist/Blacklist Options:
                          Add '-h' for more info on whitelist/blacklist usage
  
  Debugging Options:
@@ -687,7 +722,7 @@
    -t, tail [arg]      View the live output of the Pi-hole log.
                        Add an optional argument to filter the log
                        (regular expressions are supported)
-@@ -505,10 +430,7 @@ Options:
+@@ -504,10 +429,7 @@ Options:
                          Add '-h' for more info on logging usage
    -q, query           Query the adlists for a specified domain
                          Add '-h' for more info on query usage
@@ -698,7 +733,7 @@
    status              Display the running status of Pi-hole subsystems
    enable              Enable Pi-hole subsystems
    disable             Disable Pi-hole subsystems
-@@ -517,8 +439,6 @@ Options:
+@@ -515,8 +437,6 @@ Options:
    restartdns          Full restart Pi-hole subsystems
                          Add 'reload' to update the lists and flush the cache without restarting the DNS server
                          Add 'reload-lists' to only update the lists WITHOUT flushing the cache or restarting the DNS server
@@ -707,7 +742,7 @@
    arpflush            Flush information stored in Pi-hole's network tables";
    exit 0
  }
-@@ -528,14 +448,11 @@ if [[ $# = 0 ]]; then
+@@ -526,14 +446,11 @@ if [[ $# = 0 ]]; then
  fi
  
  # functions that do not require sudo power
@@ -722,7 +757,7 @@
  
    # we need to add all arguments that require sudo power to not trigger the * argument
    "-w" | "whitelist"            ) ;;
-@@ -545,52 +462,19 @@ case "${1}" in
+@@ -543,52 +460,19 @@ case "${1}" in
    "--white-regex" | "white-regex" ) ;;
    "--white-wild" | "white-wild"   ) ;;
    "-f" | "flush"                ) ;;
@@ -777,7 +812,7 @@
  # Handle redirecting to specific functions based on arguments
  case "${1}" in
    "-w" | "whitelist"            ) listFunc "$@";;
-@@ -601,18 +485,13 @@ case "${1}" in
+@@ -599,18 +483,13 @@ case "${1}" in
    "--white-wild" | "white-wild"   ) listFunc "$@";;
    "-d" | "debug"                ) debugFunc "$@";;
    "-f" | "flush"                ) flushFunc "$@";;

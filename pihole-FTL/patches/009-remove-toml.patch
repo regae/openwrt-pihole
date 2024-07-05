@@ -1,7 +1,7 @@
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -282,7 +282,6 @@ set(ObjList
-         $<TARGET_OBJECTS:lua>
+         $<TARGET_OBJECTS:ftl_lua>
          $<TARGET_OBJECTS:tre-regex>
          $<TARGET_OBJECTS:syscalls>
 -        $<TARGET_OBJECTS:tomlc99>
@@ -401,6 +401,72 @@
  #define UCI_CONFIG_PIHOLE "/etc/config/pihole"
  #define UCI_CONFIG_DHCP "/etc/config/dhcp"
  
+--- a/src/config/env.c
++++ b/src/config/env.c
+@@ -600,54 +600,3 @@ bool __attribute__((nonnull(1,2,3))) rea
+ 
+ 	return true;
+ }
+-
+-cJSON *read_forced_vars(const unsigned int version)
+-{
+-	// Create cJSON array to store forced variables
+-	cJSON *env_vars = cJSON_CreateArray();
+-
+-	// Try to open default config file. Use fallback if not found
+-	FILE *fp;
+-	if((fp = openFTLtoml("r", version)) == NULL)
+-	{
+-		// Return empty cJSON array
+-		return env_vars;
+-	}
+-
+-	// Read file line by line until we get to the end of the file where the
+-	// statistics are stored, specifically, the line starting with
+-	// "# X entr{y is,ies are} forced through environment"
+-	char line[LINE_MAX] = { 0 };
+-	while(fgets(line, sizeof(line), fp) != NULL)
+-	{
+-		// Check if this is the line we are looking for
+-		if(strncmp(line, "# ", 2) == 0)
+-		{
+-			// Check if this is the line we are looking for
+-			if(strstr(line, "forced through environment:") != NULL)
+-				break;
+-		}
+-	}
+-
+-	// Read the next lines to extract the variables
+-	while(fgets(line, sizeof(line), fp) != NULL)
+-	{
+-		// Check if this is the line we are looking for
+-		if(strncmp(line, "#   - ", 6) != 0)
+-		{
+-			// We are done, break out of the loop
+-			break;
+-		}
+-
+-		// else: Add the variable to the cJSON array
+-		// Trim the string (remove leading "#   - " and trailing newline)
+-		line[strcspn(line, "\n")] = '\0';
+-		cJSON_AddItemToArray(env_vars, cJSON_CreateString(line + 6));
+-	}
+-
+-	// Close file and release exclusive lock
+-	closeFTLtoml(fp);
+-
+-	// Return cJSON array
+-	return env_vars;
+-}
+--- a/src/config/env.h
++++ b/src/config/env.h
+@@ -24,6 +24,5 @@
+ void freeEnvVars(void);
+ void printFTLenv(void);
+ bool readEnvValue(struct conf_item *conf_item, struct config *newconf, cJSON *forced_vars, bool *reset)  __attribute__((nonnull(1,2,3)));
+-cJSON *read_forced_vars(const unsigned int version);
+ 
+ #endif //CONFIG_ENV_H
 --- a/src/config/password.c
 +++ b/src/config/password.c
 @@ -22,9 +22,6 @@

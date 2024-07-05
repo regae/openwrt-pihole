@@ -1,15 +1,15 @@
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -65,7 +65,7 @@ endif()
- # -Wl,-z,now: Disable lazy binding
+@@ -61,7 +61,7 @@ endif()
  # -Wl,-z,relro: Read-only segments after relocation
  # -fno-common: Emit globals without explicit initializer from `.bss` to `.data`. This causes GCC to reject multiple definitions of global variables. This is the new default from GCC-10 on.
--set(HARDENING_FLAGS "-fstack-protector-strong -Wp,-D_FORTIFY_SOURCE=2 -Wl,-z,relro,-z,now -fexceptions -funwind-tables -fasynchronous-unwind-tables -Wl,-z,defs -Wl,-z,now -Wl,-z,relro -fno-common")
-+set(HARDENING_FLAGS "-fstack-protector-strong -fexceptions -funwind-tables -fasynchronous-unwind-tables -Wl,-z,defs -fno-common")
- set(DEBUG_FLAGS "-rdynamic -fno-omit-frame-pointer")
+ if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+-    set(HARDENING_FLAGS "-fstack-protector-strong -Wp,-D_FORTIFY_SOURCE=2 -Wl,-z,relro,-z,now -fexceptions -funwind-tables -fasynchronous-unwind-tables -Wl,-z,defs -Wl,-z,now -Wl,-z,relro -fno-common")
++    set(HARDENING_FLAGS "-fstack-protector-strong -fexceptions -funwind-tables -fasynchronous-unwind-tables -Wl,-z,defs -fno-common")
+     set(DEBUG_FLAGS "-rdynamic -fno-omit-frame-pointer")
+ endif()
  
- # -Wall: This enables all the warnings about constructions that some users consider questionable, and that are easy to avoid (or modify to prevent the warning), even in conjunction with macros. This also enables some language-specific warnings described in C++ Dialect Options and Objective-C and Objective-C++ Dialect Options.
-@@ -249,8 +249,6 @@ set(sources
+@@ -266,8 +266,6 @@ set(sources
          shmem.h
          signals.c
          signals.h
@@ -31,7 +31,7 @@
  int api_action_restartDNS(struct ftl_conn *api)
 --- a/src/api/docs/content/specs/config.yaml
 +++ b/src/api/docs/content/specs/config.yaml
-@@ -680,7 +680,7 @@ components:
+@@ -683,7 +683,7 @@ components:
                rev_proxy: false
                cert: "/etc/pihole/tls.pem"
              paths:
@@ -40,7 +40,7 @@
                webhome: "/admin/"
              interface:
                boxed: true
-@@ -704,7 +704,7 @@ components:
+@@ -707,7 +707,7 @@ components:
                  limit: 60.0
                  unit: "C"
            files:
@@ -65,7 +65,7 @@
 @@ -955,7 +955,7 @@ void initConfig(struct config *conf)
  	conf->webserver.paths.webroot.a = cJSON_CreateStringReference("<valid path>");
  	conf->webserver.paths.webroot.t = CONF_STRING;
- 	conf->webserver.paths.webroot.f = FLAG_ADVANCED_SETTING | FLAG_RESTART_FTL;
+ 	conf->webserver.paths.webroot.f = FLAG_RESTART_FTL;
 -	conf->webserver.paths.webroot.d.s = (char*)"/var/www/html";
 +	conf->webserver.paths.webroot.d.s = (char*)"/usr/lib/pihole";
  	conf->webserver.paths.webroot.c = validate_filepath;
@@ -74,7 +74,7 @@
 @@ -1113,7 +1113,7 @@ void initConfig(struct config *conf)
  	conf->files.pid.a = cJSON_CreateStringReference("<any writable file>");
  	conf->files.pid.t = CONF_STRING;
- 	conf->files.pid.f = FLAG_ADVANCED_SETTING | FLAG_RESTART_FTL;
+ 	conf->files.pid.f = FLAG_RESTART_FTL;
 -	conf->files.pid.d.s = (char*)"/run/pihole-FTL.pid";
 +	conf->files.pid.d.s = (char*)"/tmp/run/pihole-FTL.pid";
  	conf->files.pid.c = validate_filepath;
@@ -83,16 +83,16 @@
 @@ -1172,7 +1172,7 @@
  	conf->files.log.dnsmasq.a = cJSON_CreateStringReference("<any writable file>");
  	conf->files.log.dnsmasq.t = CONF_STRING;
- 	conf->files.log.dnsmasq.f = FLAG_ADVANCED_SETTING | FLAG_RESTART_FTL;
+ 	conf->files.log.dnsmasq.f = FLAG_RESTART_FTL;
 -	conf->files.log.dnsmasq.d.s = (char*)"/var/log/pihole/pihole.log";
 +	conf->files.log.dnsmasq.d.s = (char*)"/var/log/pihole/pihole.log";
  	conf->files.log.dnsmasq.c = validate_filepath_dash;
  
  
 @@ -1610,7 +1610,7 @@
+ 	config.files.log.ftl.h = "The location of FTL's log file";
  	config.files.log.ftl.a = cJSON_CreateStringReference("<any writable file>");
  	config.files.log.ftl.t = CONF_STRING;
- 	config.files.log.ftl.f = FLAG_ADVANCED_SETTING;
 -	config.files.log.ftl.d.s = (char*)"/var/log/pihole/FTL.log";
 +	config.files.log.ftl.d.s = (char*)"/var/log/pihole/FTL.log";
  	config.files.log.ftl.v.s = config.files.log.ftl.d.s;
@@ -185,19 +185,23 @@
  
 --- a/src/dnsmasq_interface.c
 +++ b/src/dnsmasq_interface.c
-@@ -2937,10 +2937,10 @@ void FTL_fork_and_bind_sockets(struct pas
- 		{
- 			log_info("FTL is going to drop from root to user %s (UID %u)",
- 			     ent_pw->pw_name, ent_pw->pw_uid);
+@@ -2948,14 +2948,14 @@ void FTL_fork_and_bind_sockets(struct pas
+ 			chown_all_shmem(ent_pw);
+ 
+ 			// Configured FTL log file
 -			if(chown(config.files.log.ftl.v.s, ent_pw->pw_uid, ent_pw->pw_gid) == -1)
 +			if(config.files.log.ftl.v.s != NULL && chown(config.files.log.ftl.v.s, ent_pw->pw_uid, ent_pw->pw_gid) == -1)
+ 			{
  				log_warn("Setting ownership (%u:%u) of %s failed: %s (%i)",
- 				ent_pw->pw_uid, ent_pw->pw_gid, config.files.log.ftl.v.s, strerror(errno), errno);
+ 				         ent_pw->pw_uid, ent_pw->pw_gid, config.files.log.ftl.v.s, strerror(errno), errno);
+ 			}
+ 
+ 			// Configured FTL database file
 -			if(chown(config.files.database.v.s, ent_pw->pw_uid, ent_pw->pw_gid) == -1)
 +			if(config.files.database.v.s != NULL && chown(config.files.database.v.s, ent_pw->pw_uid, ent_pw->pw_gid) == -1)
+ 			{
  				log_warn("Setting ownership (%u:%u) of %s failed: %s (%i)",
- 				ent_pw->pw_uid, ent_pw->pw_gid, config.files.database.v.s, strerror(errno), errno);
- 			chown_all_shmem(ent_pw);
+ 				         ent_pw->pw_uid, ent_pw->pw_gid, config.files.database.v.s, strerror(errno), errno);
 --- a/src/gc.c
 +++ b/src/gc.c
 @@ -466,18 +466,6 @@ void runGC(const time_t now, time_t *las
@@ -246,7 +250,7 @@
  			lastResourceCheck = now;
 --- a/src/log.c
 +++ b/src/log.c
-@@ -265,8 +265,8 @@ void __attribute__ ((format (gnu_printf,
+@@ -268,8 +268,8 @@ void __attribute__ ((format (gnu_printf,
  	if((!daemonmode || cli_mode) && print_stdout)
  	{
  		// Only print time/ID string when not in direct user interaction (CLI mode)
@@ -281,6 +285,6 @@
 @@ -15,4 +15,5 @@ set(sources
  
  add_library(miniz OBJECT ${sources})
- target_compile_options(miniz PRIVATE)
+ target_compile_options(miniz PRIVATE -Wno-padded -Wno-type-limits)
 +target_compile_options(miniz PRIVATE -D_LARGEFILE64_SOURCE)
  target_include_directories(miniz PRIVATE ${PROJECT_SOURCE_DIR}/src)
