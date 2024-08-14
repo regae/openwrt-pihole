@@ -44,7 +44,7 @@
  // get_FTL_db_filesize()
 --- a/src/api/teleporter.c
 +++ b/src/api/teleporter.c
-@@ -728,10 +728,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+@@ -730,10 +730,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
  			// i = 2
  			.archive_name = "pihole-FTL.conf",
  			.destination = GLOBALCONFFILE_LEGACY
@@ -55,7 +55,7 @@
  		}
  	};
  	for(size_t i = 0; i < sizeof(extract_files) / sizeof(*extract_files); i++)
-@@ -773,16 +769,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+@@ -775,16 +771,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
  			fclose(fp);
  			JSON_COPY_STR_TO_ARRAY(imported_files, extract_files[i].destination);
  		}
@@ -125,7 +125,7 @@
  // Set debug flags from config struct to global debug_flags array
  // This is called whenever the config is reloaded and debug flags may have
  // changed
-@@ -1136,13 +1148,6 @@ void initConfig(struct config *conf)
+@@ -1188,13 +1200,6 @@ void initConfig(struct config *conf)
  	conf->files.macvendor.d.s = (char*)"/etc/pihole/macvendor.db";
  	conf->files.macvendor.c = validate_filepath;
  
@@ -139,7 +139,7 @@
  	conf->files.pcap.k = "files.pcap";
  	conf->files.pcap.h = "An optional file containing a pcap capture of the network traffic. This file is used for debugging purposes only. If you don't know what this is, you don't need it.\n Setting this to an empty string disables pcap recording. The file must be writable by the user running FTL (typically pihole). Failure to write to this file will prevent the DNS resolver from starting. The file is appended to if it already exists.";
  	conf->files.pcap.a = cJSON_CreateStringReference("<any writable pcap file>");
-@@ -1556,64 +1560,37 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1591,64 +1596,37 @@ bool readFTLconf(struct config *conf, const bool rewri
  		}
  		return true;
  	}
@@ -234,7 +234,7 @@
  	// Initialize the TOML config file
  	writeFTLtoml(true);
  	write_dnsmasq_config(conf, false, NULL);
-@@ -1639,7 +1616,7 @@ bool getLogFilePath(void)
+@@ -1673,7 +1651,7 @@ bool getLogFilePath(void)
  
  	// Check if the config file contains a different path
  	if(!getLogFilePathTOML())
@@ -245,15 +245,17 @@
  }
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -94,7 +94,6 @@ enum conf_type {
+@@ -94,8 +94,7 @@ enum conf_type {
  #define FLAG_INVALIDATE_SESSIONS   (1 << 2)
  #define FLAG_WRITE_ONLY            (1 << 3)
  #define FLAG_ENV_VAR               (1 << 4)
 -#define FLAG_CONF_IMPORTED         (1 << 5)
+-#define FLAG_READ_ONLY             (1 << 6)
++#define FLAG_READ_ONLY             (1 << 5)
  
  struct conf_item {
  	const char *k;        // item Key
-@@ -256,7 +255,6 @@ struct config {
+@@ -278,7 +277,6 @@ struct config {
  		struct conf_item gravity;
  		struct conf_item gravity_tmp;
  		struct conf_item macvendor;
@@ -272,7 +274,7 @@
  // run_dnsmasq_main()
  #include "args.h"
  // optind
-@@ -753,183 +751,6 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -800,183 +798,6 @@ bool __attribute__((const)) write_dnsmasq_config(struc
  	return true;
  }
  

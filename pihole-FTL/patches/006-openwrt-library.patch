@@ -48,9 +48,9 @@
          $<TARGET_OBJECTS:lua>
          $<TARGET_OBJECTS:ftl_lua>
          $<TARGET_OBJECTS:tre-regex>
-@@ -294,6 +305,18 @@ add_executable(pihole-FTL
-         $<TARGET_OBJECTS:config>
+@@ -295,6 +306,18 @@ add_executable(pihole-FTL
          $<TARGET_OBJECTS:tools>
+         $<TARGET_OBJECTS:ntp>
          )
 +
 +if(BUILD_DOCS)
@@ -67,7 +67,7 @@
  if(STATIC)
      set_target_properties(pihole-FTL PROPERTIES LINK_SEARCH_START_STATIC ON)
      set_target_properties(pihole-FTL PROPERTIES LINK_SEARCH_END_STATIC ON)
-@@ -309,15 +332,44 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+@@ -310,15 +333,44 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
  find_package(Threads REQUIRED)
  
  # for DNSSEC we need the nettle (+ hogweed) crypto and the gmp math libraries
@@ -117,9 +117,9 @@
  
  if(LUA_DL STREQUAL "true")
      find_library(LIBDL dl)
-@@ -336,14 +388,14 @@ add_subdirectory(syscalls)
- add_subdirectory(config)
+@@ -338,14 +390,14 @@ add_subdirectory(syscalls)
  add_subdirectory(tools)
+ add_subdirectory(ntp)
  
 -find_library(LIBREADLINE NAMES libreadline${LIBRARY_SUFFIX} readline)
 -find_library(LIBHISTORY NAMES libhistory${LIBRARY_SUFFIX} history)
@@ -137,7 +137,7 @@
  else()
      message(STATUS "Building FTL with readline support: NO")
  endif()
-@@ -352,6 +404,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_D
+@@ -354,6 +406,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_D
      set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "..." FORCE)
  endif()
  
@@ -145,7 +145,7 @@
  find_library(LIBMBEDCRYPTO NAMES lmbedcrypto${LIBRARY_SUFFIX} mbedcrypto)
  find_library(LIBMBEDX509 NAMES lmbedx509${LIBRARY_SUFFIX} mbedx509)
  find_library(LIBMBEDTLS NAMES lmbedtls${LIBRARY_SUFFIX} mbedtls)
-@@ -363,15 +416,21 @@ if(LIBMBEDCRYPTO AND LIBMBEDX509 AND LIB
+@@ -365,15 +418,21 @@ if(LIBMBEDCRYPTO AND LIBMBEDX509 AND LIB
      target_compile_definitions(webserver PRIVATE HAVE_MBEDTLS)
      # Link against the mbedTLS libraries, the order is important (!)
      target_link_libraries(pihole-FTL ${LIBMBEDTLS} ${LIBMBEDX509} ${LIBMBEDCRYPTO})
@@ -167,11 +167,11 @@
  install(TARGETS pihole-FTL
          RUNTIME DESTINATION bin
          PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
--install(CODE "execute_process(COMMAND ${SETCAP} CAP_NET_BIND_SERVICE,CAP_NET_RAW,CAP_NET_ADMIN,CAP_SYS_NICE,CAP_CHOWN+eip \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/bin/pihole-FTL)")
+-install(CODE "execute_process(COMMAND ${SETCAP} CAP_NET_BIND_SERVICE,CAP_NET_RAW,CAP_NET_ADMIN,CAP_SYS_NICE,CAP_CHOWN,CAP_SYS_TIME+eip \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/bin/pihole-FTL)")
  
 --- a/src/api/CMakeLists.txt
 +++ b/src/api/CMakeLists.txt
-@@ -37,4 +37,7 @@ add_library(api OBJECT ${sources})
+@@ -38,4 +38,7 @@ add_library(api OBJECT ${sources})
  add_dependencies(api gen_version)
  target_compile_options(api PRIVATE ${EXTRAWARN})
  target_include_directories(api PRIVATE ${PROJECT_SOURCE_DIR}/src)
@@ -181,10 +181,10 @@
 +endif()
 --- a/src/api/api.c
 +++ b/src/api/api.c
-@@ -101,7 +101,9 @@ static struct {
- 	{ "/api/action/restartdns",                 "",                           api_action_restartDNS,                 { API_PARSE_JSON, 0                         }, true,  HTTP_POST },
+@@ -103,7 +103,9 @@ static struct {
  	{ "/api/action/flush/logs",                 "",                           api_action_flush_logs,                 { API_PARSE_JSON, 0                         }, true,  HTTP_POST },
  	{ "/api/action/flush/arp",                  "",                           api_action_flush_arp,                  { API_PARSE_JSON, 0                         }, true,  HTTP_POST },
+ 	{ "/api/padd",                              "",                           api_padd,                              { API_PARSE_JSON, 0                         }, true,  HTTP_GET },
 +#ifdef API_DOC
  	{ "/api/docs",                              "",                           api_docs,                              { API_PARSE_JSON, 0                         }, false, HTTP_GET },
 +#endif
@@ -205,7 +205,7 @@
  #include "webserver/http-common.h"
  // regex_t
  #include "regex_r.h"
-@@ -107,7 +111,9 @@ int printTOTP(void);
+@@ -124,7 +128,9 @@ int printTOTP(void);
  int generateAppPw(struct ftl_conn *api);
  
  // Documentation methods
@@ -217,7 +217,7 @@
  int api_teleporter(struct ftl_conn *api);
 --- a/src/api/docs/CMakeLists.txt
 +++ b/src/api/docs/CMakeLists.txt
-@@ -62,5 +62,8 @@ foreach(INPUT_FILE ${COMPILED_RESOURCES}
+@@ -63,5 +63,8 @@ foreach(INPUT_FILE ${COMPILED_RESOURCES}
  endforeach()
  
  add_library(api_docs OBJECT ${sources})
@@ -251,7 +251,7 @@
  // run_dhcp_discover()
  #include "tools/dhcp-discover.h"
  // run_arp_scan()
-@@ -72,8 +78,10 @@ extern void print_dnsmasq_version(const
+@@ -76,8 +82,10 @@ extern void print_dnsmasq_version(const
  extern void do_version(void);
  extern void do_usage(void);
  
@@ -262,7 +262,7 @@
  
  bool dnsmasq_debug = false;
  bool daemonmode = true, cli_mode = false;
-@@ -171,6 +179,18 @@ static inline bool strEndsWith(const cha
+@@ -175,6 +183,18 @@ static inline bool strEndsWith(const cha
  	return strcmp(input + strlen(input) - strlen(end), end) == 0;
  }
  
@@ -281,7 +281,7 @@
  void parse_args(int argc, char* argv[])
  {
  	bool quiet = false;
-@@ -318,6 +338,7 @@ void parse_args(int argc, char* argv[])
+@@ -358,6 +378,7 @@ void parse_args(int argc, char* argv[])
  	}
  
  	// Generate X.509 certificate
@@ -289,7 +289,7 @@
  	if(argc > 1 && strcmp(argv[1], "--gen-x509") == 0)
  	{
  		if(argc < 3 || argc > 5)
-@@ -384,6 +405,7 @@ void parse_args(int argc, char* argv[])
+@@ -424,6 +445,7 @@ void parse_args(int argc, char* argv[])
  			exit(EXIT_FAILURE);
  		}
  	}
@@ -297,7 +297,7 @@
  
  	// If the first argument is "gravity" (e.g., /usr/bin/pihole-FTL gravity),
  	// we offer some specialized gravity tools
-@@ -774,7 +796,7 @@ void parse_args(int argc, char* argv[])
+@@ -814,7 +836,7 @@ void parse_args(int argc, char* argv[])
  			printf("\n\n");
  			printf("******************************** %s%sLUA%s ********************************\n",
  			       yellow, bold, normal);
@@ -306,7 +306,7 @@
  			       green, bold, normal);
  			printf("Libraries:       ");
  			print_embedded_scripts();
-@@ -1008,6 +1030,7 @@ void parse_args(int argc, char* argv[])
+@@ -1048,6 +1070,7 @@ void parse_args(int argc, char* argv[])
  			printf("\t                    current directory and print its name\n");
  			printf("\t%s--teleporter%s file%s   Import the Teleporter archive %sfile%s\n\n", green, cyan, normal, cyan, normal);
  
@@ -314,7 +314,7 @@
  			printf("%sTLS X.509 certificate generator:%s\n", yellow, normal);
  			printf("    Generate a self-signed certificate suitable for SSL/TLS\n");
  			printf("    and store it in %soutfile%s.\n\n", cyan, normal);
-@@ -1025,6 +1048,7 @@ void parse_args(int argc, char* argv[])
+@@ -1065,6 +1088,7 @@ void parse_args(int argc, char* argv[])
  			printf("    about the private key are printed as well.\n\n");
  			printf("    Usage: %spihole-FTL --read-x509 %s[certfile] %s[domain]%s\n", green, cyan, purple, normal);
  			printf("    Usage: %spihole-FTL --read-x509-key %s[certfile] %s[domain]%s\n\n", green, cyan, purple, normal);
@@ -411,7 +411,7 @@
  target_include_directories(database PRIVATE ${PROJECT_SOURCE_DIR}/src)
 --- a/src/database/common.c
 +++ b/src/database/common.c
-@@ -148,8 +148,12 @@ int dbquery(sqlite3* db, const char *for
+@@ -157,8 +157,12 @@ int dbquery(sqlite3* db, const char *for
  
  	int rc = sqlite3_exec(db, query, NULL, NULL, NULL);
  	if( rc != SQLITE_OK ){
@@ -438,7 +438,7 @@
  
  // Database table "ftl"
  enum ftl_table_props {
-@@ -64,7 +68,9 @@ bool FTLDBerror(void) __attribute__ ((pu
+@@ -66,7 +70,9 @@ bool FTLDBerror(void) __attribute__ ((pu
  bool checkFTLDBrc(const int rc);
  
  // Get human-readable *extended* error codes (defined in sqlite3.c)
@@ -643,7 +643,7 @@
  // allocate_lua(), free_lua(), init_lua(), request_handler()
  #include "webserver/lua_web.h"
  // log_certificate_domain_mismatch()
-@@ -353,7 +355,7 @@ void http_init(void)
+@@ -355,7 +357,7 @@ void http_init(void)
  	                        MG_FEATURES_IPV6 |
  	                        MG_FEATURES_CACHE;
  
@@ -652,7 +652,7 @@
  	features |= MG_FEATURES_TLS;
  #endif
  
-@@ -419,7 +421,7 @@ void http_init(void)
+@@ -421,7 +423,7 @@ void http_init(void)
  	// from the end of the array.
  	unsigned int next_option = ArraySize(options) - 6;
  
@@ -661,7 +661,7 @@
  	// Add TLS options if configured
  
  	// TLS is used when webserver.port contains "s" (e.g. "443s")
-@@ -434,6 +436,7 @@ void http_init(void)
+@@ -436,6 +438,7 @@ void http_init(void)
  	   config.webserver.tls.cert.v.s != NULL &&
  	   strlen(config.webserver.tls.cert.v.s) > 0)
  	{
@@ -669,7 +669,7 @@
  		// Try to generate certificate if not present
  		if(!file_readable(config.webserver.tls.cert.v.s))
  		{
-@@ -448,15 +451,18 @@ void http_init(void)
+@@ -450,15 +453,18 @@ void http_init(void)
  				        config.webserver.tls.cert.v.s);
  			}
  		}

@@ -1,6 +1,6 @@
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -330,6 +330,12 @@ endif()
+@@ -351,6 +351,12 @@ if(CONNTRACK_SUPPORT)
      target_link_libraries(pihole-FTL ${LIBNETFILTER_CONNTRACK} ${LIBNFNETLINK})
  endif()
  
@@ -15,7 +15,7 @@
      target_link_libraries(pihole-FTL ${LIBNFTABLES})
 --- a/src/api/config.c
 +++ b/src/api/config.c
-@@ -674,6 +674,8 @@ static int api_config_patch(struct ftl_conn *api)
+@@ -692,6 +692,8 @@ static int api_config_patch(struct ftl_c
  	bool config_changed = false;
  	bool dnsmasq_changed = false;
  	bool rewrite_hosts = false;
@@ -24,7 +24,7 @@
  	struct config newconf;
  	duplicate_config(&newconf, &config);
  	for(unsigned int i = 0; i < CONFIG_ELEMENTS; i++)
-@@ -767,6 +769,20 @@ static int api_config_patch(struct ftl_conn *api)
+@@ -795,6 +797,20 @@ static int api_config_patch(struct ftl_c
  			                       errbuf);
  		}
  
@@ -45,7 +45,7 @@
  		// Check if this item requires a config-rewrite + restart of dnsmasq
  		if(conf_item->f & FLAG_RESTART_FTL)
  			dnsmasq_changed = true;
-@@ -817,6 +833,14 @@ static int api_config_patch(struct ftl_conn *api)
+@@ -845,6 +861,14 @@ static int api_config_patch(struct ftl_c
  		// Rewrite HOSTS file if required
  		if(rewrite_hosts)
  			write_custom_list();
@@ -60,7 +60,7 @@
  	}
  	else
  	{
-@@ -941,6 +965,10 @@ static int api_config_put_delete(struct ftl_conn *api)
+@@ -969,6 +993,10 @@ static int api_config_put_delete(struct
  				// Remove item from array
  				found = true;
  				cJSON_DeleteItemFromArray(new_item->v.json, idx);
@@ -71,7 +71,7 @@
  			}
  			else
  			{
-@@ -963,6 +991,11 @@ static int api_config_put_delete(struct ftl_conn *api)
+@@ -991,6 +1019,11 @@ static int api_config_put_delete(struct
  				                       "Invalid value",
  				                       errbuf);
  			}
@@ -93,7 +93,7 @@
  #include "config/dnsmasq_config.h"
  
  int api_dhcp_leases_GET(struct ftl_conn *api)
-@@ -21,7 +22,7 @@ int api_dhcp_leases_GET(struct ftl_conn *api)
+@@ -21,7 +22,7 @@ int api_dhcp_leases_GET(struct ftl_conn
  	cJSON *json = JSON_NEW_OBJECT();
  	JSON_ADD_ITEM_TO_OBJECT(json, "leases", leases);
  
@@ -102,44 +102,17 @@
  	if(fp == NULL)
  	{
  		// File does not exist or not readable, send empty array
---- a/src/api/stats.c
-+++ b/src/api/stats.c
-@@ -14,8 +14,6 @@
- #include "api/api.h"
- #include "shmem.h"
- #include "datastructure.h"
--// read_setupVarsconf()
--#include "config/setupVars.h"
- // logging routines
- #include "log.h"
- // config struct
-@@ -196,22 +194,19 @@ int api_stats_top_domains(struct ftl_conn *api)
- 	// Sort temporary array
- 	qsort(temparray, added_domains, sizeof(int[2]), cmpdesc);
- 
--	// Get filter
--	const char* log_show = read_setupVarsconf("API_QUERY_LOG_SHOW");
- 	bool showpermitted = true, showblocked = true;
--	if(log_show != NULL)
-+	if(config.webserver.api.query_log_show.v.s != NULL)
- 	{
--		if((strcmp(log_show, "permittedonly")) == 0)
-+		if((strcmp(config.webserver.api.query_log_show.v.s, "permittedonly")) == 0)
- 			showblocked = false;
--		else if((strcmp(log_show, "blockedonly")) == 0)
-+		else if((strcmp(config.webserver.api.query_log_show.v.s, "blockedonly")) == 0)
- 			showpermitted = false;
--		else if((strcmp(log_show, "nothing")) == 0)
-+		else if((strcmp(config.webserver.api.query_log_show.v.s, "nothing")) == 0)
- 		{
- 			showpermitted = false;
- 			showblocked = false;
- 		}
- 	}
--	clearSetupVarsArray();
- 
- 	// Get domains which the user doesn't want to see
- 	regex_t *regex_domains = NULL;
+--- a/src/api/padd.c
++++ b/src/api/padd.c
+@@ -280,8 +280,6 @@ int api_padd(struct ftl_conn *api)
+ 	// subset of config
+ 	cJSON *jconfig = JSON_NEW_OBJECT();
+ 	JSON_ADD_BOOL_TO_OBJECT(jconfig, "dhcp_active", config.dhcp.active.v.b);
+-	JSON_ADD_ITEM_TO_OBJECT(jconfig, "dhcp_start", addJSONConfValue(config.dhcp.start.t, &config.dhcp.start.v));
+-	JSON_ADD_ITEM_TO_OBJECT(jconfig, "dhcp_end", addJSONConfValue(config.dhcp.end.t, &config.dhcp.end.v));
+ 	JSON_ADD_BOOL_TO_OBJECT(jconfig, "dhcp_ipv6", config.dhcp.ipv6.v.b);
+ 	JSON_COPY_STR_TO_OBJECT(jconfig, "dns_domain", config.dns.domain.v.s);
+ 	JSON_ADD_NUMBER_TO_OBJECT(jconfig, "dns_port", config.dns.port.v.u16);
 --- a/src/api/teleporter.c
 +++ b/src/api/teleporter.c
 @@ -13,6 +13,7 @@
@@ -150,7 +123,7 @@
  // ERRBUF_SIZE
  #include "config/dnsmasq_config.h"
  // inflate_buffer()
-@@ -719,11 +720,11 @@ static int process_received_tar_gz(struct ftl_conn *ap
+@@ -721,11 +722,11 @@ static int process_received_tar_gz(struc
  		{
  			// i = 0
  			.archive_name = "custom.list",
@@ -166,7 +139,7 @@
  			.archive_name = "pihole-FTL.conf",
 --- a/src/args.c
 +++ b/src/args.c
-@@ -282,6 +282,7 @@ void parse_args(int argc, char* argv[])
+@@ -290,6 +290,7 @@ void parse_args(int argc, char* argv[])
  	// Set config option through CLI
  	if(argc > 1 && strcmp(argv[1], "--config") == 0)
  	{
@@ -174,7 +147,7 @@
  		// Enable stdout printing
  		cli_mode = true;
  		log_ctrl(false, false);
-@@ -289,19 +290,21 @@ void parse_args(int argc, char* argv[])
+@@ -297,19 +298,21 @@ void parse_args(int argc, char* argv[])
  		log_ctrl(false, true);
  		clear_debug_flags(); // No debug printing wanted
  		if(argc == 2)
@@ -223,7 +196,7 @@
  {
  	if(conf_item == NULL || value == NULL)
  	{
-@@ -47,9 +47,9 @@ static bool readStringValue(struct conf_item *conf_ite
+@@ -47,9 +47,9 @@ static bool readStringValue(struct conf_
  	{
  		case CONF_BOOL:
  		{
@@ -235,7 +208,7 @@
  				conf_item->v.b = false;
  			else
  			{
-@@ -60,13 +60,13 @@ static bool readStringValue(struct conf_item *conf_ite
+@@ -60,13 +60,13 @@ static bool readStringValue(struct conf_
  		}
  		case CONF_ALL_DEBUG_BOOL:
  		{
@@ -251,7 +224,7 @@
  			{
  				set_all_debug(newconf, false);
  				conf_item->v.b = false;
-@@ -74,7 +74,7 @@ static bool readStringValue(struct conf_item *conf_ite
+@@ -74,7 +74,7 @@ static bool readStringValue(struct conf_
  			}
  			else
  			{
@@ -260,7 +233,7 @@
  				return false;
  			}
  			break;
-@@ -490,6 +490,10 @@ int set_config_from_CLI(const char *key, const char *v
+@@ -507,6 +507,10 @@ int set_config_from_CLI(const char *key,
  		// Install new configuration
  		replace_config(&newconf);
  
@@ -271,7 +244,7 @@
  		// Print value
  		writeTOMLvalue(stdout, -1, new_item->t, &new_item->v);
  	}
-@@ -522,7 +526,7 @@ int get_config_from_CLI(const char *key, const bool qu
+@@ -539,7 +543,7 @@ int get_config_from_CLI(const char *key,
  		struct conf_item *item = get_conf_item(&config, i);
  
  		// Check if item.k is identical with key
@@ -389,10 +362,11 @@
  
  	conf->dns.hosts.k = "dns.hosts";
  	conf->dns.hosts.h = "Array of custom DNS records\n Example: hosts = [ \"127.0.0.1 mylocal\", \"192.168.0.1 therouter\" ]";
-@@ -484,50 +509,64 @@ void initConfig(struct config *conf)
+@@ -484,50 +509,65 @@ void initConfig(struct config *conf)
  	conf->dns.hosts.t = CONF_JSON_STRING_ARRAY;
  	conf->dns.hosts.d.json = cJSON_CreateArray();
  	conf->dns.hosts.c = validate_dns_hosts;
++	conf->dns.hosts.f = FLAG_PKG_DHCP;
 +	conf->dns.hosts.uci.opt = "ip_name";
 +	conf->dns.hosts.uci.stype = "domain";
  
@@ -462,7 +436,7 @@
  
  	conf->dns.hostRecord.k = "dns.hostRecord";
  	conf->dns.hostRecord.h = "Add A, AAAA and PTR records to the DNS. This adds one or more names to the DNS with associated IPv4 (A) and IPv6 (AAAA) records";
-@@ -536,6 +575,8 @@ void initConfig(struct config *conf)
+@@ -536,6 +576,8 @@ void initConfig(struct config *conf)
  	conf->dns.hostRecord.f = FLAG_RESTART_FTL;
  	conf->dns.hostRecord.d.s = (char*)"";
  	conf->dns.hostRecord.c = validate_stub; // Type-based checking + dnsmasq syntax checking
@@ -471,7 +445,7 @@
  
  	conf->dns.listeningMode.k = "dns.listeningMode";
  	conf->dns.listeningMode.h = "Pi-hole interface listening modes";
-@@ -551,39 +592,49 @@ void initConfig(struct config *conf)
+@@ -551,39 +593,49 @@ void initConfig(struct config *conf)
  		CONFIG_ADD_ENUM_OPTIONS(conf->dns.listeningMode.a, listeningMode);
  	}
  	conf->dns.listeningMode.t = CONF_ENUM_LISTENING_MODE;
@@ -527,7 +501,7 @@
  
  	conf->dns.cache.optimizer.k = "dns.cache.optimizer";
  	conf->dns.cache.optimizer.h = "Query cache optimizer: If a DNS name exists in the cache, but its time-to-live has expired only recently, the data will be used anyway (a refreshing from upstream is triggered). This can improve DNS query delays especially over unreliable Internet connections. This feature comes at the expense of possibly sometimes returning out-of-date data and less efficient cache utilization, since old data cannot be flushed when its TTL expires, so the cache becomes mostly least-recently-used. To mitigate issues caused by massively outdated DNS replies, the maximum overaging of cached records is limited. We strongly recommend staying below 86400 (1 day) with this option.\n Setting the TTL excess time to zero will serve stale cache data regardless how long it has expired. This is not recommended as it may lead to stale data being served for a long time. Setting this option to any negative value will disable this feature altogether.";
-@@ -591,6 +642,8 @@ void initConfig(struct config *conf)
+@@ -591,6 +643,8 @@ void initConfig(struct config *conf)
  	conf->dns.cache.optimizer.f = FLAG_RESTART_FTL;
  	conf->dns.cache.optimizer.d.i = 3600u;
  	conf->dns.cache.optimizer.c = validate_stub; // Only type-based checking
@@ -536,7 +510,7 @@
  
  	// sub-struct dns.blocking
  	conf->dns.blocking.active.k = "dns.blocking.active";
-@@ -598,6 +651,8 @@ void initConfig(struct config *conf)
+@@ -598,6 +652,8 @@ void initConfig(struct config *conf)
  	conf->dns.blocking.active.t = CONF_BOOL;
  	conf->dns.blocking.active.d.b = true;
  	conf->dns.blocking.active.c = validate_stub; // Only type-based checking
@@ -545,7 +519,7 @@
  
  	conf->dns.blocking.mode.k = "dns.blocking.mode";
  	conf->dns.blocking.mode.h = "How should FTL reply to blocked queries?";
-@@ -615,6 +670,8 @@ void initConfig(struct config *conf)
+@@ -615,6 +671,8 @@ void initConfig(struct config *conf)
  	conf->dns.blocking.mode.t = CONF_ENUM_BLOCKING_MODE;
  	conf->dns.blocking.mode.d.blocking_mode = MODE_NULL;
  	conf->dns.blocking.mode.c = validate_stub; // Only type-based checking
@@ -554,7 +528,7 @@
  
  	conf->dns.revServers.k = "dns.revServers";
  	conf->dns.revServers.h = "Reverse server (former also called \"conditional forwarding\") feature\n Array of reverse servers each one in one of the following forms: \"<enabled>,<ip-address>[/<prefix-len>],<server>[#<port>],<domain>\"\n\n Individual components:\n\n <enabled>: either \"true\" or \"false\"\n\n <ip-address>[/<prefix-len>]: Address range for the reverse server feature in CIDR notation. If the prefix length is omitted, either 32 (IPv4) or 128 (IPv6) are substituted (exact address match). This is almost certainly not what you want here.\n Example: \"192.168.0.0/24\" for the range 192.168.0.1 - 192.168.0.255\n\n <server>[#<port>]: Target server to be used for the reverse server feature\n Example: \"192.168.0.1#53\"\n\n <domain>: Domain used for the reverse server feature (e.g., \"fritz.box\")\n Example: \"fritz.box\"";
-@@ -622,7 +679,9 @@ void initConfig(struct config *conf)
+@@ -622,7 +680,9 @@ void initConfig(struct config *conf)
  	conf->dns.revServers.t = CONF_JSON_STRING_ARRAY;
  	conf->dns.revServers.d.json = cJSON_CreateArray();
  	conf->dns.revServers.c = validate_dns_revServers;
@@ -565,7 +539,7 @@
  
  	// sub-struct dns.rate_limit
  	conf->dns.rateLimit.count.k = "dns.rateLimit.count";
-@@ -630,12 +689,16 @@ void initConfig(struct config *conf)
+@@ -630,12 +690,16 @@ void initConfig(struct config *conf)
  	conf->dns.rateLimit.count.t = CONF_UINT;
  	conf->dns.rateLimit.count.d.ui = 1000;
  	conf->dns.rateLimit.count.c = validate_stub; // Only type-based checking
@@ -582,7 +556,7 @@
  
  	// sub-struct dns.special_domains
  	conf->dns.specialDomains.mozillaCanary.k = "dns.specialDomains.mozillaCanary";
-@@ -643,12 +706,16 @@ void initConfig(struct config *conf)
+@@ -643,12 +707,16 @@ void initConfig(struct config *conf)
  	conf->dns.specialDomains.mozillaCanary.t = CONF_BOOL;
  	conf->dns.specialDomains.mozillaCanary.d.b = true;
  	conf->dns.specialDomains.mozillaCanary.c = validate_stub; // Only type-based checking
@@ -599,7 +573,7 @@
  
  	// sub-struct dns.reply_addr
  	conf->dns.reply.host.force4.k = "dns.reply.host.force4";
-@@ -656,6 +723,8 @@ void initConfig(struct config *conf)
+@@ -656,6 +724,8 @@ void initConfig(struct config *conf)
  	conf->dns.reply.host.force4.t = CONF_BOOL;
  	conf->dns.reply.host.force4.d.b = false;
  	conf->dns.reply.host.force4.c = validate_stub; // Only type-based checking
@@ -608,7 +582,7 @@
  
  	conf->dns.reply.host.v4.k = "dns.reply.host.IPv4";
  	conf->dns.reply.host.v4.h = "Custom IPv4 address for the Pi-hole host";
-@@ -663,12 +732,16 @@ void initConfig(struct config *conf)
+@@ -663,12 +733,16 @@ void initConfig(struct config *conf)
  	conf->dns.reply.host.v4.t = CONF_STRUCT_IN_ADDR;
  	memset(&conf->dns.reply.host.v4.d.in_addr, 0, sizeof(struct in_addr));
  	conf->dns.reply.host.v4.c = validate_stub; // Only type-based checking
@@ -625,7 +599,7 @@
  
  	conf->dns.reply.host.v6.k = "dns.reply.host.IPv6";
  	conf->dns.reply.host.v6.h = "Custom IPv6 address for the Pi-hole host";
-@@ -676,12 +749,16 @@ void initConfig(struct config *conf)
+@@ -676,12 +750,16 @@ void initConfig(struct config *conf)
  	conf->dns.reply.host.v6.t = CONF_STRUCT_IN6_ADDR;
  	memset(&conf->dns.reply.host.v6.d.in6_addr, 0, sizeof(struct in6_addr));
  	conf->dns.reply.host.v6.c = validate_stub; // Only type-based checking
@@ -642,7 +616,7 @@
  
  	conf->dns.reply.blocking.v4.k = "dns.reply.blocking.IPv4";
  	conf->dns.reply.blocking.v4.h = "Custom IPv4 address for IP blocking mode";
-@@ -689,12 +766,16 @@ void initConfig(struct config *conf)
+@@ -689,12 +767,16 @@ void initConfig(struct config *conf)
  	conf->dns.reply.blocking.v4.t = CONF_STRUCT_IN_ADDR;
  	memset(&conf->dns.reply.blocking.v4.d.in_addr, 0, sizeof(struct in_addr));
  	conf->dns.reply.blocking.v4.c = validate_stub; // Only type-based checking
@@ -659,7 +633,7 @@
  
  	conf->dns.reply.blocking.v6.k = "dns.reply.blocking.IPv6";
  	conf->dns.reply.blocking.v6.h = "Custom IPv6 address for IP blocking mode";
-@@ -702,54 +783,28 @@ void initConfig(struct config *conf)
+@@ -702,54 +784,28 @@ void initConfig(struct config *conf)
  	conf->dns.reply.blocking.v6.t = CONF_STRUCT_IN6_ADDR;
  	memset(&conf->dns.reply.blocking.v6.d.in6_addr, 0, sizeof(struct in6_addr));
  	conf->dns.reply.blocking.v6.c = validate_stub; // Only type-based checking
@@ -728,7 +702,7 @@
  
  	conf->dhcp.ipv6.k = "dhcp.ipv6";
  	conf->dhcp.ipv6.h = "Should Pi-hole make an attempt to also satisfy IPv6 address requests (be aware that IPv6 works a whole lot different than IPv4)";
-@@ -757,42 +812,54 @@ void initConfig(struct config *conf)
+@@ -757,42 +813,54 @@ void initConfig(struct config *conf)
  	conf->dhcp.ipv6.f = FLAG_RESTART_FTL;
  	conf->dhcp.ipv6.d.b = false;
  	conf->dhcp.ipv6.c = validate_stub; // Only type-based checking
@@ -787,8 +761,108 @@
 +	conf->dhcp.hosts.uci.stype = "host";
  
  
+ 	// struct ntp
+@@ -800,8 +868,10 @@ void initConfig(struct config *conf)
+ 	conf->ntp.ipv4.active.h = "Should FTL act as network time protocol (NTP) server (IPv4)?";
+ 	conf->ntp.ipv4.active.t = CONF_BOOL;
+ 	conf->ntp.ipv4.active.f = FLAG_RESTART_FTL;
+-	conf->ntp.ipv4.active.d.b = true;
++	conf->ntp.ipv4.active.d.b = false;
+ 	conf->ntp.ipv4.active.c = validate_stub; // Only type-based checking
++	conf->ntp.ipv4.active.uci.opt = "ipv4_active";
++	conf->ntp.ipv4.active.uci.stype = "ntp";
+ 
+ 	conf->ntp.ipv4.address.k = "ntp.ipv4.address";
+ 	conf->ntp.ipv4.address.h = "IPv4 address to listen on for NTP requests";
+@@ -810,13 +880,17 @@ void initConfig(struct config *conf)
+ 	conf->ntp.ipv4.address.f = FLAG_RESTART_FTL;
+ 	memset(&conf->ntp.ipv4.address.d.in_addr, 0, sizeof(struct in_addr));
+ 	conf->ntp.ipv4.address.c = validate_stub; // Only type-based checking
++	conf->ntp.ipv4.address.uci.opt = "ipv4_address";
++	conf->ntp.ipv4.address.uci.stype = "ntp";
+ 
+ 	conf->ntp.ipv6.active.k = "ntp.ipv6.active";
+ 	conf->ntp.ipv6.active.h = "Should FTL act as network time protocol (NTP) server (IPv6)?";
+ 	conf->ntp.ipv6.active.t = CONF_BOOL;
+ 	conf->ntp.ipv6.active.f = FLAG_RESTART_FTL;
+-	conf->ntp.ipv6.active.d.b = true;
++	conf->ntp.ipv6.active.d.b = false;
+ 	conf->ntp.ipv6.active.c = validate_stub; // Only type-based checking
++	conf->ntp.ipv6.active.uci.opt = "ipv6_active";
++	conf->ntp.ipv6.active.uci.stype = "ntp";
+ 
+ 	conf->ntp.ipv6.address.k = "ntp.ipv6.address";
+ 	conf->ntp.ipv6.address.h = "IPv6 address to listen on for NTP requests";
+@@ -825,13 +899,17 @@ void initConfig(struct config *conf)
+ 	conf->ntp.ipv6.address.f = FLAG_RESTART_FTL;
+ 	memset(&conf->ntp.ipv6.address.d.in6_addr, 0, sizeof(struct in6_addr));
+ 	conf->ntp.ipv6.address.c = validate_stub; // Only type-based checking
++	conf->ntp.ipv6.address.uci.opt = "ipv6_address";
++	conf->ntp.ipv6.address.uci.stype = "ntp";
+ 
+ 	conf->ntp.sync.active.k = "ntp.sync.active";
+ 	conf->ntp.sync.active.h = "Should FTL try to synchronize the system time with an upstream NTP server?";
+ 	conf->ntp.sync.active.t = CONF_BOOL;
+ 	conf->ntp.sync.active.f = FLAG_RESTART_FTL;
+-	conf->ntp.sync.active.d.b = true;
++	conf->ntp.sync.active.d.b = false;
+ 	conf->ntp.sync.active.c = validate_stub; // Only type-based checking
++	conf->ntp.sync.active.uci.opt = "sync_active";
++	conf->ntp.sync.active.uci.stype = "ntp";
+ 
+ 	conf->ntp.sync.server.k = "ntp.sync.server";
+ 	conf->ntp.sync.server.h = "NTP upstream server to sync with, e.g., \"pool.ntp.org\". Note that the NTP server should be located as close as possible to you in order to minimize the time offset possibly introduced by different routing paths.";
+@@ -839,24 +917,32 @@ void initConfig(struct config *conf)
+ 	conf->ntp.sync.server.t = CONF_STRING;
+ 	conf->ntp.sync.server.d.s = (char*)"pool.ntp.org";
+ 	conf->ntp.sync.server.c = validate_stub; // Only type-based checking
++	conf->ntp.sync.server.uci.opt = "sync_server";
++	conf->ntp.sync.server.uci.stype = "ntp";
+ 
+ 	conf->ntp.sync.interval.k = "ntp.sync.interval";
+ 	conf->ntp.sync.interval.h = "Interval in seconds between successive synchronization attempts with the NTP server";
+ 	conf->ntp.sync.interval.t = CONF_UINT;
+ 	conf->ntp.sync.interval.d.ui = 3600;
+ 	conf->ntp.sync.interval.c = validate_stub; // Only type-based checking
++	conf->ntp.sync.interval.uci.opt = "sync_interval";
++	conf->ntp.sync.interval.uci.stype = "ntp";
+ 
+ 	conf->ntp.sync.count.k = "ntp.sync.count";
+ 	conf->ntp.sync.count.h = "Number of NTP syncs to perform and average before updating the system time";
+ 	conf->ntp.sync.count.t = CONF_UINT;
+ 	conf->ntp.sync.count.d.ui = 8;
+ 	conf->ntp.sync.count.c = validate_stub; // Only type-based checking
++	conf->ntp.sync.count.uci.opt = "sync_count";
++	conf->ntp.sync.count.uci.stype = "ntp";
+ 
+ 	conf->ntp.sync.rtc.set.k = "ntp.sync.rtc.set";
+ 	conf->ntp.sync.rtc.set.h = "Should FTL update a real-time clock (RTC) if available?";
+ 	conf->ntp.sync.rtc.set.t = CONF_BOOL;
+ 	conf->ntp.sync.rtc.set.d.b = true;
+ 	conf->ntp.sync.rtc.set.c = validate_stub; // Only type-based checking
++	conf->ntp.sync.rtc.set.uci.opt = "sync_rtc";
++	conf->ntp.sync.rtc.set.uci.stype = "ntp";
+ 
+ 	conf->ntp.sync.rtc.device.k = "ntp.sync.rtc.device";
+ 	conf->ntp.sync.rtc.device.h = "Path to the RTC device to update. Leave empty for auto-discovery";
+@@ -864,12 +950,16 @@ void initConfig(struct config *conf)
+ 	conf->ntp.sync.rtc.device.t = CONF_STRING;
+ 	conf->ntp.sync.rtc.device.d.s = (char*)"";
+ 	conf->ntp.sync.rtc.device.c = validate_stub; // Only type-based checking
++	conf->ntp.sync.rtc.device.uci.opt = "sync_device";
++	conf->ntp.sync.rtc.device.uci.stype = "ntp";
+ 
+ 	conf->ntp.sync.rtc.utc.k = "ntp.sync.rtc.utc";
+ 	conf->ntp.sync.rtc.utc.h = "Should the RTC be set to UTC?";
+ 	conf->ntp.sync.rtc.utc.t = CONF_BOOL;
+ 	conf->ntp.sync.rtc.utc.d.b = true;
+ 	conf->ntp.sync.rtc.utc.c = validate_stub; // Only type-based checking
++	conf->ntp.sync.rtc.utc.uci.opt = "sync_utc";
++	conf->ntp.sync.rtc.utc.uci.stype = "ntp";
+ 
+ 
  	// struct resolver
-@@ -801,18 +868,24 @@ void initConfig(struct config *conf)
+@@ -878,18 +968,24 @@ void initConfig(struct config *conf)
  	conf->resolver.resolveIPv6.t = CONF_BOOL;
  	conf->resolver.resolveIPv6.d.b = true;
  	conf->resolver.resolveIPv6.c = validate_stub; // Only type-based checking
@@ -813,7 +887,7 @@
  
  	conf->resolver.refreshNames.k = "resolver.refreshNames";
  	conf->resolver.refreshNames.h = "With this option, you can change how (and if) hourly PTR requests are made to check for changes in client and upstream server hostnames.";
-@@ -829,6 +902,8 @@ void initConfig(struct config *conf)
+@@ -906,6 +1002,8 @@ void initConfig(struct config *conf)
  	conf->resolver.refreshNames.t = CONF_ENUM_REFRESH_HOSTNAMES;
  	conf->resolver.refreshNames.d.refresh_hostnames = REFRESH_IPV4_ONLY;
  	conf->resolver.refreshNames.c = validate_stub; // Only type-based checking
@@ -822,7 +896,7 @@
  
  
  	// struct database
-@@ -837,18 +912,24 @@ void initConfig(struct config *conf)
+@@ -914,18 +1012,24 @@ void initConfig(struct config *conf)
  	conf->database.DBimport.t = CONF_BOOL;
  	conf->database.DBimport.d.b = true;
  	conf->database.DBimport.c = validate_stub; // Only type-based checking
@@ -847,7 +921,7 @@
  
  	conf->database.useWAL.k = "database.useWAL";
  	conf->database.useWAL.h = "Should FTL enable Write-Ahead Log (WAL) mode for the on-disk query database (configured via files.database)?\n It is recommended to leave this setting enabled for performance reasons. About the only reason to disable WAL mode is if you are experiencing specific issues with it, e.g., when using a database that is accessed from multiple hosts via a network share. When this setting is disabled, FTL will use SQLite3's default journal mode (rollback journal in DELETE mode).";
-@@ -867,6 +948,8 @@ void initConfig(struct config *conf)
+@@ -944,6 +1048,8 @@ void initConfig(struct config *conf)
  	conf->database.useWAL.f = FLAG_RESTART_FTL;
  	conf->database.useWAL.d.b = true;
  	conf->database.useWAL.c = validate_stub; // Only type-based checking
@@ -856,7 +930,7 @@
  
  	// sub-struct database.network
  	conf->database.network.parseARPcache.k = "database.network.parseARPcache";
-@@ -874,12 +957,16 @@ void initConfig(struct config *conf)
+@@ -951,12 +1057,16 @@ void initConfig(struct config *conf)
  	conf->database.network.parseARPcache.t = CONF_BOOL;
  	conf->database.network.parseARPcache.d.b = true;
  	conf->database.network.parseARPcache.c = validate_stub; // Only type-based checking
@@ -873,7 +947,7 @@
  
  
  	// struct http
-@@ -890,6 +977,8 @@ void initConfig(struct config *conf)
+@@ -967,6 +1077,8 @@ void initConfig(struct config *conf)
  	conf->webserver.domain.f = FLAG_RESTART_FTL;
  	conf->webserver.domain.d.s = (char*)"pi.hole";
  	conf->webserver.domain.c = validate_domain;
@@ -882,7 +956,7 @@
  
  	conf->webserver.acl.k = "webserver.acl";
  	conf->webserver.acl.h = "Webserver access control list (ACL) allowing for restrictions to be put on the list of IP addresses which have access to the web server. The ACL is a comma separated list of IP subnets, where each subnet is prepended by either a - or a + sign. A plus sign means allow, where a minus sign means deny. If a subnet mask is omitted, such as -1.2.3.4, this means to deny only that single IP address. If this value is not set (empty string), all accesses are allowed. Otherwise, the default setting is to deny all accesses. On each request the full list is traversed, and the last (!) match wins. IPv6 addresses may be specified in CIDR-form [a:b::c]/64.\n\n Example 1: acl = \"+127.0.0.1,+[::1]\"\n ---> deny all access, except from 127.0.0.1 and ::1,\n Example 2: acl = \"+192.168.0.0/16\"\n ---> deny all accesses, except from the 192.168.0.0/16 subnet,\n Example 3: acl = \"+[::]/0\" ---> allow only IPv6 access.";
-@@ -898,20 +987,26 @@ void initConfig(struct config *conf)
+@@ -975,14 +1087,18 @@ void initConfig(struct config *conf)
  	conf->webserver.acl.t = CONF_STRING;
  	conf->webserver.acl.d.s = (char*)"";
  	conf->webserver.acl.c = validate_stub; // Type-based checking + civetweb syntax checking
@@ -900,17 +974,9 @@
 +	conf->webserver.port.uci.opt = "port";
 +	conf->webserver.port.uci.stype = "webserver";
  
- 	conf->webserver.tls.rev_proxy.k = "webserver.tls.rev_proxy";
- 	conf->webserver.tls.rev_proxy.h = "Is Pi-hole running behind a reverse proxy? If yes, Pi-hole will not consider HTTP-only connections being insecure. This is useful if you are running Pi-hole in a trusted environment, for example, in a local network, and you are using a reverse proxy to provide TLS encryption, e.g., by using Traefik (docker). If you are using a reverse proxy, you can alternatively set webserver.tls.cert to the path of the TLS certificate file and let Pi-hole handle true end-to-end encryption.";
- 	conf->webserver.tls.rev_proxy.t = CONF_BOOL;
- 	conf->webserver.tls.rev_proxy.d.b = false;
- 	conf->webserver.tls.rev_proxy.c = validate_stub; // Only type-based checking
-+	conf->webserver.tls.rev_proxy.uci.opt = "tls_rev_proxy";
-+	conf->webserver.tls.rev_proxy.uci.stype = "webserver";
- 
  	conf->webserver.tls.cert.k = "webserver.tls.cert";
  	conf->webserver.tls.cert.h = "Path to the TLS (SSL) certificate file. This option is only required when at least one of webserver.port is TLS. The file must be in PEM format, and it must have both, private key and certificate (the *.pem file created must contain a 'CERTIFICATE' section as well as a 'RSA PRIVATE KEY' section).\n The *.pem file can be created using\n     cp server.crt server.pem\n     cat server.key >> server.pem\n if you have these files instead";
-@@ -920,18 +1015,24 @@ void initConfig(struct config *conf)
+@@ -991,18 +1107,24 @@ void initConfig(struct config *conf)
  	conf->webserver.tls.cert.t = CONF_STRING;
  	conf->webserver.tls.cert.d.s = (char*)"/etc/pihole/tls.pem";
  	conf->webserver.tls.cert.c = validate_filepath;
@@ -935,7 +1001,7 @@
  
  	// sub-struct paths
  	conf->webserver.paths.webroot.k = "webserver.paths.webroot";
-@@ -941,6 +1042,8 @@ void initConfig(struct config *conf)
+@@ -1012,6 +1134,8 @@ void initConfig(struct config *conf)
  	conf->webserver.paths.webroot.f = FLAG_RESTART_FTL;
  	conf->webserver.paths.webroot.d.s = (char*)"/usr/lib/pihole";
  	conf->webserver.paths.webroot.c = validate_filepath;
@@ -944,7 +1010,7 @@
  
  	conf->webserver.paths.webhome.k = "webserver.paths.webhome";
  	conf->webserver.paths.webhome.h = "Sub-directory of the root containing the web interface";
-@@ -949,6 +1052,8 @@ void initConfig(struct config *conf)
+@@ -1020,6 +1144,8 @@ void initConfig(struct config *conf)
  	conf->webserver.paths.webhome.f = FLAG_RESTART_FTL;
  	conf->webserver.paths.webhome.d.s = (char*)"/admin/";
  	conf->webserver.paths.webhome.c = validate_filepath;
@@ -953,7 +1019,7 @@
  
  	// sub-struct interface
  	conf->webserver.interface.boxed.k = "webserver.interface.boxed";
-@@ -956,6 +1061,8 @@ void initConfig(struct config *conf)
+@@ -1027,6 +1153,8 @@ void initConfig(struct config *conf)
  	conf->webserver.interface.boxed.t = CONF_BOOL;
  	conf->webserver.interface.boxed.d.b = true;
  	conf->webserver.interface.boxed.c = validate_stub; // Only type-based checking
@@ -962,7 +1028,7 @@
  
  	conf->webserver.interface.theme.k = "webserver.interface.theme";
  	conf->webserver.interface.theme.h = "Theme used by the Pi-hole web interface";
-@@ -971,6 +1078,8 @@ void initConfig(struct config *conf)
+@@ -1042,6 +1170,8 @@ void initConfig(struct config *conf)
  	conf->webserver.interface.theme.t = CONF_ENUM_WEB_THEME;
  	conf->webserver.interface.theme.d.web_theme = THEME_DEFAULT_AUTO;
  	conf->webserver.interface.theme.c = validate_stub; // Only type-based checking
@@ -970,25 +1036,8 @@
 +	conf->webserver.interface.theme.uci.stype = "webserver";
  
  	// sub-struct api
- 	conf->webserver.api.searchAPIauth.k = "webserver.api.searchAPIauth";
-@@ -978,12 +1087,16 @@ void initConfig(struct config *conf)
- 	conf->webserver.api.searchAPIauth.t = CONF_BOOL;
- 	conf->webserver.api.searchAPIauth.d.b = false;
- 	conf->webserver.api.searchAPIauth.c = validate_stub; // Only type-based checking
-+	conf->webserver.api.searchAPIauth.uci.opt = "searchAPIauth";
-+	conf->webserver.api.searchAPIauth.uci.stype = "api";
- 
- 	conf->webserver.api.localAPIauth.k = "webserver.api.localAPIauth";
- 	conf->webserver.api.localAPIauth.h = "Do local clients need to authenticate to access the API? This settings allows local clients to use the API without authentication.";
- 	conf->webserver.api.localAPIauth.t = CONF_BOOL;
- 	conf->webserver.api.localAPIauth.d.b = true;
- 	conf->webserver.api.localAPIauth.c = validate_stub; // Only type-based checking
-+	conf->webserver.api.localAPIauth.uci.opt = "localAPIauth";
-+	conf->webserver.api.localAPIauth.uci.stype = "api";
- 
  	conf->webserver.api.max_sessions.k = "webserver.api.max_sessions";
- 	conf->webserver.api.max_sessions.h = "Number of concurrent sessions allowed for the API. If the number of sessions exceeds this value, no new sessions will be allowed until the number of sessions drops due to session expiration or logout. Note that the number of concurrent sessions is irrelevant if authentication is disabled as no sessions are used in this case.";
-@@ -991,12 +1104,16 @@ void initConfig(struct config *conf)
+@@ -1050,12 +1180,16 @@ void initConfig(struct config *conf)
  	conf->webserver.api.max_sessions.d.u16 = 16;
  	conf->webserver.api.max_sessions.f = FLAG_RESTART_FTL;
  	conf->webserver.api.max_sessions.c = validate_stub; // Only type-based checking
@@ -1005,7 +1054,7 @@
  
  	conf->webserver.api.pwhash.k = "webserver.api.pwhash";
  	conf->webserver.api.pwhash.h = "API password hash";
-@@ -1005,6 +1122,8 @@ void initConfig(struct config *conf)
+@@ -1064,6 +1198,8 @@ void initConfig(struct config *conf)
  	conf->webserver.api.pwhash.f = FLAG_INVALIDATE_SESSIONS;
  	conf->webserver.api.pwhash.d.s = (char*)"";
  	conf->webserver.api.pwhash.c = validate_stub; // Only type-based checking
@@ -1014,7 +1063,7 @@
  
  	conf->webserver.api.password.k = "webserver.api.password";
  	conf->webserver.api.password.h = "Pi-hole web interface and API password. When set to something different than \""PASSWORD_VALUE"\", this property will compute the corresponding password hash to set webserver.api.pwhash";
-@@ -1013,6 +1132,8 @@ void initConfig(struct config *conf)
+@@ -1072,6 +1208,8 @@ void initConfig(struct config *conf)
  	conf->webserver.api.password.f = FLAG_PSEUDO_ITEM | FLAG_INVALIDATE_SESSIONS;
  	conf->webserver.api.password.d.s = (char*)"";
  	conf->webserver.api.password.c = validate_stub; // Only type-based checking
@@ -1023,7 +1072,7 @@
  
  	conf->webserver.api.totp_secret.k = "webserver.api.totp_secret";
  	conf->webserver.api.totp_secret.h = "Pi-hole 2FA TOTP secret. When set to something different than \"""\", 2FA authentication will be enforced for the API and the web interface. This setting is write-only, you can not read the secret back.";
-@@ -1021,6 +1142,8 @@ void initConfig(struct config *conf)
+@@ -1080,6 +1218,8 @@ void initConfig(struct config *conf)
  	conf->webserver.api.totp_secret.f = FLAG_WRITE_ONLY | FLAG_INVALIDATE_SESSIONS;
  	conf->webserver.api.totp_secret.d.s = (char*)"";
  	conf->webserver.api.totp_secret.c = validate_stub; // Only type-based checking
@@ -1032,16 +1081,32 @@
  
  	conf->webserver.api.app_pwhash.k = "webserver.api.app_pwhash";
  	conf->webserver.api.app_pwhash.h = "Pi-hole application password.\n After you turn on two-factor (2FA) verification and set up an Authenticator app, you may run into issues if you use apps or other services that don't support two-step verification. In this case, you can create and use an app password to sign in. An app password is a long, randomly generated password that can be used instead of your regular password + TOTP token when signing in to the API. The app password can be generated through the API and will be shown only once. You can revoke the app password at any time. If you revoke the app password, be sure to generate a new one and update your app with the new password.";
-@@ -1029,6 +1152,8 @@ void initConfig(struct config *conf)
+@@ -1088,18 +1228,24 @@ void initConfig(struct config *conf)
  	conf->webserver.api.app_pwhash.f = FLAG_INVALIDATE_SESSIONS;
  	conf->webserver.api.app_pwhash.d.s = (char*)"";
  	conf->webserver.api.app_pwhash.c = validate_stub; // Only type-based checking
 +	conf->webserver.api.app_pwhash.uci.opt = "app_pwhash";
 +	conf->webserver.api.app_pwhash.uci.stype = "api";
  
+ 	conf->webserver.api.app_sudo.k = "webserver.api.app_sudo";
+ 	conf->webserver.api.app_sudo.h = "Should application password API sessions be allowed to modify config settings?\n Setting this to true allows third-party applications using the application password to modify settings, e.g., the upstream DNS servers, DHCP server settings, or changing passwords. This setting should only be enabled if really needed and only if you trust the applications using the application password.";
+ 	conf->webserver.api.app_sudo.t = CONF_BOOL;
+ 	conf->webserver.api.app_sudo.d.b = false;
+ 	conf->webserver.api.app_sudo.c = validate_stub; // Only type-based checking
++	conf->webserver.api.app_sudo.uci.opt = "app_sudo";
++	conf->webserver.api.app_sudo.uci.stype = "api";
+ 
+ 	conf->webserver.api.cli_pw.k = "webserver.api.cli_pw";
+ 	conf->webserver.api.cli_pw.h = "Should FTL create a temporary CLI password? This password is stored in clear in /etc/pihole and can be used by the CLI (pihole ...  commands) to authenticate against the API. Note that the password is only valid for the current session and regenerated on each FTL restart. Sessions initiated with this password cannot modify the Pi-hole configuration (change passwords, etc.) for security reasons but can still use the API to query data and manage lists.";
+ 	conf->webserver.api.cli_pw.t = CONF_BOOL;
+ 	conf->webserver.api.cli_pw.d.b = true;
+ 	conf->webserver.api.cli_pw.c = validate_stub; // Only type-based checking
++	conf->webserver.api.cli_pw.uci.opt = "cli_pw";
++	conf->webserver.api.cli_pw.uci.stype = "api";
+ 
  	conf->webserver.api.excludeClients.k = "webserver.api.excludeClients";
  	conf->webserver.api.excludeClients.h = "Array of clients to be excluded from certain API responses (regex):\n - Query Log (/api/queries)\n - Top Clients (/api/stats/top_clients)\n This setting accepts both IP addresses (IPv4 and IPv6) as well as hostnames.\n Note that backslashes \"\\\" need to be escaped, i.e. \"\\\\\" in this setting\n\n Example: [ \"^192\\\\.168\\\\.2\\\\.56$\", \"^fe80::341:[0-9a-f]*$\", \"^localhost$\" ]";
-@@ -1036,6 +1161,8 @@ void initConfig(struct config *conf)
+@@ -1107,6 +1253,8 @@ void initConfig(struct config *conf)
  	conf->webserver.api.excludeClients.t = CONF_JSON_STRING_ARRAY;
  	conf->webserver.api.excludeClients.d.json = cJSON_CreateArray();
  	conf->webserver.api.excludeClients.c = validate_regex_array;
@@ -1050,7 +1115,7 @@
  
  	conf->webserver.api.excludeDomains.k = "webserver.api.excludeDomains";
  	conf->webserver.api.excludeDomains.h = "Array of domains to be excluded from certain API responses (regex):\n - Query Log (/api/queries)\n - Top Clients (/api/stats/top_domains)\n Note that backslashes \"\\\" need to be escaped, i.e. \"\\\\\" in this setting\n\n Example: [ \"(^|\\\\.)\\\\.google\\\\.de$\", \"\\\\.pi-hole\\\\.net$\" ]";
-@@ -1043,30 +1170,48 @@ void initConfig(struct config *conf)
+@@ -1114,30 +1262,48 @@ void initConfig(struct config *conf)
  	conf->webserver.api.excludeDomains.t = CONF_JSON_STRING_ARRAY;
  	conf->webserver.api.excludeDomains.d.json = cJSON_CreateArray();
  	conf->webserver.api.excludeDomains.c = validate_regex_array;
@@ -1099,7 +1164,7 @@
  
  	// sub-struct webserver.api.temp
  	conf->webserver.api.temp.limit.k = "webserver.api.temp.limit";
-@@ -1074,6 +1219,8 @@ void initConfig(struct config *conf)
+@@ -1145,6 +1311,8 @@ void initConfig(struct config *conf)
  	conf->webserver.api.temp.limit.t = CONF_DOUBLE;
  	conf->webserver.api.temp.limit.d.d = 60.0; // °C
  	conf->webserver.api.temp.limit.c = validate_stub; // Only type-based checking
@@ -1108,7 +1173,7 @@
  
  	conf->webserver.api.temp.unit.k = "webserver.api.temp.unit";
  	conf->webserver.api.temp.unit.h = "Which temperature unit should be used for temperatures processed by FTL?";
-@@ -1089,6 +1236,8 @@ void initConfig(struct config *conf)
+@@ -1160,6 +1328,8 @@ void initConfig(struct config *conf)
  	conf->webserver.api.temp.unit.t = CONF_ENUM_TEMP_UNIT;
  	conf->webserver.api.temp.unit.d.temp_unit = TEMP_UNIT_C;
  	conf->webserver.api.temp.unit.c = validate_stub; // Only type-based checking
@@ -1117,7 +1182,7 @@
  
  	// struct files
  	conf->files.pid.k = "files.pid";
-@@ -1098,6 +1247,8 @@ void initConfig(struct config *conf)
+@@ -1169,6 +1339,8 @@ void initConfig(struct config *conf)
  	conf->files.pid.f = FLAG_RESTART_FTL;
  	conf->files.pid.d.s = (char*)"/tmp/run/pihole-FTL.pid";
  	conf->files.pid.c = validate_filepath;
@@ -1126,7 +1191,7 @@
  
  	conf->files.database.k = "files.database";
  	conf->files.database.h = "The location of FTL's long-term database";
-@@ -1105,6 +1256,8 @@ void initConfig(struct config *conf)
+@@ -1176,6 +1348,8 @@ void initConfig(struct config *conf)
  	conf->files.database.t = CONF_STRING;
  	conf->files.database.d.s = (char*)"/etc/pihole/pihole-FTL.db";
  	conf->files.database.c = validate_filepath;
@@ -1135,7 +1200,7 @@
  
  	conf->files.gravity.k = "files.gravity";
  	conf->files.gravity.h = "The location of Pi-hole's gravity database";
-@@ -1113,6 +1266,8 @@ void initConfig(struct config *conf)
+@@ -1184,6 +1358,8 @@ void initConfig(struct config *conf)
  	conf->files.gravity.f = FLAG_RESTART_FTL;
  	conf->files.gravity.d.s = (char*)"/etc/pihole/gravity.db";
  	conf->files.gravity.c = validate_filepath;
@@ -1144,7 +1209,7 @@
  
  	conf->files.gravity_tmp.k = "files.gravity_tmp";
  	conf->files.gravity_tmp.h = "A temporary directory where Pi-hole can store files during gravity updates. This directory must be writable by the user running gravity (typically pihole).";
-@@ -1121,6 +1276,8 @@ void initConfig(struct config *conf)
+@@ -1192,6 +1368,8 @@ void initConfig(struct config *conf)
  	conf->files.gravity_tmp.f = FLAG_RESTART_FTL;
  	conf->files.gravity_tmp.d.s = (char*)"/tmp";
  	conf->files.gravity_tmp.c = validate_stub; // Only type-based checking
@@ -1153,7 +1218,7 @@
  
  	conf->files.macvendor.k = "files.macvendor";
  	conf->files.macvendor.h = "The database containing MAC -> Vendor information for the network table";
-@@ -1128,6 +1285,8 @@ void initConfig(struct config *conf)
+@@ -1199,6 +1377,8 @@ void initConfig(struct config *conf)
  	conf->files.macvendor.t = CONF_STRING;
  	conf->files.macvendor.d.s = (char*)"/etc/pihole/macvendor.db";
  	conf->files.macvendor.c = validate_filepath;
@@ -1162,7 +1227,7 @@
  
  	conf->files.pcap.k = "files.pcap";
  	conf->files.pcap.h = "An optional file containing a pcap capture of the network traffic. This file is used for debugging purposes only. If you don't know what this is, you don't need it.\n Setting this to an empty string disables pcap recording. The file must be writable by the user running FTL (typically pihole). Failure to write to this file will prevent the DNS resolver from starting. The file is appended to if it already exists.";
-@@ -1136,6 +1295,8 @@ void initConfig(struct config *conf)
+@@ -1207,6 +1387,8 @@ void initConfig(struct config *conf)
  	conf->files.pcap.f = FLAG_RESTART_FTL;
  	conf->files.pcap.d.s = (char*)"";
  	conf->files.pcap.c = validate_filepath_empty;
@@ -1171,7 +1236,7 @@
  
  	// sub-struct files.log
  	// conf->files.log.ftl is set in a separate function
-@@ -1147,14 +1308,18 @@ void initConfig(struct config *conf)
+@@ -1218,14 +1400,18 @@ void initConfig(struct config *conf)
  	conf->files.log.webserver.f = FLAG_RESTART_FTL;
  	conf->files.log.webserver.d.s = (char*)"/var/log/pihole/webserver.log";
  	conf->files.log.webserver.c = validate_filepath;
@@ -1191,7 +1256,7 @@
  
  
  	// struct misc
-@@ -1173,12 +1338,16 @@ void initConfig(struct config *conf)
+@@ -1244,12 +1430,16 @@ void initConfig(struct config *conf)
  	conf->misc.privacylevel.t = CONF_ENUM_PRIVACY_LEVEL;
  	conf->misc.privacylevel.d.privacy_level = PRIVACY_SHOW_ALL;
  	conf->misc.privacylevel.c = validate_stub; // Only type-based checking
@@ -1208,7 +1273,7 @@
  
  	conf->misc.nice.k = "misc.nice";
  	conf->misc.nice.h = "Set niceness of pihole-FTL. Defaults to -10 and can be disabled altogether by setting a value of -999. The nice value is an attribute that can be used to influence the CPU scheduler to favor or disfavor a process in scheduling decisions. The range of the nice value varies across UNIX systems. On modern Linux, the range is -20 (high priority = not very nice to other processes) to +19 (low priority).";
-@@ -1186,19 +1355,25 @@ void initConfig(struct config *conf)
+@@ -1257,19 +1447,25 @@ void initConfig(struct config *conf)
  	conf->misc.nice.f = FLAG_RESTART_FTL;
  	conf->misc.nice.d.i = -10;
  	conf->misc.nice.c = validate_stub; // Only type-based checking
@@ -1236,7 +1301,7 @@
  
  	conf->misc.dnsmasq_lines.k = "misc.dnsmasq_lines";
  	conf->misc.dnsmasq_lines.h = "Additional lines to inject into the generated dnsmasq configuration.\n Warning: This is an advanced setting and should only be used with care. Incorrectly formatted or duplicated lines as well as lines conflicting with the automatic configuration of Pi-hole can break the embedded dnsmasq and will stop DNS resolution from working.\n Use this option with extra care.";
-@@ -1207,6 +1382,8 @@ void initConfig(struct config *conf)
+@@ -1278,6 +1474,8 @@ void initConfig(struct config *conf)
  	conf->misc.dnsmasq_lines.f = FLAG_RESTART_FTL;
  	conf->misc.dnsmasq_lines.d.json = cJSON_CreateArray();
  	conf->misc.dnsmasq_lines.c = validate_stub; // Type-based checking + dnsmasq syntax checking
@@ -1245,16 +1310,25 @@
  
  	conf->misc.extraLogging.k = "misc.extraLogging";
  	conf->misc.extraLogging.h = "Log additional information about queries and replies to pihole.log\n When this setting is enabled, the log has extra information at the start of each line. This consists of a serial number which ties together the log lines associated with an individual query, and the IP address of the requestor. This setting is only effective if dns.queryLogging is enabled, too. This option is only useful for debugging and is not recommended for normal use.";
-@@ -1214,6 +1391,8 @@ void initConfig(struct config *conf)
+@@ -1285,6 +1483,8 @@ void initConfig(struct config *conf)
  	conf->misc.extraLogging.f = FLAG_RESTART_FTL;
  	conf->misc.extraLogging.d.b = false;
  	conf->misc.extraLogging.c = validate_stub; // Only type-based checking
 +	conf->misc.extraLogging.uci.opt = "extraLogging";
 +	conf->misc.extraLogging.uci.stype = "pihole";
  
+ 	conf->misc.readOnly.k = "misc.readOnly";
+ 	conf->misc.readOnly.h = "Put configuration into read-only mode. This will prevent any changes to the configuration file via the API or CLI. This setting useful when a configuration is to be forced/modified by some third-party application (like infrastructure-as-code providers) and should not be changed by any means.";
+@@ -1292,6 +1492,8 @@ void initConfig(struct config *conf)
+ 	conf->misc.readOnly.f = FLAG_READ_ONLY;
+ 	conf->misc.readOnly.d.b = false;
+ 	conf->misc.readOnly.c = validate_stub; // Only type-based checking
++	conf->misc.readOnly.uci.opt = "readOnly";
++	conf->misc.readOnly.uci.stype = "pihole";
+ 
  	// sub-struct misc.check
  	conf->misc.check.load.k = "misc.check.load";
-@@ -1221,18 +1400,24 @@ void initConfig(struct config *conf)
+@@ -1299,18 +1501,24 @@ void initConfig(struct config *conf)
  	conf->misc.check.load.t = CONF_BOOL;
  	conf->misc.check.load.d.b = true;
  	conf->misc.check.load.c = validate_stub; // Only type-based checking
@@ -1279,7 +1353,7 @@
  
  
  	// struct debug
-@@ -1241,168 +1426,232 @@ void initConfig(struct config *conf)
+@@ -1319,174 +1527,240 @@ void initConfig(struct config *conf)
  	conf->debug.database.t = CONF_BOOL;
  	conf->debug.database.d.b = false;
  	conf->debug.database.c = validate_stub; // Only type-based checking
@@ -1502,6 +1576,14 @@
 +	conf->debug.reserved.uci.opt = "reserved";
 +	conf->debug.reserved.uci.stype = "debug";
  
+ 	conf->debug.ntp.k = "debug.ntp";
+ 	conf->debug.ntp.h = "Print information about NTP synchronization";
+ 	conf->debug.ntp.t = CONF_BOOL;
+ 	conf->debug.ntp.d.b = false;
+ 	conf->debug.ntp.c = validate_stub; // Only type-based checking
++	conf->debug.ntp.uci.opt = "ntp";
++	conf->debug.ntp.uci.stype = "debug";
+ 
  	conf->debug.all.k = "debug.all";
  	conf->debug.all.h = "Set all debug flags at once. This is a convenience option to enable all debug flags at once. Note that this option is not persistent, setting it to true will enable all *remaining* debug flags but unsetting it will disable *all* debug flags.";
  	conf->debug.all.t = CONF_ALL_DEBUG_BOOL;
@@ -1512,7 +1594,7 @@
  
  	// Post-processing:
  	// Initialize and verify config data
-@@ -1501,6 +1750,9 @@ bool readFTLconf(struct config *conf, co
+@@ -1585,6 +1859,9 @@ bool readFTLconf(struct config *conf, co
  	// Try to read TOML config file
  	if(readFTLtoml(NULL, conf, NULL, rewrite, NULL))
  	{
@@ -1522,7 +1604,7 @@
  		// If successful, we write the config file back to disk
  		// to ensure that all options are present and comments
  		// about options deviating from the default are present
-@@ -1509,6 +1761,7 @@ bool readFTLconf(struct config *conf, co
+@@ -1593,6 +1870,7 @@ bool readFTLconf(struct config *conf, co
  			writeFTLtoml(true);
  			write_dnsmasq_config(conf, false, NULL);
  			write_custom_list();
@@ -1530,7 +1612,7 @@
  		}
  		return true;
  	}
-@@ -1540,6 +1793,9 @@ bool readFTLconf(struct config *conf, co
+@@ -1624,6 +1902,9 @@ bool readFTLconf(struct config *conf, co
  	conf->webserver.port.v.s = ports;
  	conf->webserver.port.t = CONF_STRING_ALLOCATED;
  
@@ -1540,7 +1622,7 @@
  	log_info("Initialised webserver ports at %d (HTTP) and %d (HTTPS), IPv6 support is %s",
  		http_port, https_port, have_ipv6 ? "enabled" : "disabled");
  
-@@ -1556,14 +1812,21 @@ bool getLogFilePath(void)
+@@ -1640,14 +1921,21 @@ bool getLogFilePath(void)
  	// Initialize memory
  	memset(&config, 0, sizeof(config));
  
@@ -1563,7 +1645,7 @@
  
  	// Check if the config file contains a different path
  	if(!getLogFilePathTOML())
-@@ -1587,6 +1850,9 @@ void set_blockingstatus(bool enabled)
+@@ -1671,6 +1959,9 @@ void set_blockingstatus(bool enabled)
  		return;
  
  	config.dns.blocking.active.v.b = enabled;
@@ -1573,7 +1655,7 @@
  	writeFTLtoml(true);
  	raise(SIGHUP);
  }
-@@ -1651,6 +1917,8 @@ void replace_config(struct config *newco
+@@ -1735,6 +2026,8 @@ void replace_config(struct config *newco
  	// Free old backup struct
  	free_config(&old_conf);
  
@@ -1582,7 +1664,7 @@
  	// Unlock shared memory
  	unlock_shm();
  }
-@@ -1659,17 +1927,23 @@ void reread_config(void)
+@@ -1743,17 +2036,23 @@ void reread_config(void)
  {
  
  	// Create checksum of config file
@@ -1611,7 +1693,7 @@
  		return;
  	}
  
-@@ -1711,6 +1985,8 @@ void reread_config(void)
+@@ -1795,6 +2094,8 @@ void reread_config(void)
  		free_config(&conf_copy);
  	}
  
@@ -1620,7 +1702,7 @@
  	// Write the config file back to disk to ensure that all options and
  	// comments about options deviating from the default are present
  	writeFTLtoml(true);
-@@ -1725,7 +2001,7 @@ void reread_config(void)
+@@ -1809,7 +2110,7 @@ void reread_config(void)
  	// If we need to restart FTL, we do so now
  	if(restart)
  	{
@@ -1641,10 +1723,10 @@
  // This static string represents an unchanged password
  #define PASSWORD_VALUE "********"
 @@ -99,6 +101,7 @@ enum conf_type {
- #define FLAG_INVALIDATE_SESSIONS   (1 << 2)
  #define FLAG_WRITE_ONLY            (1 << 3)
  #define FLAG_ENV_VAR               (1 << 4)
-+#define FLAG_PKG_DHCP              (1 << 5)
+ #define FLAG_READ_ONLY             (1 << 5)
++#define FLAG_PKG_DHCP              (1 << 6)
  
  struct conf_item {
  	const char *k;        // item Key
@@ -1674,7 +1756,7 @@
  		struct conf_item rapidCommit;
  		struct conf_item multiDNS;
  		struct conf_item logging;
-@@ -246,6 +250,7 @@ struct config {
+@@ -268,6 +272,7 @@ struct config {
  			struct conf_item maxClients;
  			struct conf_item client_history_global_max;
  			struct conf_item allow_destructive;
@@ -1682,7 +1764,7 @@
  			struct {
  				struct conf_item limit;
  				struct conf_item unit;
-@@ -296,6 +301,7 @@ struct config {
+@@ -319,6 +324,7 @@ struct config {
  		struct conf_item arp;
  		struct conf_item regex;
  		struct conf_item api;
@@ -1690,7 +1772,7 @@
  		struct conf_item tls;
  		struct conf_item overtime;
  		struct conf_item status;
-@@ -316,9 +322,12 @@ struct config {
+@@ -340,9 +346,12 @@ struct config {
  		// all must be the last item in this struct
  		struct conf_item all;
  	} debug;
@@ -1703,16 +1785,16 @@
  
  #define CONFIG_ELEMENTS (sizeof(config)/sizeof(struct conf_item))
  #define DEBUG_ELEMENTS (sizeof(config.debug)/sizeof(struct conf_item))
-@@ -342,6 +351,9 @@ void reread_config(void);
- const char *get_conf_type_str(const enum conf_type type) __attribute__ ((const));
+@@ -367,6 +376,9 @@ const char *get_conf_type_str(const enum
  void replace_config(struct config *newconf);
  void reread_config(void);
-+
+ 
 +// Defined in cli.c
 +bool readStringValue(struct conf_item *conf_item, const char *value, struct config *newconf);
- 
++
  // Defined in toml_reader.c
  bool readDebugSettings(void);
+ void init_config_mutex(void);
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
 @@ -36,6 +36,61 @@
@@ -1777,7 +1859,7 @@
  static bool test_dnsmasq_config(char errbuf[ERRBUF_SIZE])
  {
  	// Create a pipe for communication with our child
-@@ -191,6 +246,228 @@ char *get_dnsmasq_line(const unsigned int lineno)
+@@ -191,6 +246,228 @@ char *get_dnsmasq_line(const unsigned in
  	return NULL;
  }
  
@@ -2006,7 +2088,7 @@
  static void write_config_header(FILE *fp, const char *description)
  {
  	const time_t now = time(NULL);
-@@ -209,13 +486,13 @@ static void write_config_header(FILE *fp, const char *
+@@ -209,13 +486,13 @@ static void write_config_header(FILE *fp
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "FILE AUTOMATICALLY POPULATED BY PI-HOLE");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "ANY CHANGES MADE TO THIS FILE WILL BE LOST WHEN THE CONFIGURATION CHANGES");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
@@ -2023,7 +2105,7 @@
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "Last updated: %s", timestring);
  	CONFIG_CENTER(fp, HEADER_WIDTH, "by FTL version %s", FTL_VERSION);
-@@ -225,73 +502,39 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -225,71 +502,37 @@ static void write_config_header(FILE *fp
  
  bool __attribute__((const)) write_dnsmasq_config(struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE])
  {
@@ -2107,8 +2189,8 @@
 +	if (config.dhcp.active.v.b && !network_pkg) {
 +		log_err("network package is not found in the current context");
 +		return false;
- 	}
- 
++	}
++
 +	// since FTL doesn't support multiple instances
 +	// find the first dnsmasq section in dhcp config
 +	uci_foreach_element(&dhcp_pkg->sections, e)
@@ -2121,12 +2203,10 @@
 +	if(!dhcp_section) {
 +		log_err("write_dnsmasq_config: dnsmasq section is not found");
 +		return false;
-+	}
-+
+ 	}
+ 
  	log_debug(DEBUG_CONFIG, "Opening "DNSMASQ_TEMP_CONF" for writing");
- 	FILE *pihole_conf = fopen(DNSMASQ_TEMP_CONF, "w");
- 	// Return early if opening failed
-@@ -362,7 +605,7 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -362,7 +605,7 @@ bool __attribute__((const)) write_dnsmas
  		fputs("\n", pihole_conf);
  	}
  
@@ -2135,7 +2215,7 @@
  	{
  		fputs("# Specify the log file to use\n", pihole_conf);
  		fputs("# We set this even if logging is disabled to store warnings\n", pihole_conf);
-@@ -421,11 +664,18 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -426,10 +669,17 @@ bool __attribute__((const)) write_dnsmas
  		fputs("\n", pihole_conf);
  	}
  
@@ -2146,16 +2226,15 @@
  	if(strlen(interface) == 0)
 -		interface = "eth0";
 +		interface = "br-lan";
- 
++
 +	// with split_comma approach instead of uci_foreach_element,
 +	// we have a fallback interface in case there is no interface option
 +	char **comma;
 +	int count = split_comma(interface, ',', &comma);
-+
+ 
  	switch(conf->dns.listeningMode.v.listeningMode)
  	{
- 		case LISTEN_LOCAL:
-@@ -439,12 +689,15 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -444,12 +694,15 @@ bool __attribute__((const)) write_dnsmas
  			break;
  		case LISTEN_SINGLE:
  			fputs("# Listen on one interface\n", pihole_conf);
@@ -2174,7 +2253,7 @@
  			break;
  		case LISTEN_NONE:
  			fputs("# No interface configuration applied, make sure to cover this yourself\n", pihole_conf);
-@@ -452,6 +705,11 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -457,6 +710,11 @@ bool __attribute__((const)) write_dnsmas
  	}
  	fputs("\n", pihole_conf);
  
@@ -2183,33 +2262,28 @@
 +		free (comma[i]);
 +	free(comma);
 +
+ 	// Add upstream DNS servers for reverse lookups
+ 	bool domain_revServer = false;
  	const unsigned int revServers = cJSON_GetArraySize(conf->dns.revServers.v.json);
- 	for(unsigned int i = 0; i < revServers; i++)
- 	{
-@@ -504,13 +762,18 @@ bool __attribute__((const)) write_dnsmasq_config(struc
- 	// ticked, we add `local=/domain/` to signal that this domain is purely
- 	// local and FTL may answer queries from /etc/hosts or DHCP but should
- 	// never forward queries on that domain to any upstream servers
--	if(conf->dns.domainNeeded.v.b)
-+	const char *local_dom = uci_lookup_option_string(conf->uci_ctx, dhcp_section, "local");
-+	if(conf->dns.domainNeeded.v.b && (local_dom != NULL || strlen(conf->dns.domain.v.s) > 0))
- 	{
- 		fputs("# Never forward A or AAAA queries for plain names, without\n",pihole_conf);
- 		fputs("# dots or domain parts, to upstream nameservers. If the name\n", pihole_conf);
- 		fputs("# is not known from /etc/hosts or DHCP a NXDOMAIN is returned\n", pihole_conf);
--		if(strlen(conf->dns.domain.v.s))
+@@ -531,11 +789,15 @@ bool __attribute__((const)) write_dnsmas
+ 		fputs("# DNS domain for both the DNS and DHCP server\n", pihole_conf);
+ 		if(!domain_revServer)
+ 		{
++			const char *local_dom = uci_lookup_option_string(conf->uci_ctx, dhcp_section, "local");
+ 			fputs("# This DNS domain in purely local. FTL may answer queries from\n", pihole_conf);
+ 			fputs("# /etc/hosts or DHCP but should never forward queries on that\n", pihole_conf);
+ 			fputs("# domain to any upstream servers\n", pihole_conf);
+ 			fprintf(pihole_conf, "domain=%s\n", conf->dns.domain.v.s);
 -			fprintf(pihole_conf, "local=/%s/\n\n", conf->dns.domain.v.s);
-+		if(strlen(conf->dns.domain.v.s)) {
 +			if(local_dom != NULL)
 +				fprintf(pihole_conf, "local=%s\n", local_dom);
 +			else
 +				fprintf(pihole_conf, "local=/%s/\n\n", conf->dns.domain.v.s);
-+		}
+ 		}
  		else
- 			fputs("\n", pihole_conf);
- 	}
-@@ -523,31 +786,94 @@ bool __attribute__((const)) write_dnsmasq_config(struc
- 		fprintf(pihole_conf, "domain=%s\n\n", conf->dns.domain.v.s);
+ 		{
+@@ -545,30 +807,93 @@ bool __attribute__((const)) write_dnsmas
+ 		}
  	}
  
 +	bool rebind_protection = true;
@@ -2317,13 +2391,12 @@
 +		fputs("dhcp-ignore-names=tag:dhcp_bogus_hostname\n", pihole_conf);
 +		fputs("dhcp-name-match=set:dhcp_bogus_hostname,localhost\n", pihole_conf);
 +		fputs("dhcp-name-match=set:dhcp_bogus_hostname,wpad\n", pihole_conf);
- 
-+		write_config_dhcp(pihole_conf, conf->uci_ctx, dhcp_pkg, network_pkg);
 +
++		write_config_dhcp(pihole_conf, conf->uci_ctx, dhcp_pkg, network_pkg);
+ 
  		if(conf->dhcp.rapidCommit.v.b)
  			fputs("dhcp-rapid-commit\n", pihole_conf);
- 
-@@ -650,9 +976,11 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -688,9 +1013,11 @@ bool __attribute__((const)) write_dnsmas
  	}
  
  	// Add option for caching all DNS records
@@ -2338,7 +2411,7 @@
  
  	// Add option for PCAP file recording
  	if(strlen(conf->files.pcap.v.s) > 0)
-@@ -729,6 +1057,8 @@ bool __attribute__((const)) write_dnsmasq_config(struc
+@@ -773,6 +1100,8 @@ bool __attribute__((const)) write_dnsmas
  		return false;
  	}
  
@@ -2347,7 +2420,7 @@
  	// Check if the new config file is different from the old one
  	// Skip the first 24 lines as they contain the header
  	if(files_different(DNSMASQ_TEMP_CONF, DNSMASQ_PH_CONFIG, 24))
-@@ -772,19 +1102,19 @@ bool write_custom_list(void)
+@@ -816,19 +1145,19 @@ bool write_custom_list(void)
  		}
  	}
  
@@ -2371,7 +2444,7 @@
  		fclose(custom_list);
  		return false;
  	}
-@@ -814,7 +1144,7 @@ bool write_custom_list(void)
+@@ -858,7 +1187,7 @@ bool write_custom_list(void)
  	// Unlock file
  	if(flock(fileno(custom_list), LOCK_UN) != 0)
  	{
@@ -2380,7 +2453,7 @@
  		fclose(custom_list);
  		return false;
  	}
-@@ -822,28 +1152,28 @@ bool write_custom_list(void)
+@@ -866,28 +1195,28 @@ bool write_custom_list(void)
  	// Close file
  	if(fclose(custom_list) != 0)
  	{
@@ -2473,20 +2546,20 @@
  
  bool writeFTLtoml(const bool verbose)
  {
-@@ -169,8 +171,14 @@ bool writeFTLtoml(const bool verbose)
+@@ -207,8 +209,14 @@ bool writeFTLtoml(const bool verbose)
  		log_debug(DEBUG_CONFIG, "pihole.toml unchanged");
  	}
  
 -	if(!sha256sum(GLOBALTOMLPATH, last_checksum))
 +	if(!sha256sum(GLOBALTOMLPATH, last_checksum_toml))
  		log_err("Unable to create checksum of %s", GLOBALTOMLPATH);
-+
+ 
 +	if(!sha256sum(UCI_CONFIG_PIHOLE, last_checksum_pihole))
 +		log_err("Unable to create checksum of %s", UCI_CONFIG_PIHOLE);
 +
 +	if(!sha256sum(UCI_CONFIG_DHCP, last_checksum_dhcp))
 +		log_err("Unable to create checksum of %s", UCI_CONFIG_DHCP);
- 
++
  	return true;
  }
 --- a/src/daemon.c
@@ -2535,7 +2608,7 @@
  	}
  	return nodename;
  }
-@@ -378,6 +400,8 @@ void cleanup(const int ret)
+@@ -402,6 +424,8 @@ void cleanup(const int ret)
  	char buffer[42] = { 0 };
  	format_time(buffer, 0, timer_elapsed_msec(EXIT_TIMER));
  	log_info("########## FTL terminated after%s (code %i)! ##########", buffer, ret);
@@ -2546,7 +2619,7 @@
  static float last_clock = 0.0f;
 --- a/src/datastructure.c
 +++ b/src/datastructure.c
-@@ -1200,3 +1200,63 @@ int __attribute__ ((pure)) get_temp_unit_val(const cha
+@@ -1217,3 +1217,63 @@ int __attribute__ ((pure)) get_temp_unit
  	// Invalid value
  	return -1;
  }
@@ -2612,7 +2685,7 @@
 +}
 --- a/src/datastructure.h
 +++ b/src/datastructure.h
-@@ -184,4 +184,7 @@ DNSCacheData* _getDNSCache(int cacheID, bool checkMagi
+@@ -185,4 +185,7 @@ upstreamsData* _getUpstream(int upstream
  #define getDNSCache(cacheID, checkMagic) _getDNSCache(cacheID, checkMagic, __LINE__, __FUNCTION__, __FILE__)
  DNSCacheData* _getDNSCache(int cacheID, bool checkMagic, int line, const char *func, const char *file);
  
@@ -2622,7 +2695,7 @@
  #endif //DATASTRUCTURE_H
 --- a/src/enums.h
 +++ b/src/enums.h
-@@ -144,6 +144,7 @@ enum debug_flag {
+@@ -145,6 +145,7 @@ enum debug_flag {
  	DEBUG_ARP,
  	DEBUG_REGEX,
  	DEBUG_API,
@@ -2632,7 +2705,7 @@
  	DEBUG_STATUS,
 --- a/src/log.c
 +++ b/src/log.c
-@@ -183,6 +183,8 @@ const char *debugstr(const enum debug_flag flag)
+@@ -186,6 +186,8 @@ const char *debugstr(const enum debug_fl
  			return "DEBUG_REGEX";
  		case DEBUG_API:
  			return "DEBUG_API";
@@ -2643,32 +2716,29 @@
  		case DEBUG_OVERTIME:
 --- a/src/main.c
 +++ b/src/main.c
-@@ -58,6 +58,12 @@ int main (int argc, char *argv[])
- 	// to have arg{c,v}_dnsmasq initialized
- 	parse_args(argc, argv);
+@@ -72,8 +72,10 @@ int main (int argc, char *argv[])
+ 		log_info("Parsed config file "GLOBALTOMLPATH" successfully");
  
-+	// Check if there is already a running FTL process
-+	if(check_running_FTL()) {
+ 	// Check if another FTL process is already running
+-	if(another_FTL())
++	if(another_FTL()) {
 +		uci_cleanup(config.uci_ctx);
-+		return EXIT_FAILURE;
+ 		return EXIT_FAILURE;
 +	}
-+
- 	// Initialize FTL log
- 	init_FTL_log(argc > 0 ? argv[0] : NULL);
- 	// Try to open FTL log
-@@ -83,8 +89,7 @@ int main (int argc, char *argv[])
+ 
+ 	// Set process priority
+ 	set_nice();
+@@ -82,6 +84,7 @@ int main (int argc, char *argv[])
  	if(!init_shmem())
  	{
  		log_crit("Initialization of shared memory failed.");
--		// Check if there is already a running FTL process
--		check_running_FTL();
 +		uci_cleanup(config.uci_ctx);
  		return EXIT_FAILURE;
  	}
  
 --- a/src/zip/teleporter.c
 +++ b/src/zip/teleporter.c
-@@ -347,7 +347,7 @@ static const char *import_dhcp_leases(void *ptr, size_
+@@ -347,7 +347,7 @@ static const char *import_dhcp_leases(vo
  	// Nevertheless, we rotate the current dhcp.leases file to keep a backup of the previous version
  
  	// Write new dhcp.leases file to disk

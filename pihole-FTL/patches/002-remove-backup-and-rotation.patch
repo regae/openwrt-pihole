@@ -20,7 +20,7 @@
  //basename()
  #include <libgen.h>
  
-@@ -790,24 +788,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
+@@ -792,24 +790,6 @@ static int process_received_tar_gz(struct ftl_conn *ap
  	// Remove pihole.toml to prevent it from being imported on restart
  	if(remove(GLOBALTOMLPATH) != 0)
  		log_err("Unable to remove file \"%s\": %s", GLOBALTOMLPATH, strerror(errno));
@@ -47,7 +47,7 @@
  	free_upload_data(data);
 --- a/src/config/config.c
 +++ b/src/config/config.c
-@@ -1543,24 +1543,18 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1578,24 +1578,18 @@ bool readFTLconf(struct config *conf, const bool rewri
  	getEnvVars();
  
  	// Try to read TOML config file
@@ -81,7 +81,7 @@
  	}
  
  	log_info("No config file nor backup available, using defaults");
-@@ -1586,16 +1580,6 @@ bool readFTLconf(struct config *conf, const bool rewri
+@@ -1621,16 +1615,6 @@ bool readFTLconf(struct config *conf, const bool rewri
  	// custom.list
  	read_legacy_custom_hosts_config();
  
@@ -98,7 +98,7 @@
  	// Determine default webserver ports if not imported from setupVars.conf
  	if(!(config.webserver.port.f & FLAG_CONF_IMPORTED))
  	{
-@@ -1767,7 +17175144,7 @@ void reread_config(void)
+@@ -1801,7 +1785,7 @@ void reread_config(void)
  
  	// Read TOML config file
  	bool restart = false;
@@ -109,7 +109,7 @@
  		log_debug(DEBUG_CONFIG, "Loaded configuration is valid, installing it");
 --- a/src/config/toml_helper.c
 +++ b/src/config/toml_helper.c
-@@ -15,52 +15,34 @@
+@@ -15,54 +15,36 @@
  #include "datastructure.h"
  // flock(), LOCK_SH
  #include <sys/file.h>
@@ -121,6 +121,8 @@
  #include <limits.h>
  // escape_json()
  #include "webserver/http-common.h"
+ // chown_pihole()
+ #include "files.h"
  
  // Open the TOML file for reading or writing
 -FILE * __attribute((malloc)) __attribute((nonnull(1))) openFTLtoml(const char *mode, const unsigned int version)
@@ -172,7 +174,7 @@
  		return NULL;
  	}
  
-@@ -74,10 +56,6 @@ FILE * __attribute((malloc)) __attribute((nonnull(1)))
+@@ -76,10 +58,6 @@ FILE * __attribute((malloc)) __attribute((nonnull(1)))
  		errno = _e;
  		return NULL;
  	}
@@ -223,7 +225,7 @@
  		if(!toml)
  			return false;
  	}
-@@ -127,7 +126,7 @@ bool readFTLtoml(struct config *oldconf, struct config
+@@ -131,7 +130,7 @@ bool readFTLtoml(struct config *oldconf, struct config
  	set_debug_flags(newconf);
  
  	log_debug(DEBUG_CONFIG, "Reading %s TOML config file",
@@ -232,7 +234,7 @@
  
  	// Read all known config items
  	for(unsigned int i = 0; i < CONFIG_ELEMENTS; i++)
-@@ -204,11 +203,11 @@ bool readFTLtoml(struct config *oldconf, struct config
+@@ -225,11 +224,11 @@ bool readFTLtoml(struct config *oldconf, struct config
  }
  
  // Parse TOML config file
@@ -246,7 +248,7 @@
  		return NULL;
  
  	// Parse lines in the config file
-@@ -233,7 +232,7 @@ bool getLogFilePathTOML(void)
+@@ -254,7 +253,7 @@ bool getLogFilePathTOML(void)
  {
  	log_debug(DEBUG_CONFIG, "Reading TOML config file: log file path");
  
@@ -269,8 +271,8 @@
  #endif //TOML_READER_H
 --- a/src/config/toml_writer.c
 +++ b/src/config/toml_writer.c
-@@ -29,7 +29,7 @@ bool writeFTLtoml(const bool verbose)
- {
+@@ -42,7 +42,7 @@ bool writeFTLtoml(const bool verbose)
+ 
  	// Try to open a temporary config file for writing
  	FILE *fp;
 -	if((fp = openFTLtoml("w", 0)) == NULL)
@@ -278,7 +280,7 @@
  	{
  		log_warn("Cannot write to FTL config file (%s), content not updated", strerror(errno));
  		return false;
-@@ -137,9 +137,6 @@ bool writeFTLtoml(const bool verbose)
+@@ -175,9 +175,6 @@ bool writeFTLtoml(const bool verbose)
  	{
  		// Stop watching for changes in the config file
  		watch_config(false);
@@ -290,7 +292,7 @@
  		if(rename(GLOBALTOMLPATH".tmp", GLOBALTOMLPATH) != 0)
 --- a/src/files.c
 +++ b/src/files.c
-@@ -354,191 +354,6 @@ static char *trim(char *str)
+@@ -355,82 +355,6 @@ static char *trim(char *str)
  	return start;
  }
  
@@ -370,32 +372,13 @@
 -#endif
 -}
 -
--// Change ownership of file to pihole user
--static bool chown_pihole(const char *path)
--{
--	// Get pihole user's uid and gid
--	struct passwd *pwd = getpwnam("pihole");
--	if(pwd == NULL)
--	{
--		log_warn("chown_pihole(): Failed to get pihole user's uid: %s", strerror(errno));
--		return false;
--	}
--	struct group *grp = getgrnam("pihole");
--	if(grp == NULL)
--	{
--		log_warn("chown_pihole(): Failed to get pihole user's gid: %s", strerror(errno));
--		return false;
--	}
--
--	// Change ownership of file to pihole user
--	if(chown(path, pwd->pw_uid, grp->gr_gid) < 0)
--	{
--		log_warn("chown_pihole(): Failed to change ownership of \"%s\" to %u:%u: %s",
--		         path, pwd->pw_uid, grp->gr_gid, strerror(errno));
--		return false;
--	}
--
--	return true;
+ // Change ownership of file to pihole user
+ bool chown_pihole(const char *path, struct passwd *pwd)
+ {
+@@ -463,87 +387,6 @@ bool chown_pihole(const char *path, struct passwd *pwd)
+ 	          path, pwd->pw_name, grp_name, pwd->pw_uid, pwd->pw_gid);
+ 
+ 	return true;
 -}
 -
 -// Rotate files in a directory
@@ -470,23 +453,21 @@
 -			}
 -
 -			// Change ownership of file to pihole user
--			chown_pihole(new_path);
+-			chown_pihole(new_path, NULL);
 -		}
 -
 -		// Free memory
 -		free(old_path);
 -		free(new_path);
 -	}
--}
--
+ }
+ 
  // Credits: https://stackoverflow.com/a/55410469
- int parse_line(char *line, char **key, char **value)
- {
 --- a/src/files.h
 +++ b/src/files.h
-@@ -17,9 +17,6 @@
- // SHA256_DIGEST_SIZE
- #include <nettle/sha2.h>
+@@ -19,9 +19,6 @@
+ // getpwuid()
+ #include <pwd.h>
  
 -#define MAX_ROTATIONS 15
 -#define BACKUP_DIR "/etc/pihole/config_backups"
@@ -494,10 +475,10 @@
  bool chmod_file(const char *filename, const mode_t mode);
  bool file_exists(const char *filename);
  bool file_readable(const char *filename);
-@@ -31,7 +28,6 @@ bool directory_exists(const char *path);
- unsigned int get_path_usage(const char *path, char buffer[64]);
+@@ -34,7 +31,6 @@ bool directory_exists(const char *path);
  struct mntent *get_filesystem_details(const char *path);
  bool directory_exists(const char *path);
+ bool chown_pihole(const char *path, struct passwd *pwd);
 -void rotate_files(const char *path, char **first_file);
  bool files_different(const char *pathA, const char* pathB, unsigned int from);
  bool sha256sum(const char *path, uint8_t checksum[SHA256_DIGEST_SIZE]);

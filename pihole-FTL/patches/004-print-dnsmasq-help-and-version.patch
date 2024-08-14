@@ -1,6 +1,6 @@
 --- a/src/args.c
 +++ b/src/args.c
-@@ -69,6 +69,8 @@
+@@ -73,6 +73,8 @@
  
  // defined in dnsmasq.c
  extern void print_dnsmasq_version(const char *yellow, const char *green, const char *bold, const char *normal);
@@ -9,7 +9,7 @@
  
  // defined in database/shell.c
  extern int sqlite3_shell_main(int argc, char **argv);
-@@ -634,6 +636,25 @@ void parse_args(int argc, char* argv[])
+@@ -685,6 +687,25 @@ void parse_args(int argc, char* argv[])
  			if(argv_dnsmasq != NULL)
  				free(argv_dnsmasq);
  
@@ -37,7 +37,7 @@
  			argv_dnsmasq[0] = "";
 --- a/src/dnsmasq/dnsmasq.c
 +++ b/src/dnsmasq/dnsmasq.c
-@@ -2253,8 +2253,17 @@ void print_dnsmasq_version(const char *y
+@@ -2261,8 +2261,17 @@ void print_dnsmasq_version(const char *y
  {
    printf("****************************** %s%sdnsmasq%s ******************************\n",
           bold, yellow, normal);

@@ -9,9 +9,9 @@
  int api_info_client(struct ftl_conn *api)
  {
  	cJSON *json = JSON_NEW_OBJECT();
-@@ -713,129 +711,37 @@ int api_info_sensors(struct ftl_conn *ap
+@@ -725,127 +723,35 @@ int api_info_sensors(struct ftl_conn *ap
  
- int api_info_version(struct ftl_conn *api)
+ int get_version_obj(struct ftl_conn *api, cJSON *version)
  {
 -	char *line = NULL;
 -	size_t len = 0;
@@ -111,8 +111,6 @@
 +	JSON_REF_STR_IN_OBJECT(core_local, "version", CORE_VERSION);
 +	JSON_REF_STR_IN_OBJECT(core_local, "hash", CORE_HASH);
  
- 	cJSON *version = JSON_NEW_OBJECT();
- 
 -	cJSON *core = JSON_NEW_OBJECT();
  	JSON_ADD_NULL_IF_NOT_EXISTS(core_local, "branch");
  	JSON_ADD_NULL_IF_NOT_EXISTS(core_local, "version");
@@ -153,11 +151,11 @@
 -	JSON_ADD_ITEM_TO_OBJECT(version, "docker", docker);
 +	JSON_ADD_ITEM_TO_OBJECT(version, "ftl", ftl_local);
  
- 	// Send reply
- 	cJSON *json = JSON_NEW_OBJECT();
+ 	return 0;
+ }
 --- a/src/args.c
 +++ b/src/args.c
-@@ -715,7 +715,7 @@ void parse_args(int argc, char* argv[])
+@@ -766,7 +766,7 @@ void parse_args(int argc, char* argv[])
  		   strcmp(argv[i], "version") == 0 ||
  		   strcmp(argv[i], "--version") == 0)
  		{
@@ -166,7 +164,7 @@
  			exit(EXIT_SUCCESS);
  		}
  
-@@ -732,9 +732,9 @@ void parse_args(int argc, char* argv[])
+@@ -783,9 +783,9 @@ void parse_args(int argc, char* argv[])
  			printf("****************************** %s%sFTL%s **********************************\n",
  			       yellow, bold, normal);
  			printf("Version:         %s%s%s%s\n",
@@ -175,11 +173,11 @@
 -			printf("Commit:          " GIT_HASH " (" GIT_DATE ")\n");
 +			       green, bold, FTL_VERSION, normal);
 +			printf("Branch:          " FTL_BRANCH "\n");
-+			printf("Commit:          " FTL_HASH " (" FTL_DATE ")\n");
++			printf("Commit:          " FTL_TAG " (" FTL_DATE ")\n");
  			printf("Architecture:    " FTL_ARCH "\n");
  			printf("Compiler:        " FTL_CC "\n");
  #if defined(__GLIBC__) && defined(__GLIBC_MINOR__)
-@@ -837,20 +837,20 @@ void parse_args(int argc, char* argv[])
+@@ -894,20 +894,20 @@ void parse_args(int argc, char* argv[])
  		if(strcmp(argv[i], "-t") == 0 ||
  		   strcmp(argv[i], "tag") == 0)
  		{
@@ -199,11 +197,11 @@
  		if(strcmp(argv[i], "--hash") == 0)
  		{
 -			printf("%s\n",GIT_HASH);
-+			printf("%s-%s\n", FTL_TAG, FTL_HASH);
++			printf("%s-%s\n", FTL_HASH, FTL_TAG);
  			exit(EXIT_SUCCESS);
  		}
  
-@@ -896,7 +896,7 @@ void parse_args(int argc, char* argv[])
+@@ -953,7 +953,7 @@ void parse_args(int argc, char* argv[])
  			const char *yellow = cli_color(COL_YELLOW);
  			const char *purple = cli_color(COL_PURPLE);
  
@@ -253,7 +251,7 @@
  #include "tomlc99/toml.h"
  #include "toml_writer.h"
  #include "toml_helper.h"
-@@ -36,7 +37,7 @@ bool writeFTLtoml(const bool verbose)
+@@ -49,7 +50,7 @@ bool writeFTLtoml(const bool verbose)
  	}
  
  	// Write header
@@ -282,7 +280,7 @@
  /************************/
  
  static volatile int mem_recover = 0;
-@@ -6015,7 +6015,7 @@ void read_opts(int argc, char **argv, ch
+@@ -6014,7 +6014,7 @@ void read_opts(int argc, char **argv, ch
  #endif
        add_txt("servers.bind", NULL, TXT_STAT_SERVERS);
        /* Pi-hole modification */
@@ -466,7 +464,7 @@
  configure_file(
 --- a/src/log.c
 +++ b/src/log.c
-@@ -487,10 +487,10 @@ void log_counter_info(void)
+@@ -496,10 +496,10 @@ void log_counter_info(void)
  
  void log_FTL_version(const bool crashreport)
  {
@@ -476,12 +474,12 @@
 -	log_info("FTL date: %s", GIT_DATE);
 +	log_info("FTL branch: %s", FTL_BRANCH);
 +	log_info("FTL version: %s", FTL_VERSION);
-+	log_info("FTL commit: %s", FTL_HASH);
++	log_info("FTL commit: %s", FTL_TAG);
 +	log_info("FTL date: %s", FTL_DATE);
  	if(crashreport)
  	{
  		char *username_now = getUserName();
-@@ -502,38 +502,6 @@ void log_FTL_version(const bool crashrep
+@@ -511,38 +511,6 @@ void log_FTL_version(const bool crashrep
  	log_info("Compiled for %s using %s", FTL_ARCH, FTL_CC);
  }
  
@@ -520,7 +518,7 @@
  const char __attribute__ ((const)) *get_ordinal_suffix(unsigned int number)
  {
  	if((number % 100) > 9 && (number % 100) < 20)
-@@ -673,7 +641,7 @@ const char * __attribute__ ((pure)) shor
+@@ -682,7 +650,7 @@ const char * __attribute__ ((pure)) shor
  
  void print_FTL_version(void)
  {
@@ -550,7 +548,7 @@
 +endif()
 --- a/src/lua/ftl_lua.c
 +++ b/src/lua/ftl_lua.c
-@@ -12,8 +12,8 @@
+@@ -13,8 +13,8 @@
  #include "FTL.h"
  // struct luaL_Reg
  #include "lauxlib.h"
@@ -560,7 +558,7 @@
  // config struct
  #include "config/config.h"
  // file_exists
-@@ -29,7 +29,7 @@
+@@ -39,7 +39,7 @@
  int run_lua_interpreter(const int argc, char **argv, bool dnsmasq_debug)
  {
  	if(argc == 1) // No arguments after this one
@@ -569,7 +567,7 @@
  #if defined(LUA_USE_READLINE)
  	wordexp_t word;
  	wordexp(LUA_HISTORY_FILE, &word, WRDE_NOCMD);
-@@ -86,13 +86,13 @@ int run_lua_interpreter(const int argc,
+@@ -96,13 +96,13 @@ int run_lua_interpreter(const int argc,
  int run_luac(const int argc, char **argv)
  {
  	if(argc == 1) // No arguments after this one

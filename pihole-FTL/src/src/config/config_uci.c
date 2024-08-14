@@ -294,6 +294,10 @@ int uci_set_value(struct uci_context *ctx, struct conf_item *item, const char *v
 
 void uci_get_config_values(struct config *conf, bool reload)
 {
+	struct uci_section *ntp_sec = NULL;
+	struct uci_package *sys_pkg = NULL;
+	bool sysntpd_enabled = false;
+
 	if(reload) {
 		struct uci_package *pkg = uci_lookup_package(conf->uci_ctx, "dhcp");
 		if(pkg)
@@ -308,6 +312,11 @@ void uci_get_config_values(struct config *conf, bool reload)
 	{
 		struct conf_item *cfg_item = get_conf_item(conf, i);
 
+		if(!cfg_item->uci.opt || !cfg_item->uci.stype) {
+			log_warn("config %s does not have option or section for uci.", cfg_item->k);
+			continue;
+		}
+
 		if(cfg_item == &config.dns.cnameRecords ||
 		   cfg_item == &config.dns.hosts ||
 		   cfg_item == &config.dhcp.hosts)
@@ -317,6 +326,25 @@ void uci_get_config_values(struct config *conf, bool reload)
 
 			log_debug(DEBUG_UCI, "UCI config for %s has section name \"%s\", section type %s",
 					  cfg_item->k, cfg_item->uci.sname ? cfg_item->uci.sname : "NULL", cfg_item->uci.stype);
+		}
+	}
+
+	if(!reload && (conf->ntp.ipv4.active.v.b || conf->ntp.ipv6.active.v.b)) {
+		sys_pkg = uci_lookup_package(conf->uci_ctx, "system");
+		if (!sys_pkg)
+			uci_load(conf->uci_ctx, "system", &sys_pkg);
+
+		if(sys_pkg) {
+			ntp_sec = uci_lookup_section(conf->uci_ctx, sys_pkg, "ntp");
+			if(ntp_sec)
+				sysntpd_enabled = uci_read_bool(conf->uci_ctx, ntp_sec, "enable_server", "0");
+		}
+
+		// disable builtin ntp if its handled by ntpd (openwrt)
+		if(sysntpd_enabled) {
+			log_info("Sysntpd is enabled, disabling builtin ntp");
+			conf->ntp.ipv4.active.v.b = false;
+			conf->ntp.ipv6.active.v.b = false;
 		}
 	}
 
@@ -331,8 +359,8 @@ int uci_get_value(struct uci_context *ctx, struct conf_item *conf_item)
 	ptr.option = conf_item->uci.opt;
 
 	if(check_uci_section_type(ctx, conf_item)) {
-		log_warn("There is no section for %s, type: %s in %s uci config.",
-				 conf_item->k, conf_item->uci.stype, ptr.package);
+		log_debug(DEBUG_UCI, "There is no %s section for %s in %s config.",
+				  conf_item->uci.stype, conf_item->k, ptr.package);
 		return -1;
 	}
 
@@ -366,7 +394,10 @@ int uci_get_value(struct uci_context *ctx, struct conf_item *conf_item)
 
 void clean_all_leftovers(void)
 {
-	// free all config
+	// clean all "still reachable" that valgrind detects
+	// is this really needed?
+
+	// first free all config
 	free_config(&config);
 
 	for(unsigned int i = 0; i < CONFIG_ELEMENTS; i++)
@@ -400,7 +431,7 @@ void clean_all_leftovers(void)
 		free(username);
 }
 
-// TODO: use better approach
+// TODO: need better approach
 int uci_foreach_section(struct uci_context *ctx, struct conf_item *conf_item, const char *target, bool delete)
 {
 	char *tmp = NULL;
@@ -409,6 +440,8 @@ int uci_foreach_section(struct uci_context *ctx, struct conf_item *conf_item, co
 	memset(&uci_ptr, 0, sizeof(struct uci_ptr));
 	const char *package = (conf_item->f & FLAG_PKG_DHCP) ? "dhcp" : "pihole";
 
+	// not using uci_lookup_ptr()
+	// as long as still using the same context
 	uci_ptr.p = uci_lookup_package(ctx, package);
 	if(!uci_ptr.p) {
 		log_err("%s: %s package is not found in the current context.",
