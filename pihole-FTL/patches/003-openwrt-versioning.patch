@@ -1,6 +1,6 @@
 --- a/src/api/info.c
 +++ b/src/api/info.c
-@@ -56,8 +56,6 @@
+@@ -58,8 +58,6 @@
  // timer_elapsed_msec()
  #include "timers.h"
  
@@ -9,7 +9,7 @@
  int api_info_client(struct ftl_conn *api)
  {
  	cJSON *json = JSON_NEW_OBJECT();
-@@ -725,127 +723,35 @@ int api_info_sensors(struct ftl_conn *ap
+@@ -727,127 +725,35 @@ int api_info_sensors(struct ftl_conn *ap
  
  int get_version_obj(struct ftl_conn *api, cJSON *version)
  {
@@ -212,7 +212,7 @@
  			printf("of %sstart%s, %sstop%s, or %srestart%s.\n\n", green, normal, green, normal, green, normal);
 --- a/src/config/CMakeLists.txt
 +++ b/src/config/CMakeLists.txt
-@@ -38,3 +38,6 @@
+@@ -42,3 +42,6 @@
  target_compile_options(config PRIVATE ${EXTRAWARN})
  target_include_directories(config PRIVATE ${PROJECT_SOURCE_DIR}/src)
  add_subdirectory(tomlc99)
@@ -229,7 +229,7 @@
  // get_blocking_mode_str()
  #include "datastructure.h"
  // flock(), LOCK_SH
-@@ -213,7 +214,7 @@ static void write_config_header(FILE *fp
+@@ -215,7 +216,7 @@ static void write_config_header(FILE *fp
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure misc.etc_dnsmasq_d is set to true in /etc/pihole/pihole.toml)");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "Last updated: %s", timestring);

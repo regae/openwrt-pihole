@@ -49,6 +49,19 @@
              database: "/etc/pihole/pihole-FTL.db"
              gravity: "/etc/pihole/gravity.db"
              gravity_tmp: "/tmp"
+@@ -771,9 +771,9 @@ components:
+             setupVars: "/etc/pihole/setupVars.conf"
+             pcap: ""
+             log:
+-              ftl: "/var/log/pihole/FTL.log"
+-              dnsmasq: "/var/log/pihole/pihole.log"
+-              webserver: "/var/log/pihole/webserver.log"
++              ftl: "/var/log/pihole/FTL.log"
++              dnsmasq: "/var/log/pihole/pihole.log"
++              webserver: "/var/log/pihole/webserver.log"
+           misc:
+             nice: -10
+             delay_startup: 10
 --- a/src/api/docs/content/specs/teleporter.yaml
 +++ b/src/api/docs/content/specs/teleporter.yaml
 @@ -149,7 +149,7 @@ components:
@@ -56,13 +69,76 @@
        value:
          processed:
 -          - etc/pihole/pihole.toml
-+          - tmp/etc/pihole.toml
++          - tmp/etc/pihole/pihole.toml
            - etc/pihole/gravity.db->group
            - etc/pihole/gravity.db->adlist
            - etc/pihole/gravity.db->adlist_by_group
 --- a/src/config/config.c
 +++ b/src/config/config.c
-@@ -1010,7 +1010,7 @@ void initConfig(struct config *conf)
+@@ -492,7 +492,7 @@ void initConfig(struct config *conf)
+ 	conf->dns.domain.a = cJSON_CreateStringReference("<any valid domain>");
+ 	conf->dns.domain.t = CONF_STRING;
+ 	conf->dns.domain.f = FLAG_RESTART_FTL;
+-	conf->dns.domain.d.s = (char*)"lan";
++	conf->dns.domain.d.s = (char*)"";
+ 	conf->dns.domain.c = validate_domain;
+ 
+ 	conf->dns.bogusPriv.k = "dns.bogusPriv";
+@@ -547,7 +547,7 @@ void initConfig(struct config *conf)
+ 	conf->dns.queryLogging.h = "Log DNS queries and replies to pihole.log";
+ 	conf->dns.queryLogging.t = CONF_BOOL;
+ 	conf->dns.queryLogging.f = FLAG_RESTART_FTL;
+-	conf->dns.queryLogging.d.b = true;
++	conf->dns.queryLogging.d.b = false;
+ 	conf->dns.queryLogging.c = validate_stub; // Only type-based checking
+ 
+ 	conf->dns.cnameRecords.k = "dns.cnameRecords";
+@@ -696,7 +696,7 @@ void initConfig(struct config *conf)
+ 	conf->dhcp.active.h = "Is the embedded DHCP server enabled?";
+ 	conf->dhcp.active.t = CONF_BOOL;
+ 	conf->dhcp.active.f = FLAG_RESTART_FTL;
+-	conf->dhcp.active.d.b = false;
++	conf->dhcp.active.d.b = true;
+ 	conf->dhcp.active.c = validate_stub; // Only type-based checking
+ 
+ 	conf->dhcp.start.k = "dhcp.start";
+@@ -788,7 +788,7 @@ void initConfig(struct config *conf)
+ 	conf->ntp.ipv4.active.h = "Should FTL act as network time protocol (NTP) server (IPv4)?";
+ 	conf->ntp.ipv4.active.t = CONF_BOOL;
+ 	conf->ntp.ipv4.active.f = FLAG_RESTART_FTL;
+-	conf->ntp.ipv4.active.d.b = true;
++	conf->ntp.ipv4.active.d.b = false;
+ 	conf->ntp.ipv4.active.c = validate_stub; // Only type-based checking
+ 
+ 	conf->ntp.ipv4.address.k = "ntp.ipv4.address";
+@@ -803,7 +803,7 @@ void initConfig(struct config *conf)
+ 	conf->ntp.ipv6.active.h = "Should FTL act as network time protocol (NTP) server (IPv6)?";
+ 	conf->ntp.ipv6.active.t = CONF_BOOL;
+ 	conf->ntp.ipv6.active.f = FLAG_RESTART_FTL;
+-	conf->ntp.ipv6.active.d.b = true;
++	conf->ntp.ipv6.active.d.b = false;
+ 	conf->ntp.ipv6.active.c = validate_stub; // Only type-based checking
+ 
+ 	conf->ntp.ipv6.address.k = "ntp.ipv6.address";
+@@ -818,7 +818,7 @@ void initConfig(struct config *conf)
+ 	conf->ntp.sync.active.h = "Should FTL try to synchronize the system time with an upstream NTP server?";
+ 	conf->ntp.sync.active.t = CONF_BOOL;
+ 	conf->ntp.sync.active.f = FLAG_RESTART_FTL;
+-	conf->ntp.sync.active.d.b = true;
++	conf->ntp.sync.active.d.b = false;
+ 	conf->ntp.sync.active.c = validate_stub; // Only type-based checking
+ 
+ 	conf->ntp.sync.server.k = "ntp.sync.server";
+@@ -969,7 +969,7 @@ void initConfig(struct config *conf)
+ 	conf->webserver.port.a = cJSON_CreateStringReference("comma-separated list of <[ip_address:]port>");
+ 	conf->webserver.port.f = FLAG_RESTART_FTL;
+ 	conf->webserver.port.t = CONF_STRING;
+-	conf->webserver.port.d.s = (char*)"80,[::]:80,443s,[::]:443s";
++	conf->webserver.port.d.s = (char*)"8080";
+ 	conf->webserver.port.c = validate_stub; // Type-based checking + civetweb syntax checking
+ 
+ 	conf->webserver.tls.cert.k = "webserver.tls.cert";
+@@ -998,7 +998,7 @@ void initConfig(struct config *conf)
  	conf->webserver.paths.webroot.a = cJSON_CreateStringReference("<valid path>");
  	conf->webserver.paths.webroot.t = CONF_STRING;
  	conf->webserver.paths.webroot.f = FLAG_RESTART_FTL;
@@ -71,7 +147,7 @@
  	conf->webserver.paths.webroot.c = validate_filepath;
  
  	conf->webserver.paths.webhome.k = "webserver.paths.webhome";
-@@ -1167,7 +1167,7 @@ void initConfig(struct config *conf)
+@@ -1155,7 +1155,7 @@ void initConfig(struct config *conf)
  	conf->files.pid.a = cJSON_CreateStringReference("<any writable file>");
  	conf->files.pid.t = CONF_STRING;
  	conf->files.pid.f = FLAG_RESTART_FTL;
@@ -80,7 +156,7 @@
  	conf->files.pid.c = validate_filepath;
  
  	conf->files.database.k = "files.database";
-@@ -1224,7 +1224,7 @@
+@@ -1219,7 +1219,7 @@ void initConfig(struct config *conf)
  	conf->files.log.dnsmasq.a = cJSON_CreateStringReference("<any writable file>");
  	conf->files.log.dnsmasq.t = CONF_STRING;
  	conf->files.log.dnsmasq.f = FLAG_RESTART_FTL;
@@ -89,7 +165,16 @@
  	conf->files.log.dnsmasq.c = validate_filepath_dash;
  
  
-@@ -1645,7 +1645,7 @@
+@@ -1263,7 +1263,7 @@ void initConfig(struct config *conf)
+ 	conf->misc.etc_dnsmasq_d.h = "Should FTL load additional dnsmasq configuration files from /etc/dnsmasq.d/?";
+ 	conf->misc.etc_dnsmasq_d.t = CONF_BOOL;
+ 	conf->misc.etc_dnsmasq_d.f = FLAG_RESTART_FTL;
+-	conf->misc.etc_dnsmasq_d.d.b = false;
++	conf->misc.etc_dnsmasq_d.d.b = true;
+ 	conf->misc.etc_dnsmasq_d.c = validate_stub; // Only type-based checking
+ 
+ 	conf->misc.dnsmasq_lines.k = "misc.dnsmasq_lines";
+@@ -1683,7 +1683,7 @@ void initConfig(struct config *conf)
  	config.files.log.ftl.h = "The location of FTL's log file";
  	config.files.log.ftl.a = cJSON_CreateStringReference("<any writable file>");
  	config.files.log.ftl.t = CONF_STRING;
@@ -105,29 +190,29 @@
  #include "api/theme.h"
  
 -#define GLOBALTOMLPATH "/etc/pihole/pihole.toml"
-+#define GLOBALTOMLPATH "/tmp/etc/pihole.toml"
++#define GLOBALTOMLPATH "/tmp/etc/pihole/pihole.toml"
  
  // This static string represents an unchanged password
  #define PASSWORD_VALUE "********"
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -210,12 +210,12 @@ static void write_config_header(FILE *fp
+@@ -212,12 +212,12 @@ static void write_config_header(FILE *fp
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "ANY CHANGES MADE TO THIS FILE WILL BE LOST WHEN THE CONFIGURATION CHANGES");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "IF YOU WISH TO CHANGE ANY OF THESE VALUES, CHANGE THEM IN");
 -	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "/etc/pihole/pihole.toml");
-+	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "/tmp/etc/pihole.toml");
++	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "/tmp/etc/pihole/pihole.toml");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "and restart pihole-FTL");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "ANY OTHER CHANGES SHOULD BE MADE IN A SEPARATE CONFIG FILE");
 -	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "WITHIN /etc/dnsmasq.d/yourname.conf");
 -	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure misc.etc_dnsmasq_d is set to true in /etc/pihole/pihole.toml)");
 +	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "WITHIN /tmp/dnsmasq.d/yourname.conf");
-+	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure misc.etc_dnsmasq_d is set to true in pihole.toml)");
++	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure etc_dnsmasq_d is not false)");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "Last updated: %s", timestring);
  	CONFIG_CENTER(fp, HEADER_WIDTH, "by FTL version %s", FTL_VERSION);
-@@ -678,12 +678,12 @@ bool __attribute__((const)) write_dnsmas
+@@ -680,12 +680,12 @@ bool __attribute__((const)) write_dnsmas
  	fputs("server=/onion/\n", pihole_conf);
  	fputs("\n", pihole_conf);
  
@@ -145,19 +230,23 @@
  
 --- a/src/config/dnsmasq_config.h
 +++ b/src/config/dnsmasq_config.h
-@@ -19,11 +19,11 @@
- char *get_dnsmasq_line(const unsigned int lineno);
+@@ -22,13 +22,13 @@
+ bool read_legacy_custom_hosts_config(void);
  bool write_custom_list(void);
  
 -#define DNSMASQ_PH_CONFIG "/etc/pihole/dnsmasq.conf"
 -#define DNSMASQ_TEMP_CONF "/etc/pihole/dnsmasq.conf.temp"
 +#define DNSMASQ_PH_CONFIG "/tmp/etc/dnsmasq.conf"
-+#define DNSMASQ_TEMP_CONF "/tmp/etc/dnsmasq.conf.temp"
++#define DNSMASQ_TEMP_CONF "/tmp/dnsmasq.conf.temp"
+ #define DNSMASQ_STATIC_LEASES "/etc/pihole/migration_backup_v6/04-pihole-static-dhcp.conf"
+ #define DNSMASQ_CNAMES "/etc/pihole/migration_backup_v6/05-pihole-custom-cname.conf"
 -#define DNSMASQ_HOSTSDIR "/etc/pihole/hosts"
-+#define DNSMASQ_HOSTSDIR "/tmp/hosts"
- #define DNSMASQ_CUSTOM_LIST DNSMASQ_HOSTSDIR"/custom.list"
- #define DNSMASQ_CUSTOM_LIST_LEGACY "/etc/pihole/custom.list"
+-#define DNSMASQ_CUSTOM_LIST DNSMASQ_HOSTSDIR"/custom.list"
+-#define DNSMASQ_CUSTOM_LIST_LEGACY "/etc/pihole/custom.list"
 -#define DHCPLEASESFILE "/etc/pihole/dhcp.leases"
++#define DNSMASQ_HOSTSDIR "/tmp/hosts"
++#define DNSMASQ_CUSTOM_LIST DNSMASQ_HOSTSDIR"/host_custom"
++#define DNSMASQ_CUSTOM_LIST_LEGACY "/tmp/custom.list"
 +#define DHCPLEASESFILE "/tmp/dhcp.leases"
  
  #endif //DNSMASQ_CONFIG_H
@@ -183,6 +272,19 @@
  #   endif
  #endif
  
+--- a/src/daemon.c
++++ b/src/daemon.c
+@@ -155,6 +155,10 @@ char *getUserName(void)
+ 	{
+ 		// If the user is found, we return the username
+ 		name = strdup(pw->pw_name);
++#if !defined(__GLIBC__)
++		// musl use dynamic allocation???
++		free(pw->pw_name);
++#endif
+ 	}
+ 	else
+ 	{
 --- a/src/gc.c
 +++ b/src/gc.c
 @@ -466,18 +466,6 @@ void runGC(const time_t now, time_t *las
@@ -269,3 +371,55 @@
  target_compile_options(miniz PRIVATE -Wno-padded -Wno-type-limits)
 +target_compile_options(miniz PRIVATE -D_LARGEFILE64_SOURCE)
  target_include_directories(miniz PRIVATE ${PROJECT_SOURCE_DIR}/src)
+--- a/src/zip/teleporter.c
++++ b/src/zip/teleporter.c
+@@ -65,8 +65,8 @@ static const char *ftl_tables[] = {
+ 
+ // List of files to process from a Teleporter ZIP archive
+ static const char *extract_files[] = {
+-	"etc/pihole/pihole.toml",
+-	"etc/pihole/dhcp.leases",
++	"tmp/etc/pihole/pihole.toml",
++	"tmp/etc/pihole/dhcp.leases",
+ 	"etc/pihole/gravity.db"
+ };
+ 
+@@ -293,12 +293,12 @@ static const char *test_and_import_pihol
+ {
+ 	// Check if the file is empty
+ 	if(size == 0)
+-		return "File etc/pihole/pihole.toml in ZIP archive is empty";
++		return "File tmp/etc/pihole/pihole.toml in ZIP archive is empty";
+ 
+ 	// Create a memory copy that is null-terminated
+ 	char *buffer = calloc(size+1, sizeof(char));
+ 	if(buffer == NULL)
+-		return "Failed to allocate memory for null-terminated copy of etc/pihole/pihole.toml in ZIP archive";
++		return "Failed to allocate memory for null-terminated copy of tmp/etc/pihole/pihole.toml in ZIP archive";
+ 	memcpy(buffer, ptr, size);
+ 	buffer[size] = '\0';
+ 
+@@ -307,7 +307,7 @@ static const char *test_and_import_pihol
+ 	if(toml == NULL)
+ 	{
+ 		free(buffer);
+-		return "File etc/pihole/pihole.toml in ZIP archive is not a valid TOML file";
++		return "File tmp/etc/pihole/pihole.toml in ZIP archive is not a valid TOML file";
+ 	}
+ 	free(buffer);
+ 
+@@ -316,12 +316,12 @@ static const char *test_and_import_pihol
+ 	struct config teleporter_config = { 0 };
+ 	duplicate_config(&teleporter_config, &config);
+ 	if(!readFTLtoml(NULL, &teleporter_config, toml, true, NULL, 0))
+-		return "File etc/pihole/pihole.toml in ZIP archive contains invalid TOML configuration";
++		return "File tmp/etc/pihole/pihole.toml in ZIP archive contains invalid TOML configuration";
+ 
+ 	// Test dnsmasq config in the imported configuration
+ 	// The dnsmasq configuration will be overwritten if the test succeeds
+ 	if(!write_dnsmasq_config(&teleporter_config, true, hint))
+-		return "File etc/pihole/pihole.toml in ZIP archive contains invalid dnsmasq configuration";
++		return "File tmp/etc/pihole/pihole.toml in ZIP archive contains invalid dnsmasq configuration";
+ 
+ 	// When we reach this point, we know that the file is a valid TOML file and contains
+ 	// a valid configuration for Pi-hole. We can now safely overwrite the current

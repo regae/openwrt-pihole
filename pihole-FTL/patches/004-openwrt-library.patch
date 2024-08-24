@@ -228,7 +228,16 @@
  target_include_directories(api_docs PRIVATE ${PROJECT_SOURCE_DIR}/src)
 --- a/src/args.c
 +++ b/src/args.c
-@@ -43,7 +43,11 @@
+@@ -21,6 +21,8 @@
+ 
+ #ifdef HAVE_MBEDTLS
+ #include <mbedtls/version.h>
++#elif HAVE_TLS
++#include <openssl/opensslv.h>
+ #endif
+ 
+ #include "FTL.h"
+@@ -43,7 +45,11 @@
  // mg_version()
  #include "webserver/civetweb/civetweb.h"
  // cJSON_Version()
@@ -240,7 +249,7 @@
  #include "config/cli.h"
  #include "config/config.h"
  // compression functions
-@@ -52,8 +56,10 @@
+@@ -52,8 +58,10 @@
  #include "zip/teleporter.h"
  // printTOTP()
  #include "api/api.h"
@@ -251,7 +260,7 @@
  // run_dhcp_discover()
  #include "tools/dhcp-discover.h"
  // run_arp_scan()
-@@ -76,8 +82,10 @@ extern void print_dnsmasq_version(const
+@@ -76,8 +84,10 @@ extern void print_dnsmasq_version(const
  extern void do_version(void);
  extern void do_usage(void);
  
@@ -262,26 +271,53 @@
  
  bool dnsmasq_debug = false;
  bool daemonmode = true, cli_mode = false;
-@@ -175,6 +183,18 @@ static inline bool strEndsWith(const cha
+@@ -175,6 +185,45 @@ static inline bool strEndsWith(const cha
  	return strcmp(input + strlen(input) - strlen(end), end) == 0;
  }
  
 +#ifdef SYSTEM_SQLITE3
 +static int sqlite3_shell_main(int argc, char **argv)
 +{
++	// direct call
++	// make sure SYSTEM_SQLITE3 is predefined
 +	if (execv(SYSTEM_SQLITE3, argv) == -1) {
 +		perror("execv");
 +		return 1;
 +	}
++
 +	(void)argc;
 +	return 0;
++#if 0
++	// dynamic allocation
++	char **new_argv = malloc((argc + 1) * sizeof(char *));
++	if (new_argv == NULL) {
++		perror("malloc");
++		return 1;
++	}
++
++	new_argv[0] = (char *)SYSTEM_SQLITE3;
++	for (int i = 1; i < argc; i++)
++		new_argv[i] = argv[i]; 
++
++	// ensure null-terminated array
++	new_argv[argc] = NULL;
++
++	if (execv(SYSTEM_SQLITE3, new_argv) == -1) {
++		perror("execv");
++		free(new_argv);
++		return 1;
++	}
++
++	free(new_argv); // should not be reached due to execv
++	return 0;
++#endif
 +}
 +#endif
 +
  void parse_args(int argc, char* argv[])
  {
  	bool quiet = false;
-@@ -358,6 +378,7 @@ void parse_args(int argc, char* argv[])
+@@ -358,6 +407,7 @@ void parse_args(int argc, char* argv[])
  	}
  
  	// Generate X.509 certificate
@@ -289,7 +325,7 @@
  	if(argc > 1 && strcmp(argv[1], "--gen-x509") == 0)
  	{
  		if(argc < 3 || argc > 5)
-@@ -424,6 +445,7 @@ void parse_args(int argc, char* argv[])
+@@ -424,6 +474,7 @@ void parse_args(int argc, char* argv[])
  			exit(EXIT_FAILURE);
  		}
  	}
@@ -297,7 +333,7 @@
  
  	// If the first argument is "gravity" (e.g., /usr/bin/pihole-FTL gravity),
  	// we offer some specialized gravity tools
-@@ -814,7 +836,7 @@ void parse_args(int argc, char* argv[])
+@@ -814,7 +865,7 @@ void parse_args(int argc, char* argv[])
  			printf("\n\n");
  			printf("******************************** %s%sLUA%s ********************************\n",
  			       yellow, bold, normal);
@@ -306,7 +342,17 @@
  			       green, bold, normal);
  			printf("Libraries:       ");
  			print_embedded_scripts();
-@@ -1048,6 +1070,7 @@ void parse_args(int argc, char* argv[])
+@@ -830,6 +881,9 @@ void parse_args(int argc, char* argv[])
+ #ifdef HAVE_MBEDTLS
+ 			printf("Version:         %s%s%s%s (modified by Pi-hole) with %smbed TLS %s%s"MBEDTLS_VERSION_STRING"%s\n",
+ 			       green, bold, mg_version(), normal, yellow, green, bold, normal);
++#elif HAVE_TLS
++			printf("Version:         %s%s%s%s (modified by Pi-hole) with %sOpenSSL %s%s"OPENSSL_VERSION_STR"%s\n",
++			       green, bold, mg_version(), normal, yellow, green, bold, normal);
+ #else
+ 			printf("Version:         %s%s%s%s%s (modified by Pi-hole) without %smbed TLS%s\n",
+ 			       green, bold, mg_version(), normal, red, yellow, normal);
+@@ -1048,6 +1102,7 @@ void parse_args(int argc, char* argv[])
  			printf("\t                    current directory and print its name\n");
  			printf("\t%s--teleporter%s file%s   Import the Teleporter archive %sfile%s\n\n", green, cyan, normal, cyan, normal);
  
@@ -314,7 +360,7 @@
  			printf("%sTLS X.509 certificate generator:%s\n", yellow, normal);
  			printf("    Generate a self-signed certificate suitable for SSL/TLS\n");
  			printf("    and store it in %soutfile%s.\n\n", cyan, normal);
-@@ -1065,6 +1088,7 @@ void parse_args(int argc, char* argv[])
+@@ -1065,6 +1120,7 @@ void parse_args(int argc, char* argv[])
  			printf("    about the private key are printed as well.\n\n");
  			printf("    Usage: %spihole-FTL --read-x509 %s[certfile] %s[domain]%s\n", green, cyan, purple, normal);
  			printf("    Usage: %spihole-FTL --read-x509-key %s[certfile] %s[domain]%s\n\n", green, cyan, purple, normal);
@@ -349,7 +395,7 @@
 +#endif
  // directory_exists()
  #include "files.h"
- // run_dnsmasq_main()
+ // trim_whitespace()
 --- a/src/config/password.c
 +++ b/src/config/password.c
 @@ -17,8 +17,10 @@

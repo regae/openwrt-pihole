@@ -1,0 +1,100 @@
+--- a/src/api/dhcp.c
++++ b/src/api/dhcp.c
+@@ -12,6 +12,7 @@
+ #include "webserver/http-common.h"
+ #include "webserver/json_macros.h"
+ #include "api.h"
++#include "config/config.h"
+ #include "config/dnsmasq_config.h"
+ // rotate_files()
+ #include "files.h"
+@@ -23,7 +24,7 @@ int api_dhcp_leases_GET(struct ftl_conn
+ 	cJSON *json = JSON_NEW_OBJECT();
+ 	JSON_ADD_ITEM_TO_OBJECT(json, "leases", leases);
+ 
+-	FILE *fp = fopen(DHCPLEASESFILE, "r");
++	FILE *fp = fopen(config.dhcp.leaseFile.v.s, "r");
+ 	if(fp == NULL)
+ 	{
+ 		// File does not exist or not readable, send empty array
+--- a/src/api/teleporter.c
++++ b/src/api/teleporter.c
+@@ -13,6 +13,7 @@
+ #include "webserver/json_macros.h"
+ #include "zip/teleporter.h"
+ #include "api/api.h"
++#include "config/config.h"
+ // ERRBUF_SIZE
+ #include "config/dnsmasq_config.h"
+ // inflate_buffer()
+@@ -727,7 +728,7 @@ static int process_received_tar_gz(struc
+ 		},{
+ 			// i = 1
+ 			.archive_name = "dhcp.leases",
+-			.destination = DHCPLEASESFILE
++			.destination = config.dhcp.leaseFile.v.s
+ 		},{
+ 			// i = 2
+ 			.archive_name = "pihole-FTL.conf",
+--- a/src/config/config.c
++++ b/src/config/config.c
+@@ -745,6 +745,14 @@ void initConfig(struct config *conf)
+ 	conf->dhcp.ipv6.f = FLAG_RESTART_FTL;
+ 	conf->dhcp.ipv6.d.b = false;
+ 	conf->dhcp.ipv6.c = validate_stub; // Only type-based checking
++
++	conf->dhcp.leaseFile.k = "dhcp.leaseFile";
++	conf->dhcp.leaseFile.h = "The file which contains DHCP Lease information.";
++	conf->dhcp.leaseFile.a = cJSON_CreateStringReference("<any writable file>");
++	conf->dhcp.leaseFile.t = CONF_STRING;
++	conf->dhcp.leaseFile.f = FLAG_RESTART_FTL | FLAG_PKG_DHCP;
++	conf->dhcp.leaseFile.d.s = (char*)"/etc/pihole/dhcp.leases";
++	conf->dhcp.leaseFile.c = validate_filepath;
+ 
+ 	conf->dhcp.multiDNS.k = "dhcp.multiDNS";
+ 	conf->dhcp.multiDNS.h = "Advertise DNS server multiple times to clients. Some devices will add their own proprietary DNS servers to the list of DNS servers, which can cause issues with Pi-hole. This option will advertise the Pi-hole DNS server multiple times to clients, which should prevent this from happening.";
+--- a/src/config/config.h
++++ b/src/config/config.h
+@@ -193,6 +193,7 @@ struct config {
+ 		struct conf_item logging;
+ 		struct conf_item ignoreUnknownClients;
+ 		struct conf_item hosts;
++		struct conf_item leaseFile;
+ 	} dhcp;
+ 
+ 	struct {
+--- a/src/config/dnsmasq_config.c
++++ b/src/config/dnsmasq_config.c
+@@ -551,7 +551,7 @@  bool __attribute__((const)) write_dnsmas
+ 	{
+ 		fputs("# DHCP server setting\n", pihole_conf);
+ 		fputs("dhcp-authoritative\n", pihole_conf);
+-		fputs("dhcp-leasefile="DHCPLEASESFILE"\n", pihole_conf);
++		fprintf(pihole_conf, "dhcp-leasefile=%s\n", config.dhcp.leaseFile.v.s);
+ 		char start[INET_ADDRSTRLEN] = { 0 },
+ 		     end[INET_ADDRSTRLEN] = { 0 },
+ 		     router[INET_ADDRSTRLEN] = { 0 };
+--- a/src/config/dnsmasq_config.h
++++ b/src/config/dnsmasq_config.h
+@@ -29,6 +29,5 @@ bool write_custom_list(void);
+ #define DNSMASQ_HOSTSDIR "/tmp/hosts"
+ #define DNSMASQ_CUSTOM_LIST DNSMASQ_HOSTSDIR"/host_custom"
+ #define DNSMASQ_CUSTOM_LIST_LEGACY "/tmp/custom.list"
+-#define DHCPLEASESFILE "/tmp/dhcp.leases"
+ 
+ #endif //DNSMASQ_CONFIG_H
+--- a/src/zip/teleporter.c
++++ b/src/zip/teleporter.c
+@@ -348,10 +348,10 @@ static const char *import_dhcp_leases(void *ptr, size_t size, char * const hint)
+ 	// Nevertheless, we rotate the current dhcp.leases file to keep a backup of the previous version
+ 
+ 	// Rotate current dhcp.leases file
+-	rotate_files(DHCPLEASESFILE, NULL);
++	rotate_files(config.dhcp.leaseFile.v.s, NULL);
+ 
+ 	// Write new dhcp.leases file to disk
+-	FILE *fp = fopen(DHCPLEASESFILE, "w");
++	FILE *fp = fopen(config.dhcp.leaseFile.v.s, "w");
+ 	if(fp == NULL)
+ 	{
+ 		strncpy(hint, strerror(errno), ERRBUF_SIZE);

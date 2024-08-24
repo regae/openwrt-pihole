@@ -5,45 +5,30 @@
 #include "inotify.h"
 #include <uci.h>
 
-int uci_set_value(struct uci_context *ctx, struct conf_item *item,
+extern struct uci_package *uci_dhcp;
+extern struct uci_package *uci_pihole;
+
+#define SET_IN_DHCP_FLAG(cfg_item) \
+    if (!(cfg_item & FLAG_PKG_DHCP)) \
+        cfg_item |= FLAG_PKG_DHCP;
+
+int uci_set_value(struct conf_item *item,
 				  const char *value, bool commit);
-int uci_get_value(struct uci_context *ctx, struct conf_item *conf_item);
-int uci_foreach_section(struct uci_context *ctx, struct conf_item *conf_item,
+int uci_get_value(struct conf_item *conf_item, const char *sec, const char *opt);
+int uci_foreach_section(struct conf_item *conf_item,
 					    const char *target, bool delete);
 void uci_get_config_values(struct config *conf, bool reload);
+const char *uci_get_string(struct uci_package *pkg, const char *sec, const char *opt);
 void clean_all_leftovers(void);
 
-static inline void
-_uci_commit(struct uci_context *ctx, struct uci_package **pkg)
-{
-	watch_config(false);
-	uci_commit(ctx, pkg, false);
-	watch_config(true);
-}
-
-static inline void
-uci_cleanup(struct uci_context *ctx)
-{
-	uci_free_context(ctx);
-}
-
-static inline bool
-uci_read_bool(struct uci_context *ctx, struct uci_section *s,
-			  const char *opt, const char *fallback)
-{
-	if (!s)
-		return (strcmp(fallback, "1") == 0);
-
-	const char *val = uci_lookup_option_string(ctx, s, opt);
-	if(!val)
-		return (strcmp(fallback, "1") == 0);
-
-	if(strcasecmp(val, "false") == 0 || strcmp(val, "0") == 0)
-		return false;
-	else if(strcasecmp(val, "true") == 0 || strcmp(val, "1") == 0)
-		return true;
-
-	return (strcmp(fallback, "1") == 0);
-}
+void write_static_hosts(void);
+void write_config_dhcp(FILE *fp);
+void write_dnsmasq_conf(FILE *fp);
+struct uci_package *init_uci_pkg(const char *cfg);
+void uci_clean_config(void);
+void _uci_commit(struct uci_package **pkg);
+bool uci_read_bool(struct uci_section *s,
+			  const char *opt, const char *fallback);
+struct uci_package *_uci_lookup_package(const char *p);
 
 #endif // CONFIG_UCI_H
