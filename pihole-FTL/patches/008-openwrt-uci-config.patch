@@ -297,9 +297,9 @@
  
 +	if(use_uci) {
 +		log_info("Using UCI config to configure");
-+
 +		uci_dhcp = init_uci_pkg("dhcp");
 +		uci_pihole = init_uci_pkg("pihole");
++		uci_network = init_uci_pkg("network");
 +
 +		// read uci value
 +		uci_get_config_values(conf, false);
@@ -403,17 +403,6 @@
  void init_config_mutex(void);
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -211,8 +211,8 @@ static void write_config_header(FILE *fp
- 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "FILE AUTOMATICALLY POPULATED BY PI-HOLE");
- 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "ANY CHANGES MADE TO THIS FILE WILL BE LOST WHEN THE CONFIGURATION CHANGES");
- 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
--	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "IF YOU WISH TO CHANGE ANY OF THESE VALUES, CHANGE THEM IN");
--	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "/tmp/etc/pihole/pihole.toml");
-+	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "IF YOU WISH TO CHANGE ANY OF THESE VALUES, CHANGE THEM IN ");
-+	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "/tmp/etc/pihole/pihole.toml or /etc/config/pihole, for DHCP /etc/config/dhcp");
- 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "and restart pihole-FTL");
- 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
- 	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "ANY OTHER CHANGES SHOULD BE MADE IN A SEPARATE CONFIG FILE");
 @@ -228,7 +228,7 @@ static void write_config_header(FILE *fp
  bool __attribute__((const)) write_dnsmasq_config(struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE])
  {
@@ -439,33 +428,35 @@
 -		interface = "eth0";
 +		interface = "br-lan";
 +
-+	// with split_comma approach instead of uci_foreach_element,
-+	// we have a fallback interface in case there is no interface option
++	// use split_comma instead of uci_foreach_element,
++	const char *iface = NULL;
 +	char **comma;
 +	int count = split_comma(interface, ',', &comma);
  
  	switch(conf->dns.listeningMode.v.listeningMode)
  	{
-@@ -446,12 +451,15 @@ bool __attribute__((const)) write_dnsmas
+@@ -446,12 +451,17 @@ bool __attribute__((const)) write_dnsmas
  			break;
  		case LISTEN_SINGLE:
  			fputs("# Listen on one interface\n", pihole_conf);
 -			fprintf(pihole_conf, "interface=%s\n", interface);
-+			fprintf(pihole_conf, "interface=%s\n", comma[0]);
++			iface = uci_get_string(uci_network, comma[0], "device");
++			fprintf(pihole_conf, "interface=%s\n", iface ? iface : comma[0]);
  			break;
  		case LISTEN_BIND:
 -			fputs("# Bind to one interface\n", pihole_conf);
 -			fprintf(pihole_conf, "interface=%s\n", interface);
-+			// interface is handled later
 +			fputs("# Bind to interface(s)\n", pihole_conf);
  			fputs("bind-interfaces\n", pihole_conf);
-+			for (int i = 0; i < count; i++)
-+				fprintf(pihole_conf, "interface=%s\n", comma[i]);
++			for (int i = 0; i < count; i++) {
++				iface = uci_get_string(uci_network, comma[i], "device");
++				fprintf(pihole_conf, "interface=%s\n", iface ? iface : comma[i]);
++			}
 +
  			break;
  		case LISTEN_NONE:
  			fputs("# No interface configuration applied, make sure to cover this yourself\n", pihole_conf);
-@@ -459,6 +467,11 @@ bool __attribute__((const)) write_dnsmas
+@@ -459,6 +469,11 @@ bool __attribute__((const)) write_dnsmas
  	}
  	fputs("\n", pihole_conf);
  
@@ -477,7 +468,7 @@
  	// Add upstream DNS servers for reverse lookups
  	bool domain_revServer = false;
  	const unsigned int revServers = cJSON_GetArraySize(conf->dns.revServers.v.json);
-@@ -533,11 +546,15 @@ bool __attribute__((const)) write_dnsmas
+@@ -533,11 +548,15 @@ bool __attribute__((const)) write_dnsmas
  		fputs("# DNS domain for both the DNS and DHCP server\n", pihole_conf);
  		if(!domain_revServer)
  		{
@@ -494,30 +485,32 @@
  		}
  		else
  		{
-@@ -552,6 +569,8 @@ bool __attribute__((const)) write_dnsmas
+@@ -552,6 +571,7 @@ bool __attribute__((const)) write_dnsmas
  		fputs("# DHCP server setting\n", pihole_conf);
  		fputs("dhcp-authoritative\n", pihole_conf);
  		fprintf(pihole_conf, "dhcp-leasefile=%s\n", config.dhcp.leaseFile.v.s);
-+		fputs("dhcp-broadcast=tag:needs-broadcast\n", pihole_conf);
 +		if(!use_uci) {
  		char start[INET_ADDRSTRLEN] = { 0 },
  		     end[INET_ADDRSTRLEN] = { 0 },
  		     router[INET_ADDRSTRLEN] = { 0 };
-@@ -571,6 +590,13 @@ bool __attribute__((const)) write_dnsmas
+@@ -571,6 +591,16 @@ bool __attribute__((const)) write_dnsmas
  		if(strlen(conf->dhcp.leaseTime.v.s) > 0)
  			fprintf(pihole_conf, ",%s", conf->dhcp.leaseTime.v.s);
  		fprintf(pihole_conf, "\ndhcp-option=option:router,%s\n", router);
 +		} else {
++			fputs("\n", pihole_conf);
++			fputs("dhcp-broadcast=tag:needs-broadcast\n", pihole_conf);
 +			fputs("dhcp-ignore-names=tag:dhcp_bogus_hostname\n", pihole_conf);
 +			fputs("dhcp-name-match=set:dhcp_bogus_hostname,localhost\n", pihole_conf);
 +			fputs("dhcp-name-match=set:dhcp_bogus_hostname,wpad\n", pihole_conf);
 +
 +			write_config_dhcp(pihole_conf);
++			fputs("\n", pihole_conf);
 +		}
  
  		if(conf->dhcp.rapidCommit.v.b)
  			fputs("dhcp-rapid-commit\n", pihole_conf);
-@@ -590,7 +616,7 @@ bool __attribute__((const)) write_dnsmas
+@@ -590,7 +620,7 @@ bool __attribute__((const)) write_dnsmas
  			fputs("dhcp-option=option:dns-server,0.0.0.0,0.0.0.0,0.0.0.0\n", pihole_conf);
  		}
  
@@ -526,7 +519,7 @@
  		{
  			// Add dns-server option only if not already done above (dhcp.multiDNS)
  			if(conf->dhcp.multiDNS.v.b)
-@@ -690,9 +716,11 @@ bool __attribute__((const)) write_dnsmas
+@@ -690,9 +720,11 @@ bool __attribute__((const)) write_dnsmas
  	}
  
  	// Add option for caching all DNS records
@@ -541,7 +534,7 @@
  
  	// Add option for PCAP file recording
  	if(strlen(conf->files.pcap.v.s) > 0)
-@@ -716,7 +744,12 @@ bool __attribute__((const)) write_dnsmas
+@@ -716,7 +748,12 @@ bool __attribute__((const)) write_dnsmas
  	fputs("# records are removed. Since ANY queries with forged source addresses can be used in DNS amplification attacks\n", pihole_conf);
  	fputs("# replies to ANY queries can be large) this defangs such attacks, whilst still supporting the\n", pihole_conf);
  	fputs("# one remaining possible use of ANY queries. See RFC 8482 para 4.3 for details.\n", pihole_conf);
@@ -555,7 +548,7 @@
  	fputs("\n", pihole_conf);
  
  	// Add additional config lines to disk (if present)
-@@ -736,6 +769,8 @@ bool __attribute__((const)) write_dnsmas
+@@ -736,6 +773,8 @@ bool __attribute__((const)) write_dnsmas
  		fputs("#### Additional user configuration - END ####\n\n", pihole_conf);
  	}
  
@@ -668,7 +661,7 @@
  static float last_clock = 0.0f;
 --- a/src/datastructure.c
 +++ b/src/datastructure.c
-@@ -1217,3 +1217,38 @@ int __attribute__ ((pure)) get_temp_unit
+@@ -1217,3 +1217,35 @@ int __attribute__ ((pure)) get_temp_unit
  	// Invalid value
  	return -1;
  }
@@ -676,36 +669,33 @@
 +// stackoverflow.com/questions/9210528/
 +int split_comma(const char *txt, char delim, char ***ptr)
 +{
-+    int *tklen, *t, count = 1;
-+    char **arr, *p = (char *)txt;
++	int *tklen, *t, count = 1;
++	char **arr, *p = (char *)txt;
 +
-+    while (*p != '\0') {
++	while (*p != '\0') {
 +		if (*p++ == delim)
 +			count += 1;
-+    }
++	}
 +
-+    t = tklen = calloc(count, sizeof(int));
++	t = tklen = calloc(count, sizeof(int));
 +
-+    for (p = (char *)txt; *p != '\0'; p++)
++	for (p = (char *)txt; *p != '\0'; p++)
 +		*p == delim ? *t++ : (*t)++;
 +
-+    *ptr = arr = malloc(count * sizeof(char *));
-+    t = tklen;
-+    p = *arr++ = calloc(*(t++) + 1, sizeof(char *));
++	*ptr = arr = malloc(count * sizeof(char *));
++	t = tklen;
++	p = *arr++ = calloc(*(t++) + 1, sizeof(char *));
 +
-+    while (*txt != '\0')
-+    {
-+        if (*txt == delim)
-+        {
-+            p = *arr++ = calloc(*(t++) + 1, sizeof(char *));
-+            txt++;
-+        }
-+        else
++	while (*txt != '\0') {
++		if (*txt == delim) {
++			p = *arr++ = calloc(*(t++) + 1, sizeof(char *));
++			txt++;
++		} else
 +			*p++ = *txt++;
-+    }
++	}
 +
-+    free (tklen);
-+    return count;
++	free(tklen);
++	return count;
 +}
 --- a/src/datastructure.h
 +++ b/src/datastructure.h
@@ -718,14 +708,14 @@
  #endif //DATASTRUCTURE_H
 --- a/src/enums.h
 +++ b/src/enums.h
-@@ -145,6 +145,7 @@ enum debug_flag {
- 	DEBUG_ARP,
- 	DEBUG_REGEX,
- 	DEBUG_API,
+@@ -163,6 +163,7 @@ enum debug_flag {
+ 	DEBUG_EXTRA,
+ 	DEBUG_RESERVED,
+ 	DEBUG_NTP,
 +	DEBUG_UCI,
- 	DEBUG_TLS,
- 	DEBUG_OVERTIME,
- 	DEBUG_STATUS,
+ 	DEBUG_MAX
+ } __attribute__ ((packed));
+ 
 --- a/src/files.c
 +++ b/src/files.c
 @@ -434,6 +434,9 @@ static int copy_file(const char *source,
@@ -740,15 +730,15 @@
  	{
 --- a/src/log.c
 +++ b/src/log.c
-@@ -186,6 +186,8 @@ const char *debugstr(const enum debug_fl
- 			return "DEBUG_REGEX";
- 		case DEBUG_API:
- 			return "DEBUG_API";
+@@ -222,6 +222,8 @@ const char *debugstr(const enum debug_fl
+ 			return "DEBUG_RESERVED";
+ 		case DEBUG_NTP:
+ 			return "DEBUG_NTP";
 +		case DEBUG_UCI:
 +			return "DEBUG_UCI";
- 		case DEBUG_TLS:
- 			return "DEBUG_TLS";
- 		case DEBUG_OVERTIME:
+ 		case DEBUG_MAX:
+ 			return "DEBUG_MAX";
+ 		case DEBUG_NONE: // fall through
 --- a/src/main.c
 +++ b/src/main.c
 @@ -73,8 +73,10 @@ int main (int argc, char *argv[])

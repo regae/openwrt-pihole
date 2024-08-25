@@ -10,6 +10,7 @@
 static struct uci_context *uci_ctx;
 struct uci_package *uci_dhcp = NULL;
 struct uci_package *uci_pihole = NULL;
+struct uci_package *uci_network = NULL;
 
 extern char *username;
 extern const char **argv_dnsmasq;
@@ -51,35 +52,28 @@ static void set_uci_type_name(struct conf_item *item, const char **section, char
 	unsigned int level = config_path_depth(item->p);
 	const char *dot_pos = NULL;
 
-	if(item->f & FLAG_PKG_DHCP) {
+	if (item->f & FLAG_PKG_DHCP) {
 		*section = "@dnsmasq[0]";
-		if(item == &config.dns.cache.size)
+		if (item == &config.dns.cache.size)
 			*option = strdup("cachesize");
-		else if(item == &config.files.log.dnsmasq)
+		else if (item == &config.files.log.dnsmasq)
 			*option = strdup("logfacility");
-		else if(item == &config.dns.upstreams)
+		else if (item == &config.dns.upstreams)
 			*option = strdup("server");
-		else if(item == &config.dhcp.logging)
+		else if (item == &config.dhcp.logging)
 			*option = strdup("logdhcp");
 		else {
 			*option = strdup(item->p[level - 1]);
-			for(char *p = *option; *p; ++p)
+			for (char *p = *option; *p; ++p)
 				*p = tolower(*p);
 		}
 	} else {
 		dot_pos = strchr(item->k, '.');
-
-		if(level == 4)
-			*section = item->p[level - 4];
-		else if(level == 3)
-			*section = item->p[level - 3];
-		else
-			*section = item->p[level - 2];
-
+		*section = (level >= 3) ? item->p[0] : item->p[level - 2];
 		if (dot_pos) {
 			*option = strdup(dot_pos + 1);
-			for(char *p = *option; *p; ++p)
-				if(*p == '.')
+			for (char *p = *option; *p; ++p)
+				if (*p == '.')
 					*p = '_';
 		}
 	}
@@ -89,18 +83,15 @@ static struct uci_section *get_uci_section_type(struct uci_package *pkg, const c
 {
 	struct uci_ptr ptr = { 0 };
 
-	if(!pkg || !s)
+	if (!pkg || !s)
 		return NULL;
 
 	if (*s == '@') {
 		ptr.flags |= UCI_LOOKUP_EXTENDED;
-
 		ptr.section = s;
-
 		ptr.target = UCI_TYPE_SECTION;
 		ptr.p = pkg;
-
-		if(!uci_lookup_ptr(uci_ctx, &ptr, NULL, true) && ptr.s)
+		if (!uci_lookup_ptr(uci_ctx, &ptr, NULL, true) && ptr.s)
 			return ptr.s;
 	}
 
@@ -121,7 +112,7 @@ static void uci_read_foreach_to_json(struct conf_item *conf_item, const char *se
 
 	const char *delim = (!strcmp(sec, "domain")) ? " " : ",";
 	struct uci_package *pkg = (conf_item->f & FLAG_PKG_DHCP) ? uci_dhcp : uci_pihole;
-	if(!pkg) {
+	if (!pkg) {
 		log_err("%s: package is null?", __func__);
 		return;
 	}
@@ -131,8 +122,7 @@ static void uci_read_foreach_to_json(struct conf_item *conf_item, const char *se
 
 	struct uci_element *e;
 	va_list argptr;
-	uci_foreach_element(&pkg->sections, e)
-	{
+	uci_foreach_element(&pkg->sections, e) {
 		struct uci_section *s = uci_to_section(e);
 		if (strcmp(s->type, sec) != 0)
 			continue;
@@ -173,7 +163,7 @@ static void uci_read_foreach_to_json(struct conf_item *conf_item, const char *se
 		}
 		va_end(argptr);
 
-		// Null terminate the buffer
+		// null terminate the buffer
 		// buffer[total_length] = '\0';
 		*ptr = '\0';
 
@@ -192,12 +182,12 @@ int uci_set_value(struct conf_item *item, const char *value, bool commit)
 
 	set_uci_type_name(item, &sec, &opt);
 
-	if(!opt || !sec)
+	if (!opt || !sec)
 		return -1;
 
 	ptr.p = (item->f & FLAG_PKG_DHCP) ? uci_dhcp : uci_pihole;
 	ptr.s = get_uci_section_type(ptr.p, sec);
-	if(!ptr.s) {
+	if (!ptr.s) {
 		char *_sec = NULL;
 		// section name
 		ptr.section = sec;
@@ -208,9 +198,9 @@ int uci_set_value(struct conf_item *item, const char *value, bool commit)
 			const char *start = strchr(sec, '@');
 			const char *end = strchr(sec, '[');
 
-			// Extract the substring between '@' and '[' using strndup
+			// extract the substring between '@' and '['
 			if (start && end && start < end)
-				_sec = strndup(start + 1, end - start - 1);  // start + 1 to skip '@'
+				_sec = strndup(start + 1, end - start - 1);
 
 			ptr.section = _sec;
 			ptr.value  = _sec;
@@ -231,8 +221,7 @@ int uci_set_value(struct conf_item *item, const char *value, bool commit)
 	ptr.option = opt;
 	ptr.target = UCI_TYPE_OPTION;
 
-	switch(item->t)
-	{
+	switch(item->t) {
 		case CONF_BOOL:
 		case CONF_ALL_DEBUG_BOOL:
 			ptr.value = item->v.b ? "1" : "0";
@@ -262,123 +251,101 @@ int uci_set_value(struct conf_item *item, const char *value, bool commit)
 		case CONF_INT:
 		case CONF_ENUM_PRIVACY_LEVEL:
 		case CONF_ENUM_TEMP_UNIT:
-		{
 			if (asprintf(&buf, "%i", item->v.i) > 0)
 				ptr.value = buf;
 
 			break;
-		}
 		case CONF_UINT:
-		{
 			if (asprintf(&buf, "%u", item->v.ui) > 0)
 				ptr.value = buf;
 
 			break;
-		}
 		case CONF_DOUBLE:
-		{
 			if (asprintf(&buf, "%f", item->v.d) > 0)
 				ptr.value = buf;
 
 			break;
-		}
 		case CONF_UINT16:
-		{
 			if (asprintf(&buf, "%u", item->v.ui) > 0)
 				ptr.value = buf;
 
 			break;
-		}
 		case CONF_LONG:
-		{
 			if (asprintf(&buf, "%li", item->v.l) > 0)
 				ptr.value = buf;
 
 			break;
-		}
 		case CONF_ULONG:
-		{
 			if (asprintf(&buf, "%lu", item->v.ul) > 0)
 				ptr.value = buf;
 
 			break;
-		}
 		case CONF_STRUCT_IN_ADDR:
-		{
 			char addr4[INET_ADDRSTRLEN] = { 0 };
 			inet_ntop(AF_INET, &item->v.in_addr, addr4, INET_ADDRSTRLEN);
 			ptr.value = addr4;
 
 			break;
-		}
 		case CONF_STRUCT_IN6_ADDR:
-		{
 			char addr6[INET6_ADDRSTRLEN] = { 0 };
 			inet_ntop(AF_INET6, &item->v.in6_addr, addr6, INET6_ADDRSTRLEN);
 			ptr.value = addr6;
 
 			break;
-		}
 		case CONF_PASSWORD:
 		case CONF_JSON_STRING_ARRAY:
 			break;
 	}
 
-	if(item->t == CONF_JSON_STRING_ARRAY)
-	{
-		if(!uci_lookup_ptr(uci_ctx, &ptr, NULL, true)) {
-			if(ptr.o)
-				uci_delete(uci_ctx, &ptr);
-		}
+	if (item->t == CONF_JSON_STRING_ARRAY) {
+		if (!uci_lookup_ptr(uci_ctx, &ptr, NULL, true) && ptr.o)
+			uci_delete(uci_ctx, &ptr);
 
-		for(int i = 0; i < cJSON_GetArraySize(item->v.json); i++)
-		{
+		for (int i = 0; i < cJSON_GetArraySize(item->v.json); i++) {
 			cJSON *server = cJSON_GetArrayItem(item->v.json, i);
-			if(server != NULL && cJSON_IsString(server)) {
+			if (server != NULL && cJSON_IsString(server)) {
 				ptr.value = server->valuestring;
-				if(!uci_lookup_ptr(uci_ctx, &ptr, NULL, true)) {
+				if (!uci_lookup_ptr(uci_ctx, &ptr, NULL, true)) {
 					ret = uci_add_list(uci_ctx, &ptr);
-					if(ret)
+					if (ret)
 						break;
 				}
 			}
 		}
-	} else if(item->t == CONF_PASSWORD) {
+	} else if (item->t == CONF_PASSWORD) {
 		// from cli.c
 		item--;
 		char *pwhash = strlen(value) > 0 ? create_password(value) : strdup("");
 		const enum password_result status = verify_password(value, pwhash, false);
-		if(status != PASSWORD_CORRECT && status != NO_PASSWORD_SET)
-		{
+		if (status != PASSWORD_CORRECT && status != NO_PASSWORD_SET) {
 			log_err("Failed to create password hash (verification failed), password remains unchanged");
 			free(pwhash);
-			if(buf != NULL)
+			if (buf != NULL)
 				free(buf);
 
 			return -1;
 		}
 
 		ptr.value = pwhash;
-		if(!uci_lookup_ptr(uci_ctx, &ptr, NULL, true))
+		if (!uci_lookup_ptr(uci_ctx, &ptr, NULL, true))
 			ret = uci_set(uci_ctx, &ptr);
 
 		free(pwhash);
 	} else {
-		if(!uci_lookup_ptr(uci_ctx, &ptr, NULL, true))
+		if (!uci_lookup_ptr(uci_ctx, &ptr, NULL, true))
 			ret = uci_set(uci_ctx, &ptr);
 	}
 
-	if(!ret) {
+	if (!ret) {
 		uci_save(uci_ctx, ptr.p);
-		if(commit)
+		if (commit)
 			_uci_commit(&ptr.p);
-	}
-	else {
+	} else {
 		uci_revert(uci_ctx, &ptr);
 		log_err("%s: failed to set %s %s (%d)", __func__, sec, opt, ret);
 	}
 
-	if(buf != NULL)
+	if (buf != NULL)
 		free(buf);
 
 	return ret;
@@ -390,12 +357,14 @@ void uci_get_config_values(struct config *conf, bool reload)
 	struct uci_package *sys_pkg = NULL;
 	bool sysntpd_enabled = false;
 
-	if(reload) {
+	if (reload) {
 		uci_dhcp = init_uci_pkg("dhcp");
 		uci_pihole = init_uci_pkg( "pihole");
+		uci_network = init_uci_pkg( "network");
 	}
 
-	// set FLAG for config in dhcp
+	// set FLAG for config in dhcp here
+	// kinda lazy to patch config.c
 	SET_IN_DHCP_FLAG(conf->dns.upstreams.f);
 	SET_IN_DHCP_FLAG(conf->dns.domainNeeded.f);
 	SET_IN_DHCP_FLAG(conf->dns.expandHosts.f);
@@ -418,39 +387,38 @@ void uci_get_config_values(struct config *conf, bool reload)
 	SET_IN_DHCP_FLAG(conf->dns.hosts.f);
 	SET_IN_DHCP_FLAG(conf->files.log.dnsmasq.f);
 
-	for(unsigned int i = 0; i < CONFIG_ELEMENTS; i++)
-	{
+	for (unsigned int i = 0; i < CONFIG_ELEMENTS; i++) {
 		struct conf_item *cfg_item = get_conf_item(conf, i);
 		const char *sec = NULL;
 		char *opt = NULL;
 
-		if(cfg_item == &config.dns.cnameRecords ||
+		if (cfg_item == &config.dns.cnameRecords ||
 		   cfg_item == &config.dns.hosts ||
 		   cfg_item == &config.dhcp.hosts)
 			continue;
 
 		set_uci_type_name(cfg_item, &sec, &opt);
 
-		if(!opt || !sec)
+		if (!opt || !sec)
 			continue;
 
 		uci_get_value(cfg_item, sec, opt);
 
-		if(opt != NULL)
+		if (opt != NULL)
 			free(opt);
 	}
 
-	if(!reload && (conf->ntp.ipv4.active.v.b || conf->ntp.ipv6.active.v.b)) {
+	if (!reload && (conf->ntp.ipv4.active.v.b || conf->ntp.ipv6.active.v.b)) {
 		sys_pkg = uci_lookup_package(uci_ctx, "system");
 		if (!sys_pkg)
 			uci_load(uci_ctx, "system", &sys_pkg);
 
 		ntp_sec = uci_lookup_section(uci_ctx, sys_pkg, "ntp");
-		if(ntp_sec)
+		if (ntp_sec)
 			sysntpd_enabled = uci_read_bool(ntp_sec, "enable_server", "0");
 
 		// disable builtin ntp if its handled by ntpd (openwrt)
-		if(sysntpd_enabled) {
+		if (sysntpd_enabled) {
 			log_info("Sysntpd is enabled, disabling builtin ntp");
 			conf->ntp.ipv4.active.v.b = false;
 			conf->ntp.ipv6.active.v.b = false;
@@ -471,7 +439,7 @@ int uci_get_value(struct conf_item *conf_item, const char *sec, const char *opt)
 	struct uci_ptr ptr = { 0 };
 	struct uci_package *pkg = (conf_item->f & FLAG_PKG_DHCP) ? uci_dhcp : uci_pihole;
 
-	if(!sec)
+	if (!sec)
 		return -1;
 
 	if (*sec == '@') {
@@ -483,27 +451,62 @@ int uci_get_value(struct conf_item *conf_item, const char *sec, const char *opt)
 	ptr.p = pkg;
 	ptr.option = opt;
 
-	if(uci_lookup_ptr(uci_ctx, &ptr, NULL, true))
+	if (uci_lookup_ptr(uci_ctx, &ptr, NULL, true))
 		return UCI_ERR_INVAL;
 
-	if(!ptr.o || !(ptr.flags & UCI_LOOKUP_COMPLETE)) {
-		log_debug(DEBUG_UCI, "UCI config \"%s\" not found for %s, using default value.",
-				  opt, conf_item->k);
+	if (!ptr.o || !(ptr.flags & UCI_LOOKUP_COMPLETE))
 		return UCI_ERR_NOTFOUND;
-	}
 
-	if(ptr.o->type == UCI_TYPE_LIST && conf_item->t == CONF_JSON_STRING_ARRAY)
-	{
+	if (ptr.o->type == UCI_TYPE_LIST) {
 		struct uci_element *e;
 		struct uci_list *list = &ptr.o->v.list;
-		cJSON_Delete(conf_item->v.json);
-		conf_item->v.json = cJSON_CreateArray();
-		uci_foreach_element(list, e) {
-			if(e->name)
-				cJSON_AddItemToArray(conf_item->v.json, cJSON_CreateString(e->name));
+		if (conf_item->t == CONF_JSON_STRING_ARRAY) {
+			cJSON_Delete(conf_item->v.json);
+			conf_item->v.json = cJSON_CreateArray();
+			uci_foreach_element(list, e) {
+				if (e->name)
+					cJSON_AddItemToArray(conf_item->v.json, cJSON_CreateString(e->name));
+			}
+		} else if (conf_item->t == CONF_STRING) {
+			// use 2 loops to avoid realloc
+			size_t total_len = 0;
+			uci_foreach_element(list, e)
+				if (e->name)
+					total_len += strlen(e->name) + 1; // +1 for comma
+
+			if (total_len == 0)
+				return UCI_ERR_PARSE;
+
+			char *buffer = malloc(total_len + 1);
+			if (!buffer)
+				return -1;
+
+			buffer[0] = '\0';
+			uci_foreach_element(list, e) {
+				if (e->name) {
+					strcat(buffer, e->name);
+					strcat(buffer, ",");
+				}
+			}
+
+			// remove the trailing comma and ensure -1 for null
+			buffer[total_len - 1] = '\0';
+
+			if (strlen(buffer) > 0) {
+				if (conf_item->t == CONF_STRING_ALLOCATED)
+					free(conf_item->v.s);
+
+				// no need to strdup here
+				conf_item->v.s = buffer;
+				conf_item->t = CONF_STRING_ALLOCATED;
+				return 0;
+			} else {
+				free(buffer);
+				return UCI_ERR_PARSE;
+			}
 		}
 	}
-	else if(ptr.o->type == UCI_TYPE_STRING && ptr.o->v.string)
+	else if (ptr.o->type == UCI_TYPE_STRING && ptr.o->v.string)
 		return readStringValue(conf_item, ptr.o->v.string, &config) ? 0 : UCI_ERR_PARSE;
 
 	return 0;
@@ -520,28 +523,26 @@ const char *uci_get_string(struct uci_package *pkg, const char *sec, const char 
 
 	if (sec && *sec == '@')
 		ptr.flags |= UCI_LOOKUP_EXTENDED;
-	else
+
+	if (uci_lookup_ptr(uci_ctx, &ptr, NULL, true))
 		return NULL;
 
-	if(uci_lookup_ptr(uci_ctx, &ptr, NULL, true))
+	if (!(ptr.flags & UCI_LOOKUP_COMPLETE))
 		return NULL;
 
-	if(!(ptr.flags & UCI_LOOKUP_COMPLETE))
-		return NULL;
-
-	if(ptr.o->type == UCI_TYPE_STRING && ptr.o->v.string)
+	if (ptr.o->type == UCI_TYPE_STRING && ptr.o->v.string) {
 		return ptr.o->v.string;
-	else if(ptr.o->type == UCI_TYPE_LIST)
-	{
+	} else if (ptr.o->type == UCI_TYPE_LIST) {
 		struct uci_element *e = NULL;
 		struct uci_list *list = &ptr.o->v.list;
 		static char buffer[512];
 		unsigned pos = 0;
 
 		buffer[0] = 0;
-		uci_foreach_element(list, e)
+		uci_foreach_element(list, e) {
 			if (e->name)
 				pos += snprintf(&buffer[pos], sizeof(buffer) - pos, "%s%s", e->name, ",");
+		}
 
 		if (pos)
 			buffer[pos - 1] = 0;
@@ -562,59 +563,58 @@ void _uci_commit(struct uci_package **pkg)
 bool uci_read_bool(struct uci_section *s,
 			  const char *opt, const char *fallback)
 {
+	bool fallb = (strcmp(fallback, "1") == 0);
+
 	if (!s)
-		return (strcmp(fallback, "1") == 0);
+		return fallb;
 
 	const char *val = uci_lookup_option_string(uci_ctx, s, opt);
-	if(!val)
-		return (strcmp(fallback, "1") == 0);
+	if (!val)
+		return fallb;
 
-	if(strcasecmp(val, "false") == 0 || strcmp(val, "0") == 0)
+	if (val[0] == '0' || !strcasecmp(val, "false"))
 		return false;
-	else if(strcasecmp(val, "true") == 0 || strcmp(val, "1") == 0)
+	else if (val[0] == '1' || !strcasecmp(val, "true") )
 		return true;
 
-	return (strcmp(fallback, "1") == 0);
+	return fallb;
 }
 
 struct uci_package *_uci_lookup_package(const char *p)
 {
+	// will return null if not loaded
 	return uci_lookup_package(uci_ctx, p);
 }
 
 void clean_all_leftovers(void)
 {
-	// clean all "still reachable" that valgrind detects
-	// is this really needed?
+	// read notes in free_config()
+	for (unsigned int i = 0; i < CONFIG_ELEMENTS; i++) {
+		struct conf_item *item = get_conf_item(&config, i);
 
-	// first free all config
-	free_config(&config);
+		if (item->a != NULL)
+			cJSON_Delete(item->a);
 
-	for(unsigned int i = 0; i < CONFIG_ELEMENTS; i++)
-	{
-		struct conf_item *copy_item = get_conf_item(&config, i);
-
-		// read notes in free_config()
-		if(copy_item->a != NULL)
-			cJSON_Delete(copy_item->a);
-
-		if(copy_item->p != NULL)
-		{
-			free_config_path(copy_item->p);
-			free(copy_item->p);
+		if (item->p != NULL) {
+			free_config_path(item->p);
+			free(item->p);
 		}
 
-		if(copy_item->e != NULL)
-			free(copy_item->e);
+		if (item->e != NULL)
+			free(item->e);
 
-		if(copy_item->t == CONF_JSON_STRING_ARRAY)
-			cJSON_Delete(copy_item->d.json);
+		if (item->t == CONF_STRING_ALLOCATED)
+			free(item->v.s);
+		else if (item->t == CONF_JSON_STRING_ARRAY) {
+			cJSON_Delete(item->d.json);
+			cJSON_Delete(item->v.json);
+		}
 	}
 
-	if(argv_dnsmasq != NULL)
+	if (argv_dnsmasq != NULL)
 		free(argv_dnsmasq);
 
-	if(username != NULL)
+	if (username != NULL)
 		free(username);
 }
 
@@ -626,7 +626,7 @@ int uci_foreach_section( struct conf_item *conf_item, const char *target, bool d
 	int ret = 0;
 
 	ptr.p = (conf_item->f & FLAG_PKG_DHCP) ? uci_dhcp : uci_pihole;
-	if(!ptr.p) {
+	if (!ptr.p) {
 		log_err("%s: package is null?", __func__);
 		return -1;
 	}
@@ -634,13 +634,13 @@ int uci_foreach_section( struct conf_item *conf_item, const char *target, bool d
 	const char *delim = (!strcmp(conf_item->k, "dns.hosts")) ? " " : ",";
 	char *strtmp = strdup(target);
 	char *token = strtok_r(strtmp, delim, &tmp);
-	if(delete) {
+	if (delete) {
 		const char *a = token;
 		token = strtok_r(NULL, delim, &tmp);
 		const char *b = token;
 
-		if(a == NULL || b == NULL) {
-			log_debug(DEBUG_UCI, "failed to delete section for target: %s", target);
+		if (a == NULL || b == NULL) {
+			log_err("failed to delete section for target: %s", target);
 			free(strtmp);
 			return -1;
 		}
@@ -659,14 +659,14 @@ int uci_foreach_section( struct conf_item *conf_item, const char *target, bool d
 			} else
 				continue;
 
-			if(!t1 && !t2)
+			if (!t1 && !t2)
 				continue;
 
 	        if (t1->v.string && strcmp(t1->v.string, b) == 0) {
 		        if (t2->v.string && strcmp(t2->v.string, a) == 0) {
 					ptr.s = s;
 					ret = uci_delete(uci_ctx, &ptr);
-					if(!ret) {
+					if (!ret) {
 						_uci_commit(&ptr.p);
 						break;
 					} else
@@ -679,32 +679,31 @@ int uci_foreach_section( struct conf_item *conf_item, const char *target, bool d
 		const char *sec = NULL;
 		bool commit = false;
 		int i = 0;
-		while(token != NULL && i < 3) // 3 is the max num between cnameRecords and dns.hosts
-		{
-			if(!strcmp(conf_item->k, "dns.cnameRecords")) {
-				if(i == 0) ptr.option = "cname";
-				else if(i == 1) ptr.option = "target";
-				else if(i == 2) ptr.option = "ttl";
+		// 3 is the max num between cnameRecords and dns.hosts
+		while (token != NULL && i < 3) {
+			if (!strcmp(conf_item->k, "dns.cnameRecords")) {
+				if (i == 0) ptr.option = "cname";
+				else if (i == 1) ptr.option = "target";
+				else if (i == 2) ptr.option = "ttl";
 
 				sec = "cname";
-			}
-			else if(!strcmp(conf_item->k, "dns.hosts")) {
-				if(i == 0) ptr.option = "ip";
-				else if(i == 1) ptr.option = "name";
+			} else if (!strcmp(conf_item->k, "dns.hosts")) {
+				if (i == 0) ptr.option = "ip";
+				else if (i == 1) ptr.option = "name";
 
 				sec = "domain";
 			} else
 				continue;
 
-			if(ptr.option) {
-				if(!ptr.s) {
-					if(uci_add_section(uci_ctx, ptr.p, sec, &ptr.s))
+			if (ptr.option) {
+				if (!ptr.s) {
+					if (uci_add_section(uci_ctx, ptr.p, sec, &ptr.s))
 						break;
 				}
 
 				ptr.value = token;
 				ret = uci_set(uci_ctx, &ptr);
-				if(!ret)
+				if (!ret)
 					commit = true;
 
 				i++;
@@ -713,8 +712,8 @@ int uci_foreach_section( struct conf_item *conf_item, const char *target, bool d
 			token = strtok_r(NULL, delim, &tmp);
 		}
 
-		if(i > 1) {
-			if(commit)
+		if (i > 1) {
+			if (commit)
 				_uci_commit(&ptr.p);
 			else
 				uci_revert(uci_ctx, &ptr);
@@ -727,39 +726,28 @@ int uci_foreach_section( struct conf_item *conf_item, const char *target, bool d
 
 void write_config_dhcp(FILE *fp)
 {
-	struct uci_package *network_pkg = uci_lookup_package(uci_ctx, "network");
- 
-	if(!uci_dhcp) {
+	if (!uci_dhcp || !uci_network) {
 		log_err("dhcp package is not found in the current context");
-		return;
-	}
- 
-	network_pkg = uci_lookup_package(uci_ctx, "network");
-	if (!network_pkg)
-		uci_load(uci_ctx, "network", &network_pkg);
- 
-	if (!network_pkg) {
-		log_err("network package is not found in the current context");
 		return;
 	}
 
 	struct uci_element *ep;
-	uci_foreach_element(&uci_dhcp->sections, ep)
-	{
+	uci_foreach_element(&uci_dhcp->sections, ep) {
 		struct uci_section *network_section = NULL;
 		struct uci_section *s = uci_to_section(ep);
 
 		if (strcmp(s->type, "host") == 0)
 			continue;
 
-		if(strcmp(ep->name, "wan") == 0) {
-			network_section = uci_lookup_section(uci_ctx, network_pkg, "wan");
+		// TODO: use ubus data instead
+		if (strcmp(ep->name, "wan") == 0) {
+			network_section = uci_lookup_section(uci_ctx, uci_network, "wan");
 			const char *proto = NULL;
-			if(network_section)
+			if (network_section)
 				proto = uci_lookup_option_string(uci_ctx, network_section, "proto");
-			if(proto && strcmp(proto, "pppoe") == 0) {
+			if (proto && strcmp(proto, "pppoe") == 0) {
 				const char *ignore = uci_lookup_option_string(uci_ctx, s, "ignore");
-				if(strcmp(ignore, "1") == 0)
+				if (strcmp(ignore, "1") == 0)
 					fputs("no-dhcp-interface=pppoe-wan\n", fp);
 			}
 		}
@@ -772,41 +760,36 @@ void write_config_dhcp(FILE *fp)
 		struct uci_element *eo;
 		uci_foreach_element(&s->options, eo) {
 			struct uci_option* opt = uci_to_option(eo);
-			if(opt->type == UCI_TYPE_STRING && opt->v.string)
-			{
-				if (strcmp(s->type, "dhcp") == 0)
-				{
-					if(strcmp(opt->e.name, "ignore") == 0 && strcmp(opt->v.string, "1") == 0) {
+			if (opt->type == UCI_TYPE_STRING && opt->v.string) {
+				if (strcmp(s->type, "dhcp") == 0) {
+					if (strcmp(opt->e.name, "ignore") == 0 && strcmp(opt->v.string, "1") == 0) {
 						skipped_dhcp = true;
 						break;
 					}
 
-					if(strcmp(opt->e.name, "interface") == 0)
+					if (strcmp(opt->e.name, "interface") == 0)
 						iface = opt->v.string;
-					else if(strcmp(opt->e.name, "start") == 0)
+					else if (strcmp(opt->e.name, "start") == 0)
 						dhcp_start = atoi(opt->v.string);
-					else if(strcmp(opt->e.name, "limit") == 0)
+					else if (strcmp(opt->e.name, "limit") == 0)
 						dhcp_limit = atoi(opt->v.string);
-					else if(strcmp(opt->e.name, "leasetime") == 0)
+					else if (strcmp(opt->e.name, "leasetime") == 0)
 						leasetime = opt->v.string;
-					else if(strcmp(opt->e.name, "domain_iface") == 0)
+					else if (strcmp(opt->e.name, "domain_iface") == 0)
 						domain_iface = opt->v.string;
-				}
-				else if (strcmp(s->type, "dnsmasq") == 0)
-				{
-					if(strcmp(opt->e.name, "dhcpleasemax") == 0)
+				} else if (strcmp(s->type, "dnsmasq") == 0) {
+					if (strcmp(opt->e.name, "dhcpleasemax") == 0)
 						fprintf(fp, "dhcp-lease-max=%s\n", opt->v.string);
-					else if(strcmp(opt->e.name, "dhcp_boot") == 0)
+					else if (strcmp(opt->e.name, "dhcp_boot") == 0)
 						fprintf(fp, "dhcp-boot=%s\n", opt->v.string);
 				}
-			} else if(opt->type == UCI_TYPE_LIST) {
+			} else if (opt->type == UCI_TYPE_LIST) {
 				const char *networkid = NULL;
 				const char *vendorclass = NULL;
-				if (strcmp(s->type, "vendorclass") == 0)
-				{
+				if (strcmp(s->type, "vendorclass") == 0) {
 					networkid = uci_lookup_option_string(uci_ctx, s, "networkid");
 					vendorclass = uci_lookup_option_string(uci_ctx, s, "vendorclass");
-					if(networkid && vendorclass)
+					if (networkid && vendorclass)
 						fprintf(fp, "dhcp-vendorclass=set:%s,%s\n", networkid, vendorclass);
 				}
 
@@ -815,31 +798,31 @@ void write_config_dhcp(FILE *fp)
 					if (!el->name)
 						continue;
 
-					if(strcmp(s->type, "vendorclass") == 0 && networkid && vendorclass)
+					if (strcmp(s->type, "vendorclass") == 0 && networkid && vendorclass)
 						fprintf(fp, "dhcp-option=%s,%s\n", networkid, el->name);
 
-					if(iface != NULL && strcmp(opt->e.name, "dhcp_option") == 0)
+					if (iface != NULL && strcmp(opt->e.name, "dhcp_option") == 0)
 						fprintf(fp, "dhcp-option=%s,%s\n", iface, el->name);
 				}
 			}
 		}
 
-		if(skipped_dhcp || iface == NULL)
+		if (skipped_dhcp || iface == NULL)
 			continue;
 
-		network_section = uci_lookup_section(uci_ctx, network_pkg, iface);
-		if(!network_section)
+		network_section = uci_lookup_section(uci_ctx, uci_network, iface);
+		if (!network_section)
 			continue;
 
 		const char *ipaddr = uci_lookup_option_string(uci_ctx, network_section, "ipaddr");
 		const char *netmask = uci_lookup_option_string(uci_ctx, network_section, "netmask");
 
-		if(!ipaddr || !netmask)
+		if (!ipaddr || !netmask)
 			continue;
 
 		struct in_addr addr4, mask, net;
 		memset(&addr4, 0, sizeof(addr4));
-		if(!inet_pton(AF_INET, ipaddr, &addr4))
+		if (!inet_pton(AF_INET, ipaddr, &addr4))
 			continue;
 
 		char ip_net[INET_ADDRSTRLEN] = { 0 },
@@ -873,7 +856,7 @@ void write_config_dhcp(FILE *fp)
 		fprintf(fp, "dhcp-range=set:%s,%s,%s,%s", iface, ip_start,
 				ip_end, netmask);
 
-		if(leasetime)
+		if (leasetime)
 			fprintf(fp, ",%s", leasetime);
 
 		fprintf(fp, "\ndhcp-option=%s,option:router,%s\n", iface, ipaddr);
@@ -881,44 +864,30 @@ void write_config_dhcp(FILE *fp)
 		// domain=lan,192.168.0.0/24,local
 		// domain=lan,192.168.0.1,192,168.0.50,local
 		// needs expandhosts in order to work without manually adding domain to host
-		if(config.dns.domainNeeded.v.b && domain_iface != NULL)
+		if (config.dns.domainNeeded.v.b && domain_iface != NULL)
 			fprintf(fp, "domain=%s,%s/%i,local\n", domain_iface, ip_net, prfx);
 	}
 }
 
 void write_static_hosts(void)
 {
-	struct uci_package *network_pkg = uci_lookup_package(uci_ctx, "network");
- 
-	if(!uci_dhcp) {
+	if (!uci_dhcp) {
 		log_err("dhcp package is not found in the current context");
-		return;
-	}
- 
-	network_pkg = uci_lookup_package(uci_ctx, "network");
-	if (!network_pkg)
-		uci_load(uci_ctx, "network", &network_pkg);
- 
-	if (!network_pkg) {
-		log_err("network package is not found in the current context");
 		return;
 	}
 
 	FILE *hostfile = fopen("/tmp/hosts/host_static", "w");
-	if(!hostfile)
-	{
+	if (!hostfile) {
 		log_err("Cannot open /tmp/hosts/host_static for writing, unable to update host_static: %s", strerror(errno));
 		return;
 	}
 
-	if(flock(fileno(hostfile), LOCK_EX) != 0)
-	{
+	if (flock(fileno(hostfile), LOCK_EX) != 0) {
 		log_err("Cannot open /tmp/hosts/host_static in exclusive mode: %s", strerror(errno));
 		fclose(hostfile);
 		return;
 	}
 
-	int entries = 0;
 	struct uci_element *e;
 	struct uci_section *s;
 	uci_foreach_element(&uci_dhcp->sections, e) {
@@ -935,43 +904,41 @@ void write_static_hosts(void)
 
 		const char *ip = uci_lookup_option_string(uci_ctx, s, "ip");
 		const char *name = uci_lookup_option_string(uci_ctx, s, "name");
-		if(name != NULL && ip != NULL)
-		{
+		if (name != NULL && ip != NULL)
 			fprintf(hostfile, "%s %s\n", ip, name);
-			entries++;
-		}
 	}
 
-	uci_foreach_element(&network_pkg->sections, e) {
+	if (!uci_network) {
+		log_err("network package is not found in the current context");
+		goto out;
+	}
+
+	uci_foreach_element(&uci_network->sections, e) {
 		s = uci_to_section(e);
 		if (strcmp(s->type, "interface") != 0)
 			continue;
 
 		const char *proto = uci_lookup_option_string(uci_ctx, s, "proto");
-		if(!proto || strcmp(proto, "static") != 0)
+		if (!proto || strcmp(proto, "static") != 0)
 			continue;
 
 		const char *domain_iface = NULL;
 		const char *ipaddr = uci_lookup_option_string(uci_ctx, s, "ipaddr");
 		struct uci_section *dhcp_section = uci_lookup_section(uci_ctx, uci_dhcp, e->name);
 
-		if(dhcp_section)
+		if (dhcp_section)
 			domain_iface = uci_lookup_option_string(uci_ctx, dhcp_section, "domain_iface");
 
-		if(ipaddr != NULL && strcmp(ipaddr, "127.0.0.1") != 0)
-		{
-			if(domain_iface != NULL)
+		if (ipaddr != NULL && strcmp(ipaddr, "127.0.0.1") != 0) {
+			if (domain_iface != NULL)
 				fprintf(hostfile, "%s %s.%s\n", ipaddr, hostname(), domain_iface);
 			else
 				fprintf(hostfile, "%s %s\n", ipaddr, hostname());
-
-			entries++;
 		}
 	}
 
-	fprintf(hostfile, "\n# %d entrie(s) in this file\n", entries);
-
-	if(flock(fileno(hostfile), LOCK_UN) != 0)
+out:
+	if (flock(fileno(hostfile), LOCK_UN) != 0)
 		log_err("Cannot release lock on host_static: %s", strerror(errno));
 
 	fclose(hostfile);
@@ -1033,7 +1000,7 @@ void write_dnsmasq_conf(FILE *fp)
 {
 	struct uci_section *dhcp_section = get_uci_section_type(uci_dhcp, "@dnsmasq[0]");
  
-	if(!dhcp_section) {
+	if (!dhcp_section) {
 		log_err("%s: dhcp package is not found in the current context", __func__);
 		return;
 	}
@@ -1045,23 +1012,20 @@ void write_dnsmasq_conf(FILE *fp)
 		const char *dnsmasq_option = dnsmasqOpts[i].option;
 
 		// dealing only for boolean
-		if(dnsmasqOpts[i].defaultValue != NULL) {
-			//if (strstr(dnsmasq_opt, "dhcp") != NULL)
-			//	continue; 
-
+		if (dnsmasqOpts[i].defaultValue != NULL) {
 			bool tmp = uci_read_bool(dhcp_section, dnsmasq_option, dnsmasqOpts[i].defaultValue);
 
-			if(!strcmp(dnsmasq_option, "proxydnssec")) {
-				if(!config.dns.dnssec.v.b && tmp) {
+			if (!strcmp(dnsmasq_option, "proxydnssec")) {
+				if (!config.dns.dnssec.v.b && tmp) {
 					fputs(dnsmasq_opt, fp);
 					fputs("\n", fp);
 					const char *cpe_id = uci_lookup_option_string(uci_ctx, dhcp_section, "cpe_id");
-					if(cpe_id != NULL)
+					if (cpe_id != NULL)
 						fprintf(fp, "add-cpe-id=%s\n", cpe_id);
 				}
-			} else if(!strcmp(dnsmasq_option, "rebind_protection")) {
+			} else if (!strcmp(dnsmasq_option, "rebind_protection")) {
 				rebind_protection = tmp;
-			} else if(!strcmp(dnsmasq_option, "rebind_localhost")) {
+			} else if (!strcmp(dnsmasq_option, "rebind_localhost")) {
 				rebind_localhost = tmp;
 			} else if (tmp) {
 				fputs(dnsmasq_opt, fp);
@@ -1070,24 +1034,31 @@ void write_dnsmasq_conf(FILE *fp)
 		} else {
 			// dealing for not boolean
 			struct uci_element *elem;
-			uci_foreach_element(&dhcp_section->options, elem)
-			{
+			uci_foreach_element(&dhcp_section->options, elem) {
 				struct uci_option* opt = uci_to_option(elem);
-				if(!opt)
+				if (!opt)
 					continue;
 
-				if(opt->type == UCI_TYPE_STRING && opt->v.string) {
-					if(strcmp(opt->e.name, dnsmasq_option) == 0)
+				if (opt->type == UCI_TYPE_STRING && opt->v.string) {
+					if (strcmp(opt->e.name, dnsmasq_option) == 0)
 						fprintf(fp, "%s=%s\n", dnsmasq_opt, opt->v.string);
-				} else if(opt->type == UCI_TYPE_LIST) {
+				} else if (opt->type == UCI_TYPE_LIST) {
 					struct uci_element *el;
-					uci_foreach_element(&opt->v.list, el)
-					{
-						if (!el->name)
-							continue;
+					uci_foreach_element(&opt->v.list, el) {
+						if (el->name && strcmp(opt->e.name, dnsmasq_option) == 0) {
+							// TODO: use ubus data instead to get device/ifname
+							if (strcmp("notinterface", dnsmasq_option) == 0) {
+								const char *iface = NULL;
+								const char *proto = uci_get_string(uci_network, el->name, "proto");
+								if (strcmp(proto, "pppoe") == 0)
+									iface = "pppoe-wan";
+								else
+									iface = uci_get_string(uci_network, el->name, "device");
 
-						if(strcmp(opt->e.name, dnsmasq_option) == 0)
-							fprintf(fp, "%s=%s\n", dnsmasq_opt, el->name);
+								fprintf(fp, "%s=%s\n", dnsmasq_opt, iface ? iface : el->name);
+							} else
+								fprintf(fp, "%s=%s\n", dnsmasq_opt, el->name);
+						}
 					}
 				}
 			}
@@ -1095,12 +1066,12 @@ void write_dnsmasq_conf(FILE *fp)
 	}
 	fputs("\n", fp);
 
-	if(rebind_protection)
+	if (rebind_protection)
 	{
 		fputs("# Discard upstream RFC1918 responses!\n", fp);
 		fputs("stop-dns-rebind\n", fp);
 		fputs("\n", fp);
-		if(rebind_localhost)
+		if (rebind_localhost)
 		{
 			fputs("# Allowing 127.0.0.0/8 responses\n", fp);
 			fputs("rebind-localhost-ok\n", fp);
