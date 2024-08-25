@@ -8,6 +8,7 @@
 extern struct uci_package *uci_dhcp;
 extern struct uci_package *uci_pihole;
 extern struct uci_package *uci_network;
+extern bool use_uci;
 
 #define SET_IN_DHCP_FLAG(cfg_item) \
     if (!(cfg_item & FLAG_PKG_DHCP)) \

@@ -278,20 +278,7 @@
  // Private prototypes
  static bool port_in_use(const in_port_t port);
  
-@@ -1485,6 +1487,12 @@ void initConfig(struct config *conf)
- 	conf->debug.ntp.d.b = false;
- 	conf->debug.ntp.c = validate_stub; // Only type-based checking
- 
-+	conf->debug.uci.k = "debug.uci";
-+	conf->debug.uci.h = "Print information concerning UCI calls.";
-+	conf->debug.uci.t = CONF_BOOL;
-+	conf->debug.uci.d.b = false;
-+	conf->debug.uci.c = validate_stub; // Only type-based checking
-+
- 	conf->debug.all.k = "debug.all";
- 	conf->debug.all.h = "Set all debug flags at once. This is a convenience option to enable all debug flags at once. Note that this option is not persistent, setting it to true will enable all *remaining* debug flags but unsetting it will disable *all* debug flags.";
- 	conf->debug.all.t = CONF_ALL_DEBUG_BOOL;
-@@ -1585,6 +1593,21 @@ bool readFTLconf(struct config *conf, co
+@@ -1585,6 +1587,21 @@ bool readFTLconf(struct config *conf, co
  	// First, read the environment
  	getEnvVars();
  
@@ -313,7 +300,7 @@
  	// Try to read TOML config file
  	// If we cannot parse /etc/pihole.toml (due to missing or invalid syntax),
  	// we try to read the rotated files in /etc/pihole/config_backup starting at
-@@ -1695,6 +1718,22 @@ bool getLogFilePath(void)
+@@ -1695,6 +1712,22 @@ bool getLogFilePath(void)
  	config.files.log.ftl.v.s = config.files.log.ftl.d.s;
  	config.files.log.ftl.c = validate_filepath;
  
@@ -336,7 +323,7 @@
  	// Check if the config file contains a different path
  	if(!getLogFilePathTOML())
  		return getLogFilePathLegacy(&config, NULL);
-@@ -1717,6 +1756,9 @@ void set_blockingstatus(bool enabled)
+@@ -1717,6 +1750,9 @@ void set_blockingstatus(bool enabled)
  		return;
  
  	config.dns.blocking.active.v.b = enabled;
@@ -346,7 +333,7 @@
  	writeFTLtoml(true);
  	raise(SIGHUP);
  }
-@@ -1787,6 +1829,10 @@ void replace_config(struct config *newco
+@@ -1787,6 +1823,10 @@ void replace_config(struct config *newco
  
  void reread_config(void)
  {
@@ -359,16 +346,7 @@
  	uint8_t checksum[SHA256_DIGEST_SIZE];
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -32,6 +32,8 @@
- // enum web_theme
- #include "api/theme.h"
- 
-+extern bool use_uci;
-+
- #define GLOBALTOMLPATH "/tmp/etc/pihole/pihole.toml"
- 
- // This static string represents an unchanged password
-@@ -100,6 +102,7 @@ enum conf_type {
+@@ -100,6 +100,7 @@ enum conf_type {
  #define FLAG_ENV_VAR               (1 << 4)
  #define FLAG_CONF_IMPORTED         (1 << 5)
  #define FLAG_READ_ONLY             (1 << 6)
@@ -376,14 +354,7 @@
  
  struct conf_item {
  	const char *k;        // item Key
-@@ -340,12 +343,14 @@ struct config {
- 		struct conf_item extra;
- 		struct conf_item reserved;
- 		struct conf_item ntp;
-+		struct conf_item uci;
- 		// all must be the last item in this struct
- 		struct conf_item all;
- 	} debug;
+@@ -346,6 +347,7 @@ struct config {
  };
  
  extern struct config config;
@@ -391,16 +362,16 @@
  
  #define CONFIG_ELEMENTS (sizeof(config)/sizeof(struct conf_item))
  #define DEBUG_ELEMENTS (sizeof(config.debug)/sizeof(struct conf_item))
-@@ -370,6 +375,9 @@ const char *get_conf_type_str(const enum
+@@ -369,6 +371,9 @@ bool check_paths_equal(char **paths1, ch
+ const char *get_conf_type_str(const enum conf_type type) __attribute__ ((const));
  void replace_config(struct config *newconf);
  void reread_config(void);
- 
++
 +// Defined in cli.c
 +bool readStringValue(struct conf_item *conf_item, const char *value, struct config *newconf);
-+
+ 
  // Defined in toml_reader.c
  bool readDebugSettings(void);
- void init_config_mutex(void);
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
 @@ -228,7 +228,7 @@ static void write_config_header(FILE *fp
@@ -706,16 +677,6 @@
 +int split_comma(const char *txt, char delim, char ***ptr);
 +
  #endif //DATASTRUCTURE_H
---- a/src/enums.h
-+++ b/src/enums.h
-@@ -163,6 +163,7 @@ enum debug_flag {
- 	DEBUG_EXTRA,
- 	DEBUG_RESERVED,
- 	DEBUG_NTP,
-+	DEBUG_UCI,
- 	DEBUG_MAX
- } __attribute__ ((packed));
- 
 --- a/src/files.c
 +++ b/src/files.c
 @@ -434,6 +434,9 @@ static int copy_file(const char *source,
@@ -728,17 +689,6 @@
  	// Get pihole user's UID and GID if not provided
  	if(pwd == NULL)
  	{
---- a/src/log.c
-+++ b/src/log.c
-@@ -222,6 +222,8 @@ const char *debugstr(const enum debug_fl
- 			return "DEBUG_RESERVED";
- 		case DEBUG_NTP:
- 			return "DEBUG_NTP";
-+		case DEBUG_UCI:
-+			return "DEBUG_UCI";
- 		case DEBUG_MAX:
- 			return "DEBUG_MAX";
- 		case DEBUG_NONE: // fall through
 --- a/src/main.c
 +++ b/src/main.c
 @@ -73,8 +73,10 @@ int main (int argc, char *argv[])
