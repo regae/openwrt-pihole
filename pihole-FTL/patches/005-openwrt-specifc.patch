@@ -1,6 +1,6 @@
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -61,7 +61,7 @@ endif()
+@@ -61,7 +61,7 @@ set(SQLITE_DEFINES "-DSQLITE_OMIT_LOAD_E
  # -Wl,-z,relro: Read-only segments after relocation
  # -fno-common: Emit globals without explicit initializer from `.bss` to `.data`. This causes GCC to reject multiple definitions of global variables. This is the new default from GCC-10 on.
  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
@@ -31,7 +31,7 @@
  int api_action_restartDNS(struct ftl_conn *api)
 --- a/src/api/docs/content/specs/config.yaml
 +++ b/src/api/docs/content/specs/config.yaml
-@@ -739,7 +739,7 @@ components:
+@@ -742,7 +742,7 @@ components:
              tls:
                cert: "/etc/pihole/tls.pem"
              paths:
@@ -40,7 +40,7 @@
                webhome: "/admin/"
              interface:
                boxed: true
-@@ -763,7 +763,7 @@ components:
+@@ -766,7 +766,7 @@ components:
                  limit: 60.0
                  unit: "C"
            files:
@@ -49,19 +49,6 @@
              database: "/etc/pihole/pihole-FTL.db"
              gravity: "/etc/pihole/gravity.db"
              gravity_tmp: "/tmp"
-@@ -771,9 +771,9 @@ components:
-             setupVars: "/etc/pihole/setupVars.conf"
-             pcap: ""
-             log:
--              ftl: "/var/log/pihole/FTL.log"
--              dnsmasq: "/var/log/pihole/pihole.log"
--              webserver: "/var/log/pihole/webserver.log"
-+              ftl: "/var/log/pihole/FTL.log"
-+              dnsmasq: "/var/log/pihole/pihole.log"
-+              webserver: "/var/log/pihole/webserver.log"
-           misc:
-             nice: -10
-             delay_startup: 10
 --- a/src/api/docs/content/specs/teleporter.yaml
 +++ b/src/api/docs/content/specs/teleporter.yaml
 @@ -149,7 +149,7 @@ components:
@@ -75,7 +62,7 @@
            - etc/pihole/gravity.db->adlist_by_group
 --- a/src/config/config.c
 +++ b/src/config/config.c
-@@ -492,7 +492,7 @@ void initConfig(struct config *conf)
+@@ -499,7 +499,7 @@ static void initConfig(struct config *co
  	conf->dns.domain.a = cJSON_CreateStringReference("<any valid domain>");
  	conf->dns.domain.t = CONF_STRING;
  	conf->dns.domain.f = FLAG_RESTART_FTL;
@@ -84,7 +71,7 @@
  	conf->dns.domain.c = validate_domain;
  
  	conf->dns.bogusPriv.k = "dns.bogusPriv";
-@@ -547,7 +547,7 @@ void initConfig(struct config *conf)
+@@ -554,7 +554,7 @@ static void initConfig(struct config *co
  	conf->dns.queryLogging.h = "Log DNS queries and replies to pihole.log";
  	conf->dns.queryLogging.t = CONF_BOOL;
  	conf->dns.queryLogging.f = FLAG_RESTART_FTL;
@@ -93,7 +80,7 @@
  	conf->dns.queryLogging.c = validate_stub; // Only type-based checking
  
  	conf->dns.cnameRecords.k = "dns.cnameRecords";
-@@ -696,7 +696,7 @@ void initConfig(struct config *conf)
+@@ -709,7 +709,7 @@ static void initConfig(struct config *co
  	conf->dhcp.active.h = "Is the embedded DHCP server enabled?";
  	conf->dhcp.active.t = CONF_BOOL;
  	conf->dhcp.active.f = FLAG_RESTART_FTL;
@@ -102,7 +89,7 @@
  	conf->dhcp.active.c = validate_stub; // Only type-based checking
  
  	conf->dhcp.start.k = "dhcp.start";
-@@ -788,7 +788,7 @@ void initConfig(struct config *conf)
+@@ -801,7 +801,7 @@ static void initConfig(struct config *co
  	conf->ntp.ipv4.active.h = "Should FTL act as network time protocol (NTP) server (IPv4)?";
  	conf->ntp.ipv4.active.t = CONF_BOOL;
  	conf->ntp.ipv4.active.f = FLAG_RESTART_FTL;
@@ -111,7 +98,7 @@
  	conf->ntp.ipv4.active.c = validate_stub; // Only type-based checking
  
  	conf->ntp.ipv4.address.k = "ntp.ipv4.address";
-@@ -803,7 +803,7 @@ void initConfig(struct config *conf)
+@@ -816,7 +816,7 @@ static void initConfig(struct config *co
  	conf->ntp.ipv6.active.h = "Should FTL act as network time protocol (NTP) server (IPv6)?";
  	conf->ntp.ipv6.active.t = CONF_BOOL;
  	conf->ntp.ipv6.active.f = FLAG_RESTART_FTL;
@@ -120,7 +107,7 @@
  	conf->ntp.ipv6.active.c = validate_stub; // Only type-based checking
  
  	conf->ntp.ipv6.address.k = "ntp.ipv6.address";
-@@ -818,7 +818,7 @@ void initConfig(struct config *conf)
+@@ -831,7 +831,7 @@ static void initConfig(struct config *co
  	conf->ntp.sync.active.h = "Should FTL try to synchronize the system time with an upstream NTP server?";
  	conf->ntp.sync.active.t = CONF_BOOL;
  	conf->ntp.sync.active.f = FLAG_RESTART_FTL;
@@ -129,7 +116,7 @@
  	conf->ntp.sync.active.c = validate_stub; // Only type-based checking
  
  	conf->ntp.sync.server.k = "ntp.sync.server";
-@@ -969,7 +969,7 @@ void initConfig(struct config *conf)
+@@ -982,7 +982,7 @@ static void initConfig(struct config *co
  	conf->webserver.port.a = cJSON_CreateStringReference("comma-separated list of <[ip_address:]port>");
  	conf->webserver.port.f = FLAG_RESTART_FTL;
  	conf->webserver.port.t = CONF_STRING;
@@ -138,7 +125,7 @@
  	conf->webserver.port.c = validate_stub; // Type-based checking + civetweb syntax checking
  
  	conf->webserver.tls.cert.k = "webserver.tls.cert";
-@@ -998,7 +998,7 @@ void initConfig(struct config *conf)
+@@ -1011,7 +1011,7 @@ static void initConfig(struct config *co
  	conf->webserver.paths.webroot.a = cJSON_CreateStringReference("<valid path>");
  	conf->webserver.paths.webroot.t = CONF_STRING;
  	conf->webserver.paths.webroot.f = FLAG_RESTART_FTL;
@@ -147,7 +134,7 @@
  	conf->webserver.paths.webroot.c = validate_filepath;
  
  	conf->webserver.paths.webhome.k = "webserver.paths.webhome";
-@@ -1155,7 +1155,7 @@ void initConfig(struct config *conf)
+@@ -1168,7 +1168,7 @@ static void initConfig(struct config *co
  	conf->files.pid.a = cJSON_CreateStringReference("<any writable file>");
  	conf->files.pid.t = CONF_STRING;
  	conf->files.pid.f = FLAG_RESTART_FTL;
@@ -156,16 +143,7 @@
  	conf->files.pid.c = validate_filepath;
  
  	conf->files.database.k = "files.database";
-@@ -1219,7 +1219,7 @@ void initConfig(struct config *conf)
- 	conf->files.log.dnsmasq.a = cJSON_CreateStringReference("<any writable file>");
- 	conf->files.log.dnsmasq.t = CONF_STRING;
- 	conf->files.log.dnsmasq.f = FLAG_RESTART_FTL;
--	conf->files.log.dnsmasq.d.s = (char*)"/var/log/pihole/pihole.log";
-+	conf->files.log.dnsmasq.d.s = (char*)"/var/log/pihole/pihole.log";
- 	conf->files.log.dnsmasq.c = validate_filepath_dash;
- 
- 
-@@ -1263,7 +1263,7 @@ void initConfig(struct config *conf)
+@@ -1276,7 +1276,7 @@ static void initConfig(struct config *co
  	conf->misc.etc_dnsmasq_d.h = "Should FTL load additional dnsmasq configuration files from /etc/dnsmasq.d/?";
  	conf->misc.etc_dnsmasq_d.t = CONF_BOOL;
  	conf->misc.etc_dnsmasq_d.f = FLAG_RESTART_FTL;
@@ -174,15 +152,6 @@
  	conf->misc.etc_dnsmasq_d.c = validate_stub; // Only type-based checking
  
  	conf->misc.dnsmasq_lines.k = "misc.dnsmasq_lines";
-@@ -1683,7 +1683,7 @@ void initConfig(struct config *conf)
- 	config.files.log.ftl.h = "The location of FTL's log file";
- 	config.files.log.ftl.a = cJSON_CreateStringReference("<any writable file>");
- 	config.files.log.ftl.t = CONF_STRING;
--	config.files.log.ftl.d.s = (char*)"/var/log/pihole/FTL.log";
-+	config.files.log.ftl.d.s = (char*)"/var/log/pihole/FTL.log";
- 	config.files.log.ftl.v.s = config.files.log.ftl.d.s;
- 	config.files.log.ftl.c = validate_filepath;
- 
 --- a/src/config/config.h
 +++ b/src/config/config.h
 @@ -32,7 +32,7 @@
@@ -230,7 +199,7 @@
  
 --- a/src/config/dnsmasq_config.h
 +++ b/src/config/dnsmasq_config.h
-@@ -22,13 +22,13 @@
+@@ -22,13 +22,13 @@ bool read_legacy_cnames_config(void);
  bool read_legacy_custom_hosts_config(void);
  bool write_custom_list(void);
  
@@ -333,7 +302,7 @@
  			lastResourceCheck = now;
 --- a/src/gen_version.cmake
 +++ b/src/gen_version.cmake
-@@ -12,7 +12,7 @@
+@@ -12,7 +12,7 @@ if(DEFINED ENV{GIT_BRANCH})
      set(GIT_BRANCH "$ENV{GIT_BRANCH}")
  else()
      execute_process(
@@ -342,7 +311,7 @@
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
              OUTPUT_VARIABLE   GIT_BRANCH
              ERROR_QUIET
-@@ -24,7 +24,7 @@
+@@ -24,7 +24,7 @@ if(DEFINED ENV{GIT_HASH})
      set(GIT_HASH "$ENV{GIT_HASH}")
  else()
      execute_process(
@@ -351,7 +320,7 @@
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
              OUTPUT_VARIABLE   GIT_HASH
              ERROR_QUIET
-@@ -36,7 +36,7 @@
+@@ -36,7 +36,7 @@ if(DEFINED ENV{GIT_VERSION})
      set(GIT_VERSION "$ENV{GIT_VERSION}")
  else()
      execute_process(
@@ -360,7 +329,7 @@
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
              OUTPUT_VARIABLE   GIT_VERSION
              ERROR_QUIET
-@@ -48,7 +48,7 @@
+@@ -48,7 +48,7 @@ if(DEFINED ENV{GIT_DATE})
      set(GIT_DATE "$ENV{GIT_DATE}")
  else()
      execute_process(
@@ -369,7 +338,7 @@
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
              OUTPUT_VARIABLE   GIT_DATE
              ERROR_QUIET
-@@ -60,7 +60,7 @@
+@@ -60,7 +60,7 @@ if(DEFINED ENV{GIT_TAG})
      set(GIT_TAG "$ENV{GIT_TAG}")
  else()
      execute_process(
@@ -378,7 +347,7 @@
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
              OUTPUT_VARIABLE   GIT_TAG
              ERROR_QUIET
-@@ -71,6 +71,8 @@
+@@ -71,6 +71,8 @@ endif()
  # If CI_ARCH is unset (local compilation), ask uname -m and add locally compiled comment
  if(DEFINED ENV{CI_ARCH})
      set(FTL_ARCH "$ENV{CI_ARCH} (compiled on CI)")
@@ -389,7 +358,7 @@
              COMMAND           uname -m
 --- a/src/log.c
 +++ b/src/log.c
-@@ -271,8 +271,8 @@ void __attribute__ ((format (gnu_printf,
+@@ -271,8 +271,8 @@ void __attribute__ ((format (printf, 3,
  	if((!daemonmode || cli_mode) && print_stdout)
  	{
  		// Only print time/ID string when not in direct user interaction (CLI mode)
@@ -402,7 +371,7 @@
  		va_end(args);
 --- a/src/lua/scripts/CMakeLists.txt
 +++ b/src/lua/scripts/CMakeLists.txt
-@@ -33,3 +33,5 @@ add_dependencies(lua lua_scripts)
+@@ -33,3 +33,5 @@ add_dependencies(ftl_lua lua_scripts)
  add_library(lua_scripts OBJECT ${sources})
  target_compile_options(lua_scripts PRIVATE ${EXTRAWARN})
  target_include_directories(lua_scripts PRIVATE ${PROJECT_SOURCE_DIR}/src)
@@ -410,7 +379,7 @@
 +set_target_properties(lua_scripts PROPERTIES LINKER_LANGUAGE C)
 --- a/src/procps.c
 +++ b/src/procps.c
-@@ -216,7 +216,7 @@ bool check_running_FTL(void)
+@@ -240,7 +240,7 @@ bool another_FTL(void)
  		log_debug(DEBUG_SHMEM, "PID: %d -> name: %s%s", pid, name, pid == ourselves ? " (us)" : "");
  
  		// Skip our own process
@@ -418,7 +387,7 @@
 +		if(pid == ourselves || pid - ourselves == 1)
  			continue;
  
- 		// Only process this is this is our own process
+ 		// Only process this if this is our own process
 --- a/src/zip/miniz/CMakeLists.txt
 +++ b/src/zip/miniz/CMakeLists.txt
 @@ -15,4 +15,5 @@ set(sources

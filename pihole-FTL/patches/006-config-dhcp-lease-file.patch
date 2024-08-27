@@ -38,11 +38,10 @@
  			.archive_name = "pihole-FTL.conf",
 --- a/src/config/config.c
 +++ b/src/config/config.c
-@@ -745,6 +745,14 @@ void initConfig(struct config *conf)
- 	conf->dhcp.ipv6.f = FLAG_RESTART_FTL;
+@@ -759,6 +759,14 @@ static void initConfig(struct config *co
  	conf->dhcp.ipv6.d.b = false;
  	conf->dhcp.ipv6.c = validate_stub; // Only type-based checking
-+
+ 
 +	conf->dhcp.leaseFile.k = "dhcp.leaseFile";
 +	conf->dhcp.leaseFile.h = "The file which contains DHCP Lease information.";
 +	conf->dhcp.leaseFile.a = cJSON_CreateStringReference("<any writable file>");
@@ -50,12 +49,13 @@
 +	conf->dhcp.leaseFile.f = FLAG_RESTART_FTL | FLAG_PKG_DHCP;
 +	conf->dhcp.leaseFile.d.s = (char*)"/etc/pihole/dhcp.leases";
 +	conf->dhcp.leaseFile.c = validate_filepath;
- 
++
  	conf->dhcp.multiDNS.k = "dhcp.multiDNS";
  	conf->dhcp.multiDNS.h = "Advertise DNS server multiple times to clients. Some devices will add their own proprietary DNS servers to the list of DNS servers, which can cause issues with Pi-hole. This option will advertise the Pi-hole DNS server multiple times to clients, which should prevent this from happening.";
+ 	conf->dhcp.multiDNS.t = CONF_BOOL;
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -193,6 +193,7 @@ struct config {
+@@ -194,6 +194,7 @@ struct config {
  		struct conf_item logging;
  		struct conf_item ignoreUnknownClients;
  		struct conf_item hosts;
@@ -65,7 +65,7 @@
  	struct {
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -550,7 +550,7 @@  bool __attribute__((const)) write_dnsmas
+@@ -550,7 +550,7 @@ bool __attribute__((const)) write_dnsmas
  	{
  		fputs("# DHCP server setting\n", pihole_conf);
  		fputs("dhcp-authoritative\n", pihole_conf);
@@ -85,7 +85,7 @@
  #endif //DNSMASQ_CONFIG_H
 --- a/src/zip/teleporter.c
 +++ b/src/zip/teleporter.c
-@@ -348,10 +348,10 @@ static const char *import_dhcp_leases(void *ptr, size_t size, char * const hint)
+@@ -348,10 +348,10 @@ static const char *import_dhcp_leases(vo
  	// Nevertheless, we rotate the current dhcp.leases file to keep a backup of the previous version
  
  	// Rotate current dhcp.leases file

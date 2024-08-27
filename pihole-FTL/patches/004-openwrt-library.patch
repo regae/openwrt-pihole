@@ -86,10 +86,10 @@
 +if(STATIC)
  find_library(LIBUNISTRING NAMES libunistring${LIBRARY_SUFFIX} unistring)
 +endif()
-+
-+target_link_libraries(pihole-FTL rt Threads::Threads ${LIBHOGWEED} ${LIBGMP} ${LIBNETTLE} ${LIBIDN2} ${LIBUBOX} ${LIBUBUS})
  
 -target_link_libraries(pihole-FTL rt Threads::Threads ${LIBHOGWEED} ${LIBGMP} ${LIBNETTLE} ${LIBIDN2} ${LIBUNISTRING})
++target_link_libraries(pihole-FTL rt Threads::Threads ${LIBHOGWEED} ${LIBGMP} ${LIBNETTLE} ${LIBIDN2} ${LIBUBOX} ${LIBUBUS})
++
 +if(CONNTRACK_SUPPORT)
 +    find_library(LIBNETFILTER_CONNTRACK netfilter_conntrack)
 +    find_library(LIBNFNETLINK nfnetlink)
@@ -117,7 +117,7 @@
  
  if(LUA_DL STREQUAL "true")
      find_library(LIBDL dl)
-@@ -338,14 +390,14 @@ add_subdirectory(syscalls)
+@@ -338,14 +390,14 @@ add_subdirectory(config)
  add_subdirectory(tools)
  add_subdirectory(ntp)
  
