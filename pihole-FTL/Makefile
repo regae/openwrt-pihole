@@ -12,7 +12,7 @@ PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/pi-hole/FTL
-PKG_SOURCE_VERSION:=0c36f47fab7766807b9a139f0decbd769975f2ca
+PKG_SOURCE_VERSION:=c2ebb3c8978fcce05cc7265a7e640d761e71736a
 PKG_MIRROR_HASH:=skip
 SHORT_VER:=$(call version_abbrev,$(PKG_SOURCE_VERSION))
 PKG_VERSION:=6.0-$(SHORT_VER)
@@ -57,11 +57,11 @@ ifeq ($(CONFIG_BUILD_NLS),y)
 CMAKE_OPTIONS += -DBUILD_NLS=ON -DSTAGING_DIR=$(STAGING_DIR)
 endif
 
-export FTL_BRANCH:=development-v6
-export CURDIR:=$(CURDIR)
-export FTL_HASH=$(SHORT_VER)
-export FTL_VERSION=$(PKG_VERSION)
-export FTL_ARCH=$(ARCH)
+export GIT_BRANCH:=development-v6
+export GIT_VERSION=$(PKG_VERSION)
+export GIT_HASH=$(SHORT_VER)
+export GIT_TAG=$(REVISION)
+export FTL_ARCH=$(ARCH_PACKAGES)
 
 # KERNEL_EXT4_FS_SECURITY is needed if using linux capabilities (setcap/getcap)
 define Package/pihole-FTL
@@ -164,6 +164,17 @@ define Package/pihole-FTL/install
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_BIN) ./files/50-dnsmasq-migrate-resolv-conf-auto.sh $(1)/etc/uci-defaults
 	$(INSTALL_BIN) ./files/50-dnsmasq-migrate-ipset.sh $(1)/etc/uci-defaults
+
+	$(INSTALL_DATA) ./files/versions $(1)/etc/pihole/
+	$(SED) "s#%CORE_BRANCH%#$(GIT_BRANCH)#g" $(1)/etc/pihole/versions
+	$(SED) "s#%CORE_VERSION%#$(shell grep -E '^PKG_VERSION' ../pihole/Makefile | cut -d '=' -f 2 | cut -d '-' -f 1)#g" $(1)/etc/pihole/versions
+	$(SED) "s#%CORE_HASH%#$(shell grep -E '^PKG_SOURCE_VERSION' ../pihole/Makefile | cut -d '=' -f 2 | cut -c 1-8)#g" $(1)/etc/pihole/versions
+	$(SED) "s#%WEB_VERSION%#$(shell grep -E '^PKG_VERSION' ../pihole-web/Makefile | cut -d '=' -f 2 | cut -d '-' -f 1)#g" $(1)/etc/pihole/versions
+	$(SED) "s#%WEB_BRANCH%#$(GIT_BRANCH)#g" $(1)/etc/pihole/versions
+	$(SED) "s#%WEB_HASH%#$(shell grep -E '^PKG_SOURCE_VERSION' ../pihole-web/Makefile | cut -d '=' -f 2 | cut -c 1-8)#g" $(1)/etc/pihole/versions
+	$(SED) "s#%FTL_VERSION%#$(GIT_VERSION)#g" $(1)/etc/pihole/versions
+	$(SED) "s#%FTL_BRANCH%#$(GIT_BRANCH)#g" $(1)/etc/pihole/versions
+	$(SED) "s#%FTL_HASH%#$(GIT_HASH)#g" $(1)/etc/pihole/versions
 endef
 
 $(eval $(call BuildPackage,pihole-FTL))

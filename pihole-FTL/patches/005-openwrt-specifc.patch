@@ -196,7 +196,7 @@
  #define PASSWORD_VALUE "********"
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -212,12 +212,12 @@ static void write_config_header(FILE *fp
+@@ -211,12 +211,12 @@ static void write_config_header(FILE *fp
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "ANY CHANGES MADE TO THIS FILE WILL BE LOST WHEN THE CONFIGURATION CHANGES");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "IF YOU WISH TO CHANGE ANY OF THESE VALUES, CHANGE THEM IN");
@@ -211,8 +211,8 @@
 +	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "(make sure etc_dnsmasq_d is not false)");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "%s", "");
  	CONFIG_CENTER(fp, HEADER_WIDTH, "Last updated: %s", timestring);
- 	CONFIG_CENTER(fp, HEADER_WIDTH, "by FTL version %s", FTL_VERSION);
-@@ -680,12 +680,12 @@ bool __attribute__((const)) write_dnsmas
+ 	CONFIG_CENTER(fp, HEADER_WIDTH, "by FTL version %s", get_FTL_version());
+@@ -679,12 +679,12 @@ bool __attribute__((const)) write_dnsmas
  	fputs("server=/onion/\n", pihole_conf);
  	fputs("\n", pihole_conf);
  
@@ -331,6 +331,62 @@
  				LastLogStorageUsage = check_space(config.files.log.ftl.v.s, LastLogStorageUsage);
  
  			lastResourceCheck = now;
+--- a/src/gen_version.cmake
++++ b/src/gen_version.cmake
+@@ -12,7 +12,7 @@
+     set(GIT_BRANCH "$ENV{GIT_BRANCH}")
+ else()
+     execute_process(
+-            COMMAND           bash -c "git branch | sed -n 's/^\\* //p'"
++            COMMAND           bash -c "git --git-dir=$TOPDIR/.git branch | sed -n 's/^\\* //p' | tail -n 1"
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+             OUTPUT_VARIABLE   GIT_BRANCH
+             ERROR_QUIET
+@@ -24,7 +24,7 @@
+     set(GIT_HASH "$ENV{GIT_HASH}")
+ else()
+     execute_process(
+-            COMMAND           git --no-pager describe --always --abbrev=8 --dirty
++            COMMAND           bash -c "git --git-dir=$TOPDIR/.git --no-pager describe --always --abbrev=8"
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+             OUTPUT_VARIABLE   GIT_HASH
+             ERROR_QUIET
+@@ -36,7 +36,7 @@
+     set(GIT_VERSION "$ENV{GIT_VERSION}")
+ else()
+     execute_process(
+-            COMMAND           git --no-pager describe --tags --always --abbrev=8 --dirty
++            COMMAND           bash -c "git --git-dir=$TOPDIR/.git --no-pager describe --tags --always --abbrev=8"
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+             OUTPUT_VARIABLE   GIT_VERSION
+             ERROR_QUIET
+@@ -48,7 +48,7 @@
+     set(GIT_DATE "$ENV{GIT_DATE}")
+ else()
+     execute_process(
+-            COMMAND           bash -c "git --no-pager show --date=short --format=\"%ai\" --name-only | head -n 1"
++            COMMAND           bash -c "git --git-dir=$TOPDIR/.git --no-pager show --date=short --format=\"%ai\" --name-only | head -n 1"
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+             OUTPUT_VARIABLE   GIT_DATE
+             ERROR_QUIET
+@@ -60,7 +60,7 @@
+     set(GIT_TAG "$ENV{GIT_TAG}")
+ else()
+     execute_process(
+-            COMMAND           git describe --tags --abbrev=0
++            COMMAND           bash -c "git --git-dir=$TOPDIR/.git describe --tags --abbrev=0"
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+             OUTPUT_VARIABLE   GIT_TAG
+             ERROR_QUIET
+@@ -71,6 +71,8 @@
+ # If CI_ARCH is unset (local compilation), ask uname -m and add locally compiled comment
+ if(DEFINED ENV{CI_ARCH})
+     set(FTL_ARCH "$ENV{CI_ARCH} (compiled on CI)")
++elseif(DEFINED ENV{FTL_ARCH})
++    set(FTL_ARCH "$ENV{FTL_ARCH}")
+ else()
+     execute_process(
+             COMMAND           uname -m
 --- a/src/log.c
 +++ b/src/log.c
 @@ -271,8 +271,8 @@ void __attribute__ ((format (gnu_printf,

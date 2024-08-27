@@ -65,7 +65,7 @@
  	struct {
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -551,7 +551,7 @@  bool __attribute__((const)) write_dnsmas
+@@ -550,7 +550,7 @@  bool __attribute__((const)) write_dnsmas
  	{
  		fputs("# DHCP server setting\n", pihole_conf);
  		fputs("dhcp-authoritative\n", pihole_conf);

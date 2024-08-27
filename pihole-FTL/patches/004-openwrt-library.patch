@@ -384,7 +384,7 @@
  
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -20,7 +20,11 @@
+@@ -19,7 +19,11 @@
  // struct config
  #include "config/config.h"
  // JSON array functions

@@ -215,10 +215,10 @@
  		case CONF_BOOL:
  		{
 -			if(strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0)
-+			if(strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0 || strcmp(value, "1") == 0)
++			if(strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0 || value[0] == '1')
  				conf_item->v.b = true;
 -			else if(strcasecmp(value, "false") == 0 || strcasecmp(value, "no") == 0)
-+			else if(strcasecmp(value, "false") == 0 || strcasecmp(value, "no") == 0  || strcmp(value, "0") == 0)
++			else if(strcasecmp(value, "false") == 0 || strcasecmp(value, "no") == 0  || value[0] == '0')
  				conf_item->v.b = false;
  			else
  			{
@@ -227,14 +227,14 @@
  		case CONF_ALL_DEBUG_BOOL:
  		{
 -			if(strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0)
-+			if(strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0  || strcmp(value, "1") == 0)
++			if(strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0  || value[0] == '1')
  			{
  				set_all_debug(newconf, true);
  				conf_item->v.b = true;
  				set_debug_flags(newconf);
  			}
 -			else if(strcasecmp(value, "false") == 0 || strcasecmp(value, "no") == 0)
-+			else if(strcasecmp(value, "false") == 0 || strcasecmp(value, "no") == 0  || strcmp(value, "0") == 0)
++			else if(strcasecmp(value, "false") == 0 || strcasecmp(value, "no") == 0  || value[0] == '0')
  			{
  				set_all_debug(newconf, false);
  				conf_item->v.b = false;
@@ -253,7 +253,7 @@
  
 +		// save to uci config
 +		if(uci_set_value(new_item, value, true))
-+			log_err("Failed to save new config for: %s=%s", new_item->k, value);
++			log_err("%s: Failed to save new config for: %s=%s", __func__, new_item->k, value);
 +
  		// Print value
  		writeTOMLvalue(stdout, -1, new_item->t, &new_item->v);
@@ -305,8 +305,8 @@
  	config.files.log.ftl.c = validate_filepath;
  
 +	uci_pihole = init_uci_pkg("pihole");
-+	const char *use_uci_config = uci_get_string(uci_pihole, "@misc[0]", "toml_config");
-+	if(use_uci_config != NULL && strcmp(use_uci_config, "0") == 0)
++	const char *use_toml = uci_get_string(uci_pihole, "@misc[0]", "toml_config");
++	if(use_toml != NULL && use_toml[0] == '1')
 +		use_uci = false;
 +
 +	// read logfile location from uci
@@ -328,7 +328,7 @@
  
  	config.dns.blocking.active.v.b = enabled;
 +	if(uci_set_value(&config.dns.blocking.active, enabled ? "1" : "0", true) != 0)
-+		log_err("failed to set UCI config blocking_active");
++		log_err("%s: failed to set UCI config", __func__);
 +
  	writeFTLtoml(true);
  	raise(SIGHUP);
@@ -346,7 +346,16 @@
  	uint8_t checksum[SHA256_DIGEST_SIZE];
 --- a/src/config/config.h
 +++ b/src/config/config.h
-@@ -100,6 +100,7 @@ enum conf_type {
+@@ -42,6 +42,8 @@
+ 
+ // Location of the legacy (pre-v6.0) config file
+ #define GLOBALCONFFILE_LEGACY "/etc/pihole/pihole-FTL.conf"
++
++extern bool use_uci;
+ 
+ union conf_value {
+ 	bool b;                                     // boolean value
+@@ -100,6 +102,7 @@ enum conf_type {
  #define FLAG_ENV_VAR               (1 << 4)
  #define FLAG_CONF_IMPORTED         (1 << 5)
  #define FLAG_READ_ONLY             (1 << 6)
@@ -354,7 +363,7 @@
  
  struct conf_item {
  	const char *k;        // item Key
-@@ -346,6 +347,7 @@ struct config {
+@@ -346,6 +349,7 @@ struct config {
  };
  
  extern struct config config;
@@ -362,7 +371,7 @@
  
  #define CONFIG_ELEMENTS (sizeof(config)/sizeof(struct conf_item))
  #define DEBUG_ELEMENTS (sizeof(config.debug)/sizeof(struct conf_item))
-@@ -369,6 +371,9 @@ bool check_paths_equal(char **paths1, ch
+@@ -369,6 +373,9 @@ bool check_paths_equal(char **paths1, ch
  const char *get_conf_type_str(const enum conf_type type) __attribute__ ((const));
  void replace_config(struct config *newconf);
  void reread_config(void);
@@ -374,7 +383,7 @@
  bool readDebugSettings(void);
 --- a/src/config/dnsmasq_config.c
 +++ b/src/config/dnsmasq_config.c
-@@ -228,7 +228,7 @@ static void write_config_header(FILE *fp
+@@ -227,7 +227,7 @@ static void write_config_header(FILE *fp
  bool __attribute__((const)) write_dnsmasq_config(struct config *conf, bool test_config, char errbuf[ERRBUF_SIZE])
  {
  	// Early config checks
@@ -383,7 +392,7 @@
  	{
  		// Check if the addresses are valid
  		// The addresses should neither be 0.0.0.0 nor 255.255.255.255
-@@ -364,7 +364,7 @@ bool __attribute__((const)) write_dnsmas
+@@ -363,7 +363,7 @@ bool __attribute__((const)) write_dnsmas
  		fputs("\n", pihole_conf);
  	}
  
@@ -392,7 +401,7 @@
  	{
  		fputs("# Specify the log file to use\n", pihole_conf);
  		fputs("# We set this even if logging is disabled to store warnings\n", pihole_conf);
-@@ -431,7 +431,12 @@ bool __attribute__((const)) write_dnsmas
+@@ -430,7 +430,12 @@ bool __attribute__((const)) write_dnsmas
  	const char *interface = conf->dns.interface.v.s;
  	// Use eth0 as fallback interface if the interface is missing
  	if(strlen(interface) == 0)
@@ -406,7 +415,7 @@
  
  	switch(conf->dns.listeningMode.v.listeningMode)
  	{
-@@ -446,12 +451,17 @@ bool __attribute__((const)) write_dnsmas
+@@ -445,12 +450,17 @@ bool __attribute__((const)) write_dnsmas
  			break;
  		case LISTEN_SINGLE:
  			fputs("# Listen on one interface\n", pihole_conf);
@@ -427,19 +436,19 @@
  			break;
  		case LISTEN_NONE:
  			fputs("# No interface configuration applied, make sure to cover this yourself\n", pihole_conf);
-@@ -459,6 +469,11 @@ bool __attribute__((const)) write_dnsmas
+@@ -458,6 +468,11 @@ bool __attribute__((const)) write_dnsmas
  	}
  	fputs("\n", pihole_conf);
  
-+	// always freeing char pointer when using split_comma
 +	for(int i = 0; i < count; i++)
 +		free (comma[i]);
++
 +	free(comma);
 +
  	// Add upstream DNS servers for reverse lookups
  	bool domain_revServer = false;
  	const unsigned int revServers = cJSON_GetArraySize(conf->dns.revServers.v.json);
-@@ -533,11 +548,15 @@ bool __attribute__((const)) write_dnsmas
+@@ -532,11 +547,15 @@ bool __attribute__((const)) write_dnsmas
  		fputs("# DNS domain for both the DNS and DHCP server\n", pihole_conf);
  		if(!domain_revServer)
  		{
@@ -456,7 +465,7 @@
  		}
  		else
  		{
-@@ -552,6 +571,7 @@ bool __attribute__((const)) write_dnsmas
+@@ -551,6 +570,7 @@ bool __attribute__((const)) write_dnsmas
  		fputs("# DHCP server setting\n", pihole_conf);
  		fputs("dhcp-authoritative\n", pihole_conf);
  		fprintf(pihole_conf, "dhcp-leasefile=%s\n", config.dhcp.leaseFile.v.s);
@@ -464,7 +473,7 @@
  		char start[INET_ADDRSTRLEN] = { 0 },
  		     end[INET_ADDRSTRLEN] = { 0 },
  		     router[INET_ADDRSTRLEN] = { 0 };
-@@ -571,6 +591,16 @@ bool __attribute__((const)) write_dnsmas
+@@ -570,6 +590,16 @@ bool __attribute__((const)) write_dnsmas
  		if(strlen(conf->dhcp.leaseTime.v.s) > 0)
  			fprintf(pihole_conf, ",%s", conf->dhcp.leaseTime.v.s);
  		fprintf(pihole_conf, "\ndhcp-option=option:router,%s\n", router);
@@ -481,7 +490,7 @@
  
  		if(conf->dhcp.rapidCommit.v.b)
  			fputs("dhcp-rapid-commit\n", pihole_conf);
-@@ -590,7 +620,7 @@ bool __attribute__((const)) write_dnsmas
+@@ -589,7 +619,7 @@ bool __attribute__((const)) write_dnsmas
  			fputs("dhcp-option=option:dns-server,0.0.0.0,0.0.0.0,0.0.0.0\n", pihole_conf);
  		}
  
@@ -490,7 +499,7 @@
  		{
  			// Add dns-server option only if not already done above (dhcp.multiDNS)
  			if(conf->dhcp.multiDNS.v.b)
-@@ -690,9 +720,11 @@ bool __attribute__((const)) write_dnsmas
+@@ -689,9 +719,11 @@ bool __attribute__((const)) write_dnsmas
  	}
  
  	// Add option for caching all DNS records
@@ -505,7 +514,7 @@
  
  	// Add option for PCAP file recording
  	if(strlen(conf->files.pcap.v.s) > 0)
-@@ -716,7 +748,12 @@ bool __attribute__((const)) write_dnsmas
+@@ -715,7 +747,12 @@ bool __attribute__((const)) write_dnsmas
  	fputs("# records are removed. Since ANY queries with forged source addresses can be used in DNS amplification attacks\n", pihole_conf);
  	fputs("# replies to ANY queries can be large) this defangs such attacks, whilst still supporting the\n", pihole_conf);
  	fputs("# one remaining possible use of ANY queries. See RFC 8482 para 4.3 for details.\n", pihole_conf);
@@ -519,7 +528,7 @@
  	fputs("\n", pihole_conf);
  
  	// Add additional config lines to disk (if present)
-@@ -736,6 +773,8 @@ bool __attribute__((const)) write_dnsmas
+@@ -735,6 +772,8 @@ bool __attribute__((const)) write_dnsmas
  		fputs("#### Additional user configuration - END ####\n\n", pihole_conf);
  	}
  
@@ -609,7 +618,7 @@
  	toml_table_t *conf = parseTOML(0);
 --- a/src/config/toml_writer.c
 +++ b/src/config/toml_writer.c
-@@ -28,6 +28,9 @@ extern uint8_t last_checksum[SHA256_DIGE
+@@ -27,6 +27,9 @@ extern uint8_t last_checksum[SHA256_DIGE
  
  bool writeFTLtoml(const bool verbose)
  {
@@ -630,53 +639,6 @@
  }
  
  static float last_clock = 0.0f;
---- a/src/datastructure.c
-+++ b/src/datastructure.c
-@@ -1217,3 +1217,35 @@ int __attribute__ ((pure)) get_temp_unit
- 	// Invalid value
- 	return -1;
- }
-+
-+// stackoverflow.com/questions/9210528/
-+int split_comma(const char *txt, char delim, char ***ptr)
-+{
-+	int *tklen, *t, count = 1;
-+	char **arr, *p = (char *)txt;
-+
-+	while (*p != '\0') {
-+		if (*p++ == delim)
-+			count += 1;
-+	}
-+
-+	t = tklen = calloc(count, sizeof(int));
-+
-+	for (p = (char *)txt; *p != '\0'; p++)
-+		*p == delim ? *t++ : (*t)++;
-+
-+	*ptr = arr = malloc(count * sizeof(char *));
-+	t = tklen;
-+	p = *arr++ = calloc(*(t++) + 1, sizeof(char *));
-+
-+	while (*txt != '\0') {
-+		if (*txt == delim) {
-+			p = *arr++ = calloc(*(t++) + 1, sizeof(char *));
-+			txt++;
-+		} else
-+			*p++ = *txt++;
-+	}
-+
-+	free(tklen);
-+	return count;
-+}
---- a/src/datastructure.h
-+++ b/src/datastructure.h
-@@ -185,4 +185,6 @@ upstreamsData* _getUpstream(int upstream
- #define getDNSCache(cacheID, checkMagic) _getDNSCache(cacheID, checkMagic, __LINE__, __FUNCTION__, __FILE__)
- DNSCacheData* _getDNSCache(int cacheID, bool checkMagic, int line, const char *func, const char *file);
- 
-+int split_comma(const char *txt, char delim, char ***ptr);
-+
- #endif //DATASTRUCTURE_H
 --- a/src/files.c
 +++ b/src/files.c
 @@ -434,6 +434,9 @@ static int copy_file(const char *source,
