@@ -401,27 +401,38 @@
  	{
  		fputs("# Specify the log file to use\n", pihole_conf);
  		fputs("# We set this even if logging is disabled to store warnings\n", pihole_conf);
-@@ -430,7 +430,12 @@ bool __attribute__((const)) write_dnsmas
+@@ -430,7 +430,23 @@ bool __attribute__((const)) write_dnsmas
  	const char *interface = conf->dns.interface.v.s;
  	// Use eth0 as fallback interface if the interface is missing
  	if(strlen(interface) == 0)
 -		interface = "eth0";
 +		interface = "br-lan";
 +
-+	// use split_comma instead of uci_foreach_element,
-+	const char *iface = NULL;
-+	char **comma;
-+	int count = split_comma(interface, ',', &comma);
++	// split if interface have more than 1, max 4 ifaces
++	// if using conf->dns.interface.v.s directly,
++	// will only print 1 iface in cli config, so duplicate here
++	char *ifaces = strdup(interface); 
++	char *iface[4];
++	int count = 0; 
++	const char *ifname = NULL;
++	iface[count++] = ifaces;
++	for (char *p = ifaces; *p != '\0'; p++) {
++		if (*p == ',') {
++			*p = '\0';
++			if (count < 4)
++				iface[count++] = p + 1;
++		}
++	}
  
  	switch(conf->dns.listeningMode.v.listeningMode)
  	{
-@@ -445,12 +450,17 @@ bool __attribute__((const)) write_dnsmas
+@@ -445,12 +461,17 @@ bool __attribute__((const)) write_dnsmas
  			break;
  		case LISTEN_SINGLE:
  			fputs("# Listen on one interface\n", pihole_conf);
 -			fprintf(pihole_conf, "interface=%s\n", interface);
-+			iface = uci_get_string(uci_network, comma[0], "device");
-+			fprintf(pihole_conf, "interface=%s\n", iface ? iface : comma[0]);
++			ifname = uci_get_string(uci_network, iface[0], "device");
++			fprintf(pihole_conf, "interface=%s\n", ifname ? ifname : iface[0]);
  			break;
  		case LISTEN_BIND:
 -			fputs("# Bind to one interface\n", pihole_conf);
@@ -429,26 +440,23 @@
 +			fputs("# Bind to interface(s)\n", pihole_conf);
  			fputs("bind-interfaces\n", pihole_conf);
 +			for (int i = 0; i < count; i++) {
-+				iface = uci_get_string(uci_network, comma[i], "device");
-+				fprintf(pihole_conf, "interface=%s\n", iface ? iface : comma[i]);
++				ifname = uci_get_string(uci_network, iface[i], "device");
++				fprintf(pihole_conf, "interface=%s\n", ifname ? ifname : iface[i]);
 +			}
 +
  			break;
  		case LISTEN_NONE:
  			fputs("# No interface configuration applied, make sure to cover this yourself\n", pihole_conf);
-@@ -458,6 +468,11 @@ bool __attribute__((const)) write_dnsmas
+@@ -458,6 +479,8 @@ bool __attribute__((const)) write_dnsmas
  	}
  	fputs("\n", pihole_conf);
  
-+	for(int i = 0; i < count; i++)
-+		free (comma[i]);
-+
-+	free(comma);
++	free(ifaces);
 +
  	// Add upstream DNS servers for reverse lookups
  	bool domain_revServer = false;
  	const unsigned int revServers = cJSON_GetArraySize(conf->dns.revServers.v.json);
-@@ -532,11 +547,15 @@ bool __attribute__((const)) write_dnsmas
+@@ -532,11 +555,15 @@ bool __attribute__((const)) write_dnsmas
  		fputs("# DNS domain for both the DNS and DHCP server\n", pihole_conf);
  		if(!domain_revServer)
  		{
@@ -465,7 +473,7 @@
  		}
  		else
  		{
-@@ -551,6 +570,7 @@ bool __attribute__((const)) write_dnsmas
+@@ -551,6 +578,7 @@ bool __attribute__((const)) write_dnsmas
  		fputs("# DHCP server setting\n", pihole_conf);
  		fputs("dhcp-authoritative\n", pihole_conf);
  		fprintf(pihole_conf, "dhcp-leasefile=%s\n", config.dhcp.leaseFile.v.s);
@@ -473,7 +481,7 @@
  		char start[INET_ADDRSTRLEN] = { 0 },
  		     end[INET_ADDRSTRLEN] = { 0 },
  		     router[INET_ADDRSTRLEN] = { 0 };
-@@ -570,6 +590,16 @@ bool __attribute__((const)) write_dnsmas
+@@ -570,6 +598,16 @@ bool __attribute__((const)) write_dnsmas
  		if(strlen(conf->dhcp.leaseTime.v.s) > 0)
  			fprintf(pihole_conf, ",%s", conf->dhcp.leaseTime.v.s);
  		fprintf(pihole_conf, "\ndhcp-option=option:router,%s\n", router);
@@ -490,7 +498,7 @@
  
  		if(conf->dhcp.rapidCommit.v.b)
  			fputs("dhcp-rapid-commit\n", pihole_conf);
-@@ -589,7 +619,7 @@ bool __attribute__((const)) write_dnsmas
+@@ -589,7 +627,7 @@ bool __attribute__((const)) write_dnsmas
  			fputs("dhcp-option=option:dns-server,0.0.0.0,0.0.0.0,0.0.0.0\n", pihole_conf);
  		}
  
@@ -499,7 +507,7 @@
  		{
  			// Add dns-server option only if not already done above (dhcp.multiDNS)
  			if(conf->dhcp.multiDNS.v.b)
-@@ -689,9 +719,11 @@ bool __attribute__((const)) write_dnsmas
+@@ -689,9 +727,11 @@ bool __attribute__((const)) write_dnsmas
  	}
  
  	// Add option for caching all DNS records
@@ -514,7 +522,7 @@
  
  	// Add option for PCAP file recording
  	if(strlen(conf->files.pcap.v.s) > 0)
-@@ -715,7 +747,12 @@ bool __attribute__((const)) write_dnsmas
+@@ -715,7 +755,12 @@ bool __attribute__((const)) write_dnsmas
  	fputs("# records are removed. Since ANY queries with forged source addresses can be used in DNS amplification attacks\n", pihole_conf);
  	fputs("# replies to ANY queries can be large) this defangs such attacks, whilst still supporting the\n", pihole_conf);
  	fputs("# one remaining possible use of ANY queries. See RFC 8482 para 4.3 for details.\n", pihole_conf);
@@ -528,7 +536,7 @@
  	fputs("\n", pihole_conf);
  
  	// Add additional config lines to disk (if present)
-@@ -735,6 +772,8 @@ bool __attribute__((const)) write_dnsmas
+@@ -735,6 +780,8 @@ bool __attribute__((const)) write_dnsmas
  		fputs("#### Additional user configuration - END ####\n\n", pihole_conf);
  	}
  

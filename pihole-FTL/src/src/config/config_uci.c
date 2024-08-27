@@ -16,6 +16,8 @@ extern char *username;
 extern const char **argv_dnsmasq;
 extern const char *hostname(void);
 
+#define MAX_BUFFER_SIZE 512
+
 struct uci_package *init_uci_pkg(const char *cfg)
 {
 	struct uci_context *ctx = uci_ctx;
@@ -47,34 +49,38 @@ void uci_clean_config(void)
 	}
 }
 
-static void set_uci_type_name(struct conf_item *item, const char **section, char **option)
+static void set_uci_type_name(struct conf_item *item, const char **section, const char **option)
 {
 	unsigned int level = config_path_depth(item->p);
-	const char *dot_pos = NULL;
 
 	if (item->f & FLAG_PKG_DHCP) {
 		*section = "@dnsmasq[0]";
 		if (item == &config.dns.cache.size)
-			*option = strdup("cachesize");
+			*option = "cachesize";
 		else if (item == &config.files.log.dnsmasq)
-			*option = strdup("logfacility");
+			*option = "logfacility";
 		else if (item == &config.dns.upstreams)
-			*option = strdup("server");
+			*option = "server";
 		else if (item == &config.dhcp.logging)
-			*option = strdup("logdhcp");
+			*option = "logdhcp";
 		else {
-			*option = strdup(item->p[level - 1]);
-			for (char *p = *option; *p; ++p)
+			static char option_buffer[64];
+			snprintf(option_buffer, sizeof(option_buffer), "%s", item->p[level - 1]);
+			for (char *p = option_buffer; *p; ++p)
 				*p = tolower(*p);
+			*option = option_buffer;
 		}
 	} else {
-		dot_pos = strchr(item->k, '.');
+		const char *dot_pos = strchr(item->k, '.');
 		*section = (level >= 3) ? item->p[0] : item->p[level - 2];
 		if (dot_pos) {
-			*option = strdup(dot_pos + 1);
-			for (char *p = *option; *p; ++p)
+			static char option_buffer[64];
+			snprintf(option_buffer, sizeof(option_buffer), "%s", dot_pos + 1);
+			for (char *p = option_buffer; *p; ++p) {
 				if (*p == '.')
 					*p = '_';
+			}
+			*option = option_buffer;
 		}
 	}
 }
@@ -105,78 +111,105 @@ static struct uci_section *get_uci_section_type(struct uci_package *pkg, const c
 	return NULL;
 }
 
-static void uci_read_foreach_to_json(struct conf_item *conf_item, const char *sec, int count, ...)
+static void uci_read_foreach_to_json(struct conf_item *conf_item)
 {
 	if (conf_item->t != CONF_JSON_STRING_ARRAY)
 		return;
 
-	const char *delim = (!strcmp(sec, "domain")) ? " " : ",";
+	const char *delim, *sec;
+	const char *opts[3];
+	int cnt = 0;
 	struct uci_package *pkg = (conf_item->f & FLAG_PKG_DHCP) ? uci_dhcp : uci_pihole;
 	if (!pkg) {
 		log_err("%s: package is null?", __func__);
 		return;
 	}
 
+	if (conf_item == &config.dns.cnameRecords) {
+		opts[0] = "cname";
+		opts[1] = "target";
+		opts[2] = "ttl";
+		cnt = 3;
+		delim = ",";
+		sec = "cname";
+	} else if (conf_item == &config.dns.hosts) {
+		opts[0] = "ip";
+		opts[1] = "name";
+		cnt = 2;
+		delim = " ";
+		sec = "domain";
+	} else if (conf_item == &config.dhcp.hosts) {
+		opts[0] = "mac";
+		opts[1] = "ip";
+		opts[2] = "name";
+		cnt = 3;
+		delim = ",";
+		sec = "host";
+	} else
+		return;
+
 	cJSON_Delete(conf_item->v.json);
 	conf_item->v.json = cJSON_CreateArray();
 
 	struct uci_element *e;
-	va_list argptr;
 	uci_foreach_element(&pkg->sections, e) {
 		struct uci_section *s = uci_to_section(e);
 		if (strcmp(s->type, sec) != 0)
 			continue;
 
+		static char buffer[MAX_BUFFER_SIZE];
 		size_t t_len = 0;
-		va_start(argptr, count);
-		for (int i = 0; i < count; i++) {
-			const char *opt = va_arg(argptr, const char*);
-			struct uci_option *o = uci_lookup_option(uci_ctx, s, opt);
-			if (o && o->v.string)
-				t_len += strlen(o->v.string);
-		}
-		va_end(argptr);
 
-		t_len += (count - 1);
-		if (t_len == 0)
-			continue;
-
-		// +1 for null
-		char *buffer = malloc(t_len + 1);
-		if (!buffer) {
-			log_err("Memory allocation failed.");
-			return;
-		}
-
-		char *ptr = buffer;
-		va_start(argptr, count);
-		for (int i = 0; i < count; i++) {
-			const char *opt = va_arg(argptr, const char*);
-			struct uci_option *o = uci_lookup_option(uci_ctx, s, opt);
+		for (int i = 0; i < cnt; i++) {
+			struct uci_option *o = uci_lookup_option(uci_ctx, s, opts[i]);
 			if (o && o->v.string) {
 				size_t v_len = strlen(o->v.string);
-				memcpy(ptr, o->v.string, v_len);
-				ptr += v_len;
-				if (i < count - 1)
-					*ptr++ = delim[0];
+				if (t_len + v_len + 1 >= MAX_BUFFER_SIZE) {
+					log_err("%s: buffer size exceeded", __func__);
+					break;
+				}
+				memcpy(buffer + t_len, o->v.string, v_len);
+				t_len += v_len;
+				if (i < cnt - 1 && t_len < MAX_BUFFER_SIZE - 1)
+					buffer[t_len++] = delim[0];
 			}
 		}
-		va_end(argptr);
 
-		// null terminate the buffer
-		// buffer[total_length] = '\0';
-		*ptr = '\0';
+		// ensure null-termination
+		if (t_len < MAX_BUFFER_SIZE)
+			buffer[t_len] = '\0';
+		else
+			buffer[MAX_BUFFER_SIZE - 1] = '\0';
 
-		cJSON_AddItemToArray(conf_item->v.json, cJSON_CreateString(buffer));
-		free(buffer);
+		if (t_len > 0)
+			cJSON_AddItemToArray(conf_item->v.json, cJSON_CreateString(buffer));
 	}
+}
+
+static bool uci_read_bool(struct uci_section *s, const char *opt,
+						  const char *fallback)
+{
+	bool fallb = (strcmp(fallback, "1") == 0);
+
+	if (!s)
+		return fallb;
+
+	const char *val = uci_lookup_option_string(uci_ctx, s, opt);
+	if (!val)
+		return fallb;
+
+	if (val[0] == '0' || !strcasecmp(val, "false"))
+		return false;
+	else if (val[0] == '1' || !strcasecmp(val, "true") )
+		return true;
+
+	return fallb;
 }
 
 int uci_set_value(struct conf_item *item, const char *value, bool commit)
 {
 	struct uci_ptr ptr = { 0 };
-	const char *sec = NULL;
-	char *opt = NULL;
+	const char *sec = NULL, *opt = NULL;
 	char *buf = NULL;
 	int ret = -1;
 
@@ -389,13 +422,12 @@ void uci_get_config_values(struct config *conf, bool reload)
 
 	for (unsigned int i = 0; i < CONFIG_ELEMENTS; i++) {
 		struct conf_item *cfg_item = get_conf_item(conf, i);
-		const char *sec = NULL;
-		char *opt = NULL;
+		const char *sec = NULL, *opt = NULL;
 
 		if (cfg_item == &config.dns.cnameRecords ||
 		   cfg_item == &config.dns.hosts ||
 		   cfg_item == &config.dhcp.hosts)
-			continue;
+			uci_read_foreach_to_json(cfg_item);
 
 		set_uci_type_name(cfg_item, &sec, &opt);
 
@@ -403,9 +435,6 @@ void uci_get_config_values(struct config *conf, bool reload)
 			continue;
 
 		uci_get_value(cfg_item, sec, opt);
-
-		if (opt != NULL)
-			free(opt);
 	}
 
 	if (!reload && (conf->ntp.ipv4.active.v.b || conf->ntp.ipv6.active.v.b)) {
@@ -426,10 +455,6 @@ void uci_get_config_values(struct config *conf, bool reload)
 
 		uci_unload(uci_ctx, sys_pkg);
 	}
-
-	uci_read_foreach_to_json(&config.dns.cnameRecords, "cname", 3, "cname", "target", "ttl");
-	uci_read_foreach_to_json(&config.dns.hosts, "domain", 2, "ip", "name");
-	uci_read_foreach_to_json(&config.dhcp.hosts, "host", 3, "mac", "ip", "name");
 
 	set_debug_flags(conf);
 }
@@ -468,41 +493,14 @@ int uci_get_value(struct conf_item *conf_item, const char *sec, const char *opt)
 					cJSON_AddItemToArray(conf_item->v.json, cJSON_CreateString(e->name));
 			}
 		} else if (conf_item->t == CONF_STRING) {
-			// use 2 loops to avoid realloc
-			size_t total_len = 0;
-			uci_foreach_element(list, e)
-				if (e->name)
-					total_len += strlen(e->name) + 1; // +1 for comma
-
-			if (total_len == 0)
-				return UCI_ERR_PARSE;
-
-			char *buffer = malloc(total_len + 1);
-			if (!buffer)
-				return -1;
-
-			buffer[0] = '\0';
-			uci_foreach_element(list, e) {
-				if (e->name) {
-					strcat(buffer, e->name);
-					strcat(buffer, ",");
-				}
-			}
-
-			// remove the trailing comma and ensure -1 for null
-			buffer[total_len - 1] = '\0';
-
-			if (strlen(buffer) > 0) {
+			const char *tmp = uci_get_string(pkg, sec, opt);
+			if (tmp) {
 				if (conf_item->t == CONF_STRING_ALLOCATED)
 					free(conf_item->v.s);
 
-				// no need to strdup here
-				conf_item->v.s = buffer;
+				conf_item->v.s = strdup(tmp);
 				conf_item->t = CONF_STRING_ALLOCATED;
 				return 0;
-			} else {
-				free(buffer);
-				return UCI_ERR_PARSE;
 			}
 		}
 	}
@@ -535,18 +533,23 @@ const char *uci_get_string(struct uci_package *pkg, const char *sec, const char 
 	} else if (ptr.o->type == UCI_TYPE_LIST) {
 		struct uci_element *e = NULL;
 		struct uci_list *list = &ptr.o->v.list;
-		static char buffer[512];
+		static char buffer[MAX_BUFFER_SIZE];
 		unsigned pos = 0;
+		bool first = true;
 
-		buffer[0] = 0;
+		buffer[0] = '\0';
 		uci_foreach_element(list, e) {
-			if (e->name)
-				pos += snprintf(&buffer[pos], sizeof(buffer) - pos, "%s%s", e->name, ",");
-		}
+			if (e->name) {
+				if (!first)
+					pos += snprintf(buffer + pos, sizeof(buffer) - pos, ",");
 
-		if (pos)
-			buffer[pos - 1] = 0;
+				pos += snprintf(buffer + pos, sizeof(buffer) - pos, "%s", e->name);
+				first = false;
+			}
 
+			if (pos >= sizeof(buffer) - 1)
+				break;
+        }
 		return buffer;
 	}
 
@@ -558,26 +561,6 @@ void _uci_commit(struct uci_package **pkg)
 	watch_config(false);
 	uci_commit(uci_ctx, pkg, false);
 	watch_config(true);
-}
-
-bool uci_read_bool(struct uci_section *s,
-			  const char *opt, const char *fallback)
-{
-	bool fallb = (strcmp(fallback, "1") == 0);
-
-	if (!s)
-		return fallb;
-
-	const char *val = uci_lookup_option_string(uci_ctx, s, opt);
-	if (!val)
-		return fallb;
-
-	if (val[0] == '0' || !strcasecmp(val, "false"))
-		return false;
-	else if (val[0] == '1' || !strcasecmp(val, "true") )
-		return true;
-
-	return fallb;
 }
 
 struct uci_package *_uci_lookup_package(const char *p)

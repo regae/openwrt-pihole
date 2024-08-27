@@ -8,7 +8,6 @@
 extern struct uci_package *uci_dhcp;
 extern struct uci_package *uci_pihole;
 extern struct uci_package *uci_network;
-extern bool use_uci;
 
 #define SET_IN_DHCP_FLAG(cfg_item) \
     if (!(cfg_item & FLAG_PKG_DHCP)) \
@@ -29,8 +28,6 @@ void write_dnsmasq_conf(FILE *fp);
 struct uci_package *init_uci_pkg(const char *cfg);
 void uci_clean_config(void);
 void _uci_commit(struct uci_package **pkg);
-bool uci_read_bool(struct uci_section *s,
-			  const char *opt, const char *fallback);
 struct uci_package *_uci_lookup_package(const char *p);
 
 #endif // CONFIG_UCI_H
