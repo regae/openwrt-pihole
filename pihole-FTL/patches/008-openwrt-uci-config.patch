@@ -85,7 +85,7 @@
  		// Check if this item requires a config-rewrite + restart of dnsmasq
 --- a/src/args.c
 +++ b/src/args.c
-@@ -234,6 +234,9 @@ void parse_args(int argc, char* argv[])
+@@ -208,6 +208,9 @@ void parse_args(int argc, char* argv[])
  	argv_dnsmasq[1] = "-k";
  	argv_dnsmasq[2] = "";
  
@@ -95,7 +95,7 @@
  	bool consume_for_dnsmasq = false;
  	// If the binary name is "dnsmasq" (e.g., symlink /usr/bin/dnsmasq -> /usr/bin/pihole-FTL),
  	// we operate in drop-in mode and consume all arguments for the embedded dnsmasq core
-@@ -326,19 +329,21 @@ void parse_args(int argc, char* argv[])
+@@ -300,19 +303,21 @@ void parse_args(int argc, char* argv[])
  		log_ctrl(false, true);
  		clear_debug_flags(); // No debug printing wanted
  		if(argc == 2)
@@ -122,7 +122,7 @@
  	}
  
  
-@@ -350,7 +355,10 @@ void parse_args(int argc, char* argv[])
+@@ -324,7 +329,10 @@ void parse_args(int argc, char* argv[])
  		readFTLconf(&config, false);
  		log_ctrl(false, true);
  		clear_debug_flags(); // No debug printing wanted
@@ -134,7 +134,7 @@
  	}
  
  
-@@ -361,7 +369,10 @@ void parse_args(int argc, char* argv[])
+@@ -335,7 +343,10 @@ void parse_args(int argc, char* argv[])
  		cli_mode = true;
  		log_ctrl(false, true);
  		readFTLconf(&config, false);
@@ -146,7 +146,7 @@
  	}
  
  	// Create test NTP client
-@@ -393,7 +404,10 @@ void parse_args(int argc, char* argv[])
+@@ -367,7 +378,10 @@ void parse_args(int argc, char* argv[])
  		cli_mode = true;
  		log_ctrl(false, true);
  		readFTLconf(&config, false);
@@ -158,7 +158,7 @@
  	}
  
  	// Import teleporter archive through CLI
-@@ -403,7 +417,10 @@ void parse_args(int argc, char* argv[])
+@@ -377,7 +391,10 @@ void parse_args(int argc, char* argv[])
  		cli_mode = true;
  		log_ctrl(false, true);
  		readFTLconf(&config, false);
@@ -170,7 +170,7 @@
  	}
  
  	// Generate X.509 certificate
-@@ -448,6 +465,7 @@ void parse_args(int argc, char* argv[])
+@@ -422,6 +439,7 @@ void parse_args(int argc, char* argv[])
  		{
  			readFTLconf(&config, false);
  			certfile = config.webserver.tls.cert.v.s;
@@ -178,7 +178,7 @@
  		}
  		else
  			certfile = argv[2];
-@@ -611,6 +629,9 @@ void parse_args(int argc, char* argv[])
+@@ -585,6 +603,9 @@ void parse_args(int argc, char* argv[])
  		// Close the socket
  		close(sock);
  

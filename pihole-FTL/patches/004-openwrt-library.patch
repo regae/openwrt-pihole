@@ -271,15 +271,13 @@
  
  bool dnsmasq_debug = false;
  bool daemonmode = true, cli_mode = false;
-@@ -175,6 +185,45 @@ static inline bool strEndsWith(const cha
+@@ -175,6 +185,19 @@ static inline bool strEndsWith(const cha
  	return strcmp(input + strlen(input) - strlen(end), end) == 0;
  }
  
 +#ifdef SYSTEM_SQLITE3
 +static int sqlite3_shell_main(int argc, char **argv)
 +{
-+	// direct call
-+	// make sure SYSTEM_SQLITE3 is predefined
 +	if (execv(SYSTEM_SQLITE3, argv) == -1) {
 +		perror("execv");
 +		return 1;
@@ -287,37 +285,13 @@
 +
 +	(void)argc;
 +	return 0;
-+#if 0
-+	// dynamic allocation
-+	char **new_argv = malloc((argc + 1) * sizeof(char *));
-+	if (new_argv == NULL) {
-+		perror("malloc");
-+		return 1;
-+	}
-+
-+	new_argv[0] = (char *)SYSTEM_SQLITE3;
-+	for (int i = 1; i < argc; i++)
-+		new_argv[i] = argv[i]; 
-+
-+	// ensure null-terminated array
-+	new_argv[argc] = NULL;
-+
-+	if (execv(SYSTEM_SQLITE3, new_argv) == -1) {
-+		perror("execv");
-+		free(new_argv);
-+		return 1;
-+	}
-+
-+	free(new_argv); // should not be reached due to execv
-+	return 0;
-+#endif
 +}
 +#endif
 +
  void parse_args(int argc, char* argv[])
  {
  	bool quiet = false;
-@@ -358,6 +407,7 @@ void parse_args(int argc, char* argv[])
+@@ -358,6 +381,7 @@ void parse_args(int argc, char* argv[])
  	}
  
  	// Generate X.509 certificate
@@ -325,7 +299,7 @@
  	if(argc > 1 && strcmp(argv[1], "--gen-x509") == 0)
  	{
  		if(argc < 3 || argc > 5)
-@@ -424,6 +474,7 @@ void parse_args(int argc, char* argv[])
+@@ -424,6 +448,7 @@ void parse_args(int argc, char* argv[])
  			exit(EXIT_FAILURE);
  		}
  	}
@@ -333,7 +307,40 @@
  
  	// If the first argument is "gravity" (e.g., /usr/bin/pihole-FTL gravity),
  	// we offer some specialized gravity tools
-@@ -814,7 +865,7 @@ void parse_args(int argc, char* argv[])
+@@ -598,7 +623,7 @@ void parse_args(int argc, char* argv[])
+ 			if(i+1 < argc && strcmp(argv[i+1], "-h") == 0)
+ 			{
+ 				int argc2 = argc - i + 5 - 2;
+-				char **argv2 = calloc(argc2, sizeof(char*));
++				char **argv2 = calloc(argc2 + 1, sizeof(char*)); // +1 for NULL termination
+ 				argv2[0] = argv[0]; // Application name
+ 				argv2[1] = (char*)"-column";
+ 				argv2[2] = (char*)"-header";
+@@ -608,13 +633,14 @@ void parse_args(int argc, char* argv[])
+ 				// i+1 = "-h"
+ 				for(int j = 0; j < argc - i - 2; j++)
+ 					argv2[5 + j] = argv[i + 2 + j];
++				argv2[argc2] = NULL; // NULL termination
+ 				exit(sqlite3_shell_main(argc2, argv2));
+ 			}
+ 			// Special non-interative mode
+ 			else if(i+1 < argc && strcmp(argv[i+1], "-ni") == 0)
+ 			{
+ 				int argc2 = argc - i + 4 - 2;
+-				char **argv2 = calloc(argc2, sizeof(char*));
++				char **argv2 = calloc(argc2 + 1, sizeof(char*)); // +1 for NULL termination
+ 				argv2[0] = argv[0]; // Application name
+ 				argv2[1] = (char*)"-batch";
+ 				argv2[2] = (char*)"-init";
+@@ -623,6 +649,7 @@ void parse_args(int argc, char* argv[])
+ 				// i+1 = "-ni"
+ 				for(int j = 0; j < argc - i - 2; j++)
+ 					argv2[4 + j] = argv[i + 2 + j];
++				argv2[argc2] = NULL; // NULL termination
+ 				exit(sqlite3_shell_main(argc2, argv2));
+ 			}
+ 			else
+@@ -814,7 +841,7 @@ void parse_args(int argc, char* argv[])
  			printf("\n\n");
  			printf("******************************** %s%sLUA%s ********************************\n",
  			       yellow, bold, normal);
@@ -342,7 +349,7 @@
  			       green, bold, normal);
  			printf("Libraries:       ");
  			print_embedded_scripts();
-@@ -830,6 +881,9 @@ void parse_args(int argc, char* argv[])
+@@ -830,6 +857,9 @@ void parse_args(int argc, char* argv[])
  #ifdef HAVE_MBEDTLS
  			printf("Version:         %s%s%s%s (modified by Pi-hole) with %smbed TLS %s%s"MBEDTLS_VERSION_STRING"%s\n",
  			       green, bold, mg_version(), normal, yellow, green, bold, normal);
@@ -352,7 +359,7 @@
  #else
  			printf("Version:         %s%s%s%s%s (modified by Pi-hole) without %smbed TLS%s\n",
  			       green, bold, mg_version(), normal, red, yellow, normal);
-@@ -1048,6 +1102,7 @@ void parse_args(int argc, char* argv[])
+@@ -1048,6 +1078,7 @@ void parse_args(int argc, char* argv[])
  			printf("\t                    current directory and print its name\n");
  			printf("\t%s--teleporter%s file%s   Import the Teleporter archive %sfile%s\n\n", green, cyan, normal, cyan, normal);
  
@@ -360,7 +367,7 @@
  			printf("%sTLS X.509 certificate generator:%s\n", yellow, normal);
  			printf("    Generate a self-signed certificate suitable for SSL/TLS\n");
  			printf("    and store it in %soutfile%s.\n\n", cyan, normal);
-@@ -1065,6 +1120,7 @@ void parse_args(int argc, char* argv[])
+@@ -1065,6 +1096,7 @@ void parse_args(int argc, char* argv[])
  			printf("    about the private key are printed as well.\n\n");
  			printf("    Usage: %spihole-FTL --read-x509 %s[certfile] %s[domain]%s\n", green, cyan, purple, normal);
  			printf("    Usage: %spihole-FTL --read-x509-key %s[certfile] %s[domain]%s\n\n", green, cyan, purple, normal);
