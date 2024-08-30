@@ -20,13 +20,13 @@ int uci_foreach_section(struct conf_item *conf_item,
 					    const char *target, bool delete);
 void uci_get_config_values(struct config *conf, bool reload);
 const char *uci_get_string(struct uci_package *pkg, const char *sec, const char *opt);
-void clean_all_leftovers(void);
+void config_cleansed(void);
 
 void write_static_hosts(void);
 void write_config_dhcp(FILE *fp);
 void write_dnsmasq_conf(FILE *fp);
 struct uci_package *init_uci_pkg(const char *cfg);
-void uci_clean_config(void);
+void uci_cleanup(void);
 void _uci_commit(struct uci_package **pkg);
 struct uci_package *_uci_lookup_package(const char *p);
 

@@ -41,7 +41,7 @@ struct uci_package *init_uci_pkg(const char *cfg)
 	return p;
 }
 
-void uci_clean_config(void)
+void uci_cleanup(void)
 {
 	if (uci_ctx) {
 		uci_free_context(uci_ctx);
@@ -391,6 +391,7 @@ void uci_get_config_values(struct config *conf, bool reload)
 	bool sysntpd_enabled = false;
 
 	if (reload) {
+		log_info("%s: Reloading UCI packages", __func__);
 		uci_dhcp = init_uci_pkg("dhcp");
 		uci_pihole = init_uci_pkg( "pihole");
 		uci_network = init_uci_pkg( "network");
@@ -561,15 +562,21 @@ void _uci_commit(struct uci_package **pkg)
 	watch_config(false);
 	uci_commit(uci_ctx, pkg, false);
 	watch_config(true);
+
+	// needs to be reloaded after commiting changes
+	log_info("%s: Reloading UCI packages", __func__);
+	uci_dhcp = init_uci_pkg("dhcp");
+	uci_pihole = init_uci_pkg( "pihole");
+	uci_network = init_uci_pkg( "network");
 }
 
 struct uci_package *_uci_lookup_package(const char *p)
 {
-	// will return null if not loaded
+	// null if not loaded
 	return uci_lookup_package(uci_ctx, p);
 }
 
-void clean_all_leftovers(void)
+void config_cleansed(void)
 {
 	// read notes in free_config()
 	for (unsigned int i = 0; i < CONFIG_ELEMENTS; i++) {

@@ -24,7 +24,7 @@
  	struct config newconf;
  	duplicate_config(&newconf, &config);
  	for(unsigned int i = 0; i < CONFIG_ELEMENTS; i++)
-@@ -796,6 +798,20 @@ static int api_config_patch(struct ftl_c
+@@ -796,6 +798,17 @@ static int api_config_patch(struct ftl_c
  			                       errbuf);
  		}
  
@@ -32,20 +32,17 @@
 +		if(!uci_set_value(new_item, NULL, false)) {
 +			commit_uci = true;
 +			pkg_commit = (new_item->f & FLAG_PKG_DHCP) ? "dhcp" : "pihole";
-+		}
-+		else {
++		} else {
 +			log_err("Failed to save new config for: %s", new_item->k);
 +			free_config(&newconf);
-+			return send_json_error(api, 500,
-+			                       "internal_error",
-+			                       "failed to set UCI value",
-+			                       NULL);
++			return send_json_error(api, 500, "internal_error",
++								   "failed to set UCI value", NULL);
 +		}
 +
  		// Check if this item requires a config-rewrite + restart of dnsmasq
  		if(conf_item->f & FLAG_RESTART_FTL)
  			dnsmasq_changed = true;
-@@ -846,6 +862,14 @@ static int api_config_patch(struct ftl_c
+@@ -846,6 +859,14 @@ static int api_config_patch(struct ftl_c
  		// Rewrite HOSTS file if required
  		if(rewrite_hosts)
  			write_custom_list();
@@ -60,18 +57,18 @@
  	}
  	else
  	{
-@@ -970,6 +994,10 @@ static int api_config_put_delete(struct
+@@ -970,6 +991,10 @@ static int api_config_put_delete(struct
  				// Remove item from array
  				found = true;
  				cJSON_DeleteItemFromArray(new_item->v.json, idx);
 +				// delete uci value
 +				if(uci_foreach_section(new_item, new_item_str, true))
 +					return send_json_error(api, 500, "internal_error",
-+					                       "failed to delete section", NULL);
++										   "failed to delete UCI section", NULL);
  			}
  			else
  			{
-@@ -992,6 +1020,11 @@ static int api_config_put_delete(struct
+@@ -992,6 +1017,11 @@ static int api_config_put_delete(struct
  				                       "Invalid value",
  				                       errbuf);
  			}
@@ -79,7 +76,7 @@
 +			// set uci value
 +			if(uci_foreach_section(new_item, new_item_str, false))
 +				return send_json_error(api, 500, "internal_error",
-+				                       "failed to create section", NULL);
++									   "failed to create UCI section", NULL);
  		}
  
  		// Check if this item requires a config-rewrite + restart of dnsmasq
@@ -116,8 +113,8 @@
  			printf("Example: %s --config dns.blockESNI true\n", argv[0]);
 -			exit(EXIT_FAILURE);
  		}
-+		clean_all_leftovers();
-+		uci_clean_config();
++		config_cleansed();
++		uci_cleanup();
 +		exit(ret);
  	}
  
@@ -128,8 +125,8 @@
  		clear_debug_flags(); // No debug printing wanted
 -		exit(printTOTP());
 +		ret = printTOTP();
-+		clean_all_leftovers();
-+		uci_clean_config();
++		config_cleansed();
++		uci_cleanup();
 +		exit(ret);
  	}
  
@@ -140,8 +137,8 @@
  		readFTLconf(&config, false);
 -		exit(write_teleporter_zip_to_disk() ? EXIT_SUCCESS : EXIT_FAILURE);
 +		ret = write_teleporter_zip_to_disk() ? EXIT_SUCCESS : EXIT_FAILURE;
-+		clean_all_leftovers();
-+		uci_clean_config();
++		config_cleansed();
++		uci_cleanup();
 +		exit(ret);
  	}
  
@@ -152,8 +149,8 @@
  		readFTLconf(&config, false);
 -		exit(ntp_client(server, update, true) ? EXIT_SUCCESS : EXIT_FAILURE);
 +		ret = ntp_client(server, update, true) ? EXIT_SUCCESS : EXIT_FAILURE;
-+		clean_all_leftovers();
-+		uci_clean_config();
++		config_cleansed();
++		uci_cleanup();
 +		exit(ret);
  	}
  
@@ -164,8 +161,8 @@
  		readFTLconf(&config, false);
 -		exit(read_teleporter_zip_from_disk(argv[2]) ? EXIT_SUCCESS : EXIT_FAILURE);
 +		ret = read_teleporter_zip_from_disk(argv[2]) ? EXIT_SUCCESS : EXIT_FAILURE;
-+		clean_all_leftovers();
-+		uci_clean_config();
++		config_cleansed();
++		uci_cleanup();
 +		exit(ret);
  	}
  
@@ -174,7 +171,7 @@
  		{
  			readFTLconf(&config, false);
  			certfile = config.webserver.tls.cert.v.s;
-+			uci_clean_config();
++			uci_cleanup();
  		}
  		else
  			certfile = argv[2];
@@ -182,8 +179,8 @@
  		// Close the socket
  		close(sock);
  
-+		clean_all_leftovers();
-+		uci_clean_config();
++		config_cleansed();
++		uci_cleanup();
 +
  		// Exit early if no name was found
  		if(name == NULL)
@@ -315,7 +312,7 @@
 +
 +	// cleaned here before parse_args
 +	// will reallocate in readFTLconf
-+	uci_clean_config();
++	uci_cleanup();
 +
 +	if (use_uci)
 +		return true;
@@ -642,8 +639,8 @@
  	char buffer[42] = { 0 };
  	format_time(buffer, 0, timer_elapsed_msec(EXIT_TIMER));
  	log_info("########## FTL terminated after%s (code %i)! ##########", buffer, ret);
-+	clean_all_leftovers();
-+	uci_clean_config();
++	config_cleansed();
++	uci_cleanup();
  }
  
  static float last_clock = 0.0f;
@@ -667,7 +664,7 @@
  	// Check if another FTL process is already running
 -	if(another_FTL())
 +	if(another_FTL()) {
-+		uci_clean_config();
++		uci_cleanup();
  		return EXIT_FAILURE;
 +	}
  
@@ -677,7 +674,7 @@
  	if(!init_shmem())
  	{
  		log_crit("Initialization of shared memory failed.");
-+		uci_clean_config();
++		uci_cleanup();
  		return EXIT_FAILURE;
  	}
  
